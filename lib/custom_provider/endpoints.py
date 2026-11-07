@@ -43,6 +43,7 @@ from lib.backends.image_backends.openrouter import IMAGES_PATH as OPENROUTER_IMA
 from lib.backends.image_backends.openrouter import MODELS_PATH as OPENROUTER_MODELS_PATH
 from lib.backends.image_backends.openrouter import OpenRouterImageBackend
 from lib.backends.image_backends.registry import reference_limit_of
+from lib.backends.image_backends.xtasy import XtasyImageBackend
 from lib.backends.kling_shared import kling_model_path_base_url
 from lib.backends.minimax_shared import minimax_text_base_url
 from lib.backends.provider_assets import InferenceCredentialRef
@@ -58,6 +59,7 @@ from lib.backends.video_backends.kling import KLING_BACKENDS
 from lib.backends.video_backends.kling_model_path import KlingModelPathVideoBackend
 from lib.backends.video_backends.openai import OpenAIVideoBackend
 from lib.backends.video_backends.vidu import VIDU_BACKENDS
+from lib.backends.video_backends.xtasy import XtasyVideoBackend, xtasy_video_capabilities
 from lib.config.url_utils import (
     ANTHROPIC_MESSAGES_PATH,
     ensure_google_base_url,
@@ -507,6 +509,20 @@ def _build_gemini_tts(provider, model_id: str, path_overrides: PathOverrides = N
     return CustomAudioBackend(provider_id=provider.provider_id, delegate=delegate, model=model_id)
 
 
+def _build_xtasy_image(
+    provider, model_id: str, path_overrides: PathOverrides = NO_PATH_OVERRIDES
+) -> CustomImageBackend:
+    delegate = XtasyImageBackend(api_key=provider.api_key, base_url=provider.base_url, model=model_id)
+    return CustomImageBackend(provider_id=provider.provider_id, delegate=delegate, model=model_id)
+
+
+def _build_xtasy_video(
+    provider, model_id: str, path_overrides: PathOverrides = NO_PATH_OVERRIDES, *, wan: bool = False
+) -> CustomVideoBackend:
+    delegate = XtasyVideoBackend(api_key=provider.api_key, base_url=provider.base_url, model=model_id, wan=wan)
+    return CustomVideoBackend(provider_id=provider.provider_id, delegate=delegate, model=model_id)
+
+
 def _build_openai_video(
     provider, model_id: str, path_overrides: PathOverrides = NO_PATH_OVERRIDES
 ) -> CustomVideoBackend:
@@ -847,6 +863,41 @@ def _build_kling_model_path_video(
 
 
 ENDPOINT_REGISTRY: dict[str, EndpointSpec] = {
+    "xtasy-image": EndpointSpec(
+        key="xtasy-image",
+        media_type="image",
+        family="xtasy",
+        display_name_key="endpoint_xtasy_image_display",
+        request_method="POST",
+        request_path_template="/images/generations",
+        build_backend=_build_xtasy_image,
+        image_capabilities=XtasyImageBackend.CHANNEL_CAPABILITIES,
+        metering_backend=XtasyImageBackend,
+    ),
+    "xtasy-video": EndpointSpec(
+        key="xtasy-video",
+        media_type="video",
+        family="xtasy",
+        display_name_key="endpoint_xtasy_video_display",
+        request_method="POST",
+        request_path_template="/videos/generations",
+        build_backend=_build_xtasy_video,
+        video_caps_for_model=lambda model, entry: xtasy_video_capabilities(),
+        metering_backend=XtasyVideoBackend,
+        end_image_capable=True,
+        reference_audio_capable=True,
+    ),
+    "xtasy-wan-video": EndpointSpec(
+        key="xtasy-wan-video",
+        media_type="video",
+        family="xtasy",
+        display_name_key="endpoint_xtasy_wan_video_display",
+        request_method="POST",
+        request_path_template="/videos/generations",
+        build_backend=partial(_build_xtasy_video, wan=True),
+        video_caps_for_model=lambda model, entry: xtasy_video_capabilities(wan=True),
+        metering_backend=XtasyVideoBackend,
+    ),
     "openai-chat": EndpointSpec(
         key="openai-chat",
         media_type="text",

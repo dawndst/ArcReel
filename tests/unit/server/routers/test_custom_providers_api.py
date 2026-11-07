@@ -201,6 +201,9 @@ class TestEndpointCatalog:
         body = resp.json()
         keys = {e["key"] for e in body["endpoints"]}
         assert keys == {
+            "xtasy-image",
+            "xtasy-video",
+            "xtasy-wan-video",
             "openai-chat",
             "openai-responses",
             "gemini-generate",

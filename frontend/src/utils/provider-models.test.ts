@@ -1,13 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "@/api";
-import type { ProviderInfo } from "@/types";
+import type { CustomProviderInfo, ProviderInfo } from "@/types";
 import {
   catalogDurations,
   getCustomProviderModels,
   getProviderModels,
   lookupCatalogVideoAudio,
   lookupVideoAudioControl,
+  lookupResolutions,
 } from "./provider-models";
+
+it("uses a custom video's declared resolution tiers instead of suggesting unsupported 4K", () => {
+  const provider: CustomProviderInfo = {
+    id: 1, display_name: "XTASY", discovery_format: "openai",
+    base_url: "https://example.com", api_key_masked: "***", created_at: "",
+    image_max_workers: 1, video_max_workers: 1, audio_max_workers: 1,
+    models: [{
+      id: 1, model_id: "video", display_name: "Video", endpoint: "xtasy-video",
+      is_default: true, is_enabled: true, resolution: "480p", multiplier: 1,
+      entry_binding: null, matched_entry: null, system_capabilities: null,
+      capability_overrides: { resolutions: ["480p", "720p", "1080p"] },
+      path_overrides: null, requests: [],
+    }],
+  };
+  expect(lookupResolutions([], "custom-1/video", [provider], { "xtasy-video": "video" })).toEqual({
+    options: ["480p", "720p", "1080p"], isCustom: true,
+  });
+  provider.models[0].capability_overrides = null;
+  expect(lookupResolutions([], "custom-1/video", [provider], { "xtasy-video": "video" }).options).toContain("4K");
+});
 
 describe("provider-models fetchers", () => {
   beforeEach(() => {

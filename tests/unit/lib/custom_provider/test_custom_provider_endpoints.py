@@ -53,6 +53,9 @@ class TestMeteringBackend:
 class TestRegistry:
     def test_endpoint_count(self):
         assert set(ENDPOINT_REGISTRY.keys()) == {
+            "xtasy-image",
+            "xtasy-video",
+            "xtasy-wan-video",
             "openai-chat",
             "openai-responses",
             "gemini-generate",
@@ -131,6 +134,7 @@ class TestRegistry:
                 "kling",
                 "openrouter",
                 "xai",
+                "xtasy",
             }
             # 注册表里的都是内置端点，来源恒为 builtin；用户端点不进注册表，由 ce- 键现构造。
             assert spec.source == "builtin"
@@ -321,6 +325,7 @@ class TestRegistry:
         """运输声明与 backend 实现同步：声明 True 的 endpoint 必须真的组装参考音频。"""
         audio_capable = {k for k, s in ENDPOINT_REGISTRY.items() if s.reference_audio_capable}
         assert audio_capable == {
+            "xtasy-video",
             "ark-seedance-1",
             "ark-seedance-2",
             "ark-seedance-2-5",
@@ -357,6 +362,7 @@ class TestRegistry:
         }
         assert text_keys == {"openai-chat", "openai-responses", "gemini-generate", "anthropic-messages"}
         assert image_keys == {
+            "xtasy-image",
             "openai-images",
             "openai-images-generations",
             "openai-images-edits",
@@ -373,6 +379,8 @@ class TestRegistry:
             "ark-seedream-4",
         }
         assert video_keys == {
+            "xtasy-video",
+            "xtasy-wan-video",
             "openai-video",
             "newapi-video",
             "v2-video-generations",
@@ -743,6 +751,7 @@ def test_image_endpoint_registry_entries():
 
     image_keys = set(ENDPOINT_KEYS_BY_MEDIA_TYPE["image"])
     assert image_keys == {
+        "xtasy-image",
         "openai-images",
         "openai-images-generations",
         "openai-images-edits",

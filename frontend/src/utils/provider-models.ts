@@ -187,7 +187,7 @@ export const IMAGE_STANDARD_RESOLUTIONS = ["512px", "1K", "2K", "4K"];
 export const VIDEO_STANDARD_RESOLUTIONS = ["480p", "720p", "1080p", "4K"];
 
 /** 返回该 (provider, model) 下的分辨率候选 + 是否自定义供应商（决定 picker 模式）。
- *  自定义供应商路径需要从 endpoint 推 media_type 选标准分辨率集；该 map 由调用方
+ *  自定义视频模型优先读已声明的分辨率覆盖，未声明时从 endpoint 推 media_type 选标准集；该 map 由调用方
  *  从 endpoint-catalog-store 读出注入（保持本文件无 store 副作用）。 */
 export function lookupResolutions(
   providers: ProviderInfo[],
@@ -206,6 +206,10 @@ export function lookupResolutions(
     const model = cp?.models?.find((m) => m.model_id === modelId);
     if (!model) return { options: [], isCustom: true };
     const media = endpointToMediaType?.[model.endpoint];
+    const declared = model.capability_overrides?.resolutions;
+    if (media === "video" && declared?.length) {
+      return { options: declared, isCustom: true };
+    }
     const standard =
       media === "image"
         ? IMAGE_STANDARD_RESOLUTIONS
