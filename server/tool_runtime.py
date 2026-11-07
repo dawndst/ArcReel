@@ -133,6 +133,7 @@ from lib.infra.content_digest import prefixed, prefixed_canonical_json_digest, u
 from lib.infra.data_root_layout import DataRootLayout
 from lib.infra.path_safety import safe_join
 from lib.infra.schema_guards import is_str
+from lib.novel_understanding import service as novel_memory
 from lib.project.asset_merge import (
     MERGEABLE_ASSET_TYPES,
     AssetMergeEpisodeImpact,
@@ -821,6 +822,8 @@ async def _submit_text_task(
             return ToolOutcome(problem=ToolProblem(**problem.model_dump(mode="json")))
         result = task.get("result") or {}
         if task_type == _TEXT_EPISODE_PLAN:
+            if payload.get("novel_action") == "review":
+                return ToolOutcome(value=TextGenerationResult(str(result)))
             return ToolOutcome(value=PlanEpisodesResult.model_validate(result))
         if task_type == TEXT_DRAFT_REPAIR_TASK_TYPE:
             return ToolOutcome(value=DraftRepairResult.model_validate(result))
@@ -2893,9 +2896,14 @@ async def _execute_plan_episodes(
         # 供应商调用失败等未预期异常与规划自身的失败同码，界面按用户语言显示通用失败，原因留在 detail 给 Agent
         return ToolOutcome(problem=ToolProblem("episode_planning_failed", str(exc) or type(exc).__name__))
     finally:
-        if chain is not None:
+        if chain is not None and novel_memory.stop_requested.get() is None:
             _STOPPED_PLANNING_WINDOWS.discard(str(chain.task["task_id"]))
     project = await asyncio.to_thread(services.projects.load_project, scope.project_name)
+    if planner_cls is EpisodePlanner:
+        from lib.novel_understanding.editorial import inspect_episodes
+
+        assert planner.generator is not None
+        await inspect_episodes(planner.project_path, project, planner.generator)
     value = PlanEpisodesResult(
         message=_format_plan(result, project, gap=gap is not None),
         episodes=[
@@ -2941,6 +2949,21 @@ async def _plan_episodes_gate(scope: ProjectScope, services: Services) -> ToolPr
     except OperationNotAdmittedError as exc:
         return _not_admitted_problem(exc)
     return None
+
+
+async def submit_novel_review(scope: ProjectScope, caller: CallerContext, services: Services) -> ToolOutcome[Any]:
+    if problem := await migration_gate(scope, services):
+        return ToolOutcome(problem=problem)
+    return await _submit_text_task(
+        task_type=_TEXT_EPISODE_PLAN,
+        operation="plan_episodes",
+        unit_id=EPISODE_PLANNING_SLOT,
+        payload={"novel_action": "review"},
+        scope=scope,
+        caller=caller,
+        services=services,
+        conflict_resource_ids=EPISODE_PLANNING_SLOTS,
+    )
 
 
 async def plan_episodes(
@@ -3259,6 +3282,23 @@ async def execute_queued_text_task(
     planner_cls: type[EpisodePlanner] = EpisodePlanner,
     services: Services | None = None,
 ) -> dict[str, Any]:
+    from lib.novel_understanding.service import stop_requested
+
+    task_id = str(task["task_id"])
+    token = stop_requested.set(lambda: task_id in _STOPPED_PLANNING_WINDOWS)
+    try:
+        return await _execute_queued_text_task(task, planner_cls=planner_cls, services=services)
+    finally:
+        stop_requested.reset(token)
+        _STOPPED_PLANNING_WINDOWS.discard(task_id)
+
+
+async def _execute_queued_text_task(
+    task: dict[str, Any],
+    *,
+    planner_cls: type[EpisodePlanner] = EpisodePlanner,
+    services: Services | None = None,
+) -> dict[str, Any]:
     """Execute one durable text task through the same host-independent handlers.
 
     ``services`` 缺省时按当前配置解析（全局生成队列）；嵌入式宿主登记过的任务沿用提交方的协作者。
@@ -3271,6 +3311,15 @@ async def execute_queued_text_task(
         scope = ProjectScope(project_name=str(task["project_name"]), data_root=DataRootLayout.current().root)
         services = services or Services.defaults(await asyncio.to_thread(ProjectManager, scope.data_root))
     task_type = task["task_type"]
+    if task_type == _TEXT_EPISODE_PLAN and payload.get("novel_action") == "review":
+        from lib.novel_understanding.editorial import inspect_episodes
+
+        project = await asyncio.to_thread(services.projects.load_project, scope.project_name)
+        path = await asyncio.to_thread(services.projects.get_project_path, scope.project_name)
+        planner = await EpisodePlanner.create(path)
+        assert planner.generator is not None
+        reports = await inspect_episodes(path, project, planner.generator)
+        return {"reports": len(reports)}
     if task_type == TEXT_DRAFT_REPAIR_TASK_TYPE:
         outcome = await _execute_draft_repair(RepairDraftRequest.model_validate(payload), scope, services)
     elif task_type == _TEXT_EPISODE_PLAN and isinstance(payload.get("replan"), str):

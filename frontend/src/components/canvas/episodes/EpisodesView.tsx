@@ -14,6 +14,7 @@ import { errMsg } from "@/utils/async";
 
 import { CreateEpisodeDialog } from "./CreateEpisodeDialog";
 import { EpisodeOutline, type EpisodeMenuActions } from "./EpisodeOutline";
+import { NovelUnderstandingPanel } from "./NovelUnderstandingPanel";
 import { EpisodesHeader } from "./EpisodesHeader";
 import { ExternalChangeNotice } from "./ExternalChangeNotice";
 import { ManualSplitToolbar } from "./ManualSplitToolbar";
@@ -256,6 +257,7 @@ export function EpisodesView({ projectName }: { projectName: string }) {
         onUpload={setUpload}
         onCreate={() => setCreateAfter(null)}
       />
+      <NovelUnderstandingPanel key={projectName} projectName={projectName} planning={planning} onChanged={reload} episodes={episodes} />
       <UnregisteredFilesBanner
         projectName={projectName}
         files={view.unregistered}

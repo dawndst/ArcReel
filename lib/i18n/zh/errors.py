@@ -1,4 +1,7 @@
 MESSAGES = {
+    "novel_adoption_confirm": "采纳后更新本集大纲；已有制作产物将标记为需要更新。",
+    "novel_review_stale": "原文、分集或设置已变化，请重新审查后采纳。",
+
     "episode_position_name": "第 {position} 集",
     "episode_unlisted_name": "未命名集",
     "episode_script_name": "「{name}」的剧本",

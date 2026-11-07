@@ -486,6 +486,8 @@ def _run(
     confirm_episodes: Collection[int],
     dry_run: bool,
     confirm_merged_units: int = 0,
+    validate_project: Callable[[dict[str, Any]], None] | None = None,
+    amend_project: Callable[[dict[str, Any]], None] | None = None,
 ) -> ManualSplitOutcome:
     project_dir = Path(project_path)
     pm = ProjectManager.for_project_dir(project_dir)
@@ -499,6 +501,8 @@ def _run(
 
     # 锁外预演只为确认与快速失败：拒绝或需要确认时零写入返回
     project = pm.load_project(project_name)
+    if validate_project is not None:
+        validate_project(project)
     layout = _layout(project_dir, project)
     edit = plan(layout)
     if edit.touches_source:
@@ -515,6 +519,8 @@ def _run(
 
     def _commit(p: dict[str, Any]) -> None:
         # 锁内按最新账本重新推演：确认清单与落位都是锁外读取时刻的快照
+        if validate_project is not None:
+            validate_project(p)
         locked_layout = _layout(project_dir, p)
         locked_edit = plan(locked_layout)
         locked_impact = _impact(project_dir, locked_layout, locked_edit)
@@ -526,6 +532,8 @@ def _run(
         if not locked_touched <= touched:
             raise ManualSplitError("conflict", "分集账本刚被改动，本次调整没有执行")
         committed["episode"] = _apply(project_dir, p, locked_layout, locked_edit, locked_impact)
+        if amend_project is not None:
+            amend_project(p)
         committed["impact"] = locked_impact
 
     try:
@@ -610,6 +618,8 @@ def merge_with_next_episode(
     confirm_episodes: Collection[int] = (),
     confirm_merged_units: int = 0,
     dry_run: bool = False,
+    validate_project: Callable[[dict[str, Any]], None] | None = None,
+    amend_project: Callable[[dict[str, Any]], None] | None = None,
 ) -> ManualSplitOutcome:
     """把这一集与按源文位置紧接其后的切出集合并：这一集保留集 ID，下一集按被替换的旧集处理。
 
@@ -621,6 +631,8 @@ def merge_with_next_episode(
         confirm_episodes=confirm_episodes,
         dry_run=dry_run,
         confirm_merged_units=confirm_merged_units,
+        validate_project=validate_project,
+        amend_project=amend_project,
     )
 
 

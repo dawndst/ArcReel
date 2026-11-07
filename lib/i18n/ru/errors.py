@@ -1,4 +1,7 @@
 MESSAGES = {
+    "novel_adoption_confirm": "Принятие обновит план и пометит существующие материалы для проверки.",
+    "novel_review_stale": "Текст, серии или настройки изменились. Повторите проверку.",
+
     "episode_position_name": "Серия {position}",
     "episode_unlisted_name": "Серия без названия",
     "episode_script_name": "Сценарий для «{name}»",

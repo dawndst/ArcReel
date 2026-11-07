@@ -1,3 +1,4 @@
+import type { NovelStatus, NovelAdoption } from "@/types/novel-understanding";
 /**
  * API 调用封装 (TypeScript)
  *
@@ -2145,6 +2146,16 @@ class API {
   }
 
   /** 「分集」视图：整本源文按集分段、每集体量与首尾句、source/ 里没有登记的文件。 */
+  static async getNovelUnderstanding(name: string, options: { signal?: AbortSignal } = {}): Promise<NovelStatus> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-understanding`, options);
+  }
+  static async reviewNovelUnderstanding(name: string): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-understanding/review`, { method: "POST" });
+  }
+  static async adoptNovelDecision(name: string, body: { report_id: string; dry_run: boolean; confirm_episodes: number[]; confirm_merged_units: number }): Promise<NovelAdoption> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-understanding/adopt`, { method: "POST", body: JSON.stringify(body) });
+  }
+
   static async getEpisodesView(
     projectName: string,
     options: { signal?: AbortSignal } = {}

@@ -147,6 +147,8 @@ def _write_project(
     (project_dir / "source").mkdir(parents=True)
     project = {
         "schema_version": 3,
+        # Exercise the upstream planner contract with the optional novel module disabled.
+        "novel_understanding_enabled": False,
         "title": "测试项目",
         "content_mode": content_mode,
         "generation_mode": "storyboard",

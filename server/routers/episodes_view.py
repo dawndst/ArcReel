@@ -45,6 +45,8 @@ from lib.episode.source_file_changes import (
 from lib.episode.source_kinds import SourceKind
 from lib.infra.api_errors import ApiError, NotFoundError
 from lib.infra.async_thread import run_sync_transaction
+from lib.novel_understanding import editorial as novel_editorial
+from lib.novel_understanding import store as novel_store
 from lib.project.project_change_hints import project_change_source
 from lib.project.project_manager import ProjectManager, get_project_manager
 from server.dependencies import require_project_migration_ok
@@ -183,6 +185,7 @@ class MoveBoundaryRequest(_ManualSplitBase):
 
 
 class MergeNextRequest(_ManualSplitBase):
+    novel_review_id: str | None = None
     action: Literal["merge_next"]
     episode: int
     #: 创作者在确认清单里看过的并入体量；与锁内复核出的体量不一致时退回确认。
@@ -214,8 +217,18 @@ def _run_manual_split(project_dir: Path, req: _ManualSplitBody) -> ManualSplitOu
     if isinstance(req, MoveBoundaryRequest):
         return move_episode_boundary(project_dir, req.episode, at=req.at, source_file=req.source_file, **options)
     if isinstance(req, MergeNextRequest):
+        validate = amend = None
+        if req.novel_review_id:
+            report, validate, amend = novel_editorial.adoption(project_dir, req.novel_review_id)
+            if report["episode"] != req.episode or report["decision"]["action"] != "merge_next":
+                raise novel_store.NovelUnderstandingError("Editorial proposal does not match this merge")
         return merge_with_next_episode(
-            project_dir, req.episode, confirm_merged_units=req.confirm_merged_units, **options
+            project_dir,
+            req.episode,
+            confirm_merged_units=req.confirm_merged_units,
+            validate_project=validate,
+            amend_project=amend,
+            **options,
         )
     return clear_cuts_after(project_dir, req.episode, **options)
 
@@ -258,6 +271,8 @@ async def manual_split(name: str, req: ManualSplitRequest, _t: Translator) -> di
                 if await episode_has_active_tasks(name, episode):
                     raise HTTPException(status_code=409, detail=_t("manual_split_tasks_active"))
         return await run_sync_transaction(_sync)
+    except novel_store.NovelUnderstandingError as exc:
+        raise HTTPException(status_code=409, detail=_t("novel_review_stale")) from exc
     except ManualSplitError as exc:
         raise HTTPException(
             status_code=_MANUAL_SPLIT_STATUS.get(exc.code, 409), detail=_t(f"manual_split_{exc.code}")
@@ -480,3 +495,82 @@ async def delete_whole_source(name: str, filename: str, req: DeleteSourceFileReq
         req.revision,
         lambda pm, dry_run: delete_whole_source_file(pm, name, filename, revision=req.revision, dry_run=dry_run),
     )
+
+
+@router.get("/projects/{name}/novel-understanding")
+async def novel_understanding_status(name: str):
+    def read():
+        manager = get_project_manager()
+        project = manager.load_project(name)
+        path = manager.get_project_path(name)
+        return {**novel_store.status(path, project), "reports": novel_editorial.reports(path, project)}
+
+    return await asyncio.to_thread(read)
+
+
+class AdoptEditorialRequest(BaseModel):
+    report_id: str
+    confirm_episodes: list[int] = Field(default_factory=list)
+    confirm_merged_units: int = 0
+    dry_run: bool = False
+
+
+@router.post("/projects/{name}/novel-understanding/adopt", dependencies=[Depends(require_project_migration_ok)])
+async def adopt_editorial(name: str, req: AdoptEditorialRequest, _t: Translator):
+    def prepare():
+        manager = get_project_manager()
+        path = manager.get_project_path(name)
+        return path, novel_editorial.adoption(path, req.report_id)
+
+    try:
+        path, (report, validate, amend) = await asyncio.to_thread(prepare)
+        episode = report["episode"]
+        if await episode_has_active_tasks(name, episode):
+            raise HTTPException(status_code=409, detail=_t("manual_split_tasks_active"))
+        if report["decision"]["action"] == "merge_next":
+            return await manual_split(
+                name,
+                MergeNextRequest(
+                    action="merge_next",
+                    episode=episode,
+                    novel_review_id=req.report_id,
+                    confirm_episodes=req.confirm_episodes,
+                    confirm_merged_units=req.confirm_merged_units,
+                    dry_run=req.dry_run,
+                ),
+                _t,
+            )
+
+        def commit():
+            from lib.episode.episode_ledger import has_downstream_products
+
+            manager = get_project_manager()
+            project = manager.load_project(name)
+            validate(project)
+            entry = next(e for e in project["episodes"] if e["episode"] == episode)
+            impacted = [episode] if has_downstream_products(path, episode, entry) else []
+            if req.dry_run or any(e not in req.confirm_episodes for e in impacted):
+                return {
+                    "status": "confirmation_required",
+                    "impact": {
+                        "restaled": impacted,
+                        "retired": [],
+                        "removed": [],
+                        "merged_units": 0,
+                        "text": _t("novel_adoption_confirm"),
+                    },
+                }
+
+            def mutate(current):
+                validate(current)
+                live = next(e for e in current["episodes"] if e["episode"] == episode)
+                if has_downstream_products(path, episode, live) and episode not in req.confirm_episodes:
+                    raise novel_store.NovelUnderstandingError("Episode products changed; preview the impact again")
+                amend(current)
+
+            manager.update_project(name, mutate)
+            return {"status": "applied", "episode": episode}
+
+        return await run_sync_transaction(commit)
+    except novel_store.NovelUnderstandingError as exc:
+        raise HTTPException(status_code=409, detail=_t("novel_review_stale")) from exc

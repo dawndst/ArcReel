@@ -59,6 +59,7 @@ from lib.i18n import _ as translate
 from lib.infra.async_thread import run_sync_transaction
 from lib.infra.content_digest import sha256_file
 from lib.infra.text_utils import strip_json_code_fences
+from lib.novel_understanding import service as novel_memory
 from lib.project.asset_types import asset_name_comparison_key
 from lib.project.item_id_history import issue_landing_item_ids
 from lib.project.project_manager import ProjectManager, ScriptWriteConflict
@@ -369,6 +370,8 @@ class ScriptGenerator:
         """
         self.project_path = Path(project_path)
         self.generator = generator
+        self._novel_guard: novel_memory.ProductionGuard | None = None
+        self._novel_inputs: dict[str, Any] | None = None
         self.config_resolver = config_resolver
         self._script_plan_fingerprint: str | None = None
         #: 加载器读到的脚本规划顶层 ``new_assets``，物化时据此改写引用并登记。
@@ -525,6 +528,8 @@ class ScriptGenerator:
         ):
             raise ValueError(f"output_filename 只接受纯文件名，不允许目录或路径分隔符: {output_filename!r}")
 
+        self._novel_guard = None
+        self._novel_inputs = None
         self._script_plan_fingerprint = None
         self._artifact_basis = None
         self._script_plan_input_claim = None
@@ -578,6 +583,24 @@ class ScriptGenerator:
         if not targets.entries:
             logger.info("第 %d 集没有待编写条目，未调用文本模型", episode)
             return output_path
+
+        novel_inputs = {
+            "project_overview": self.project_json.get("overview", {}),
+            **{key: self.project_json.get(key, {}) for key in ("characters", "scenes", "props")},
+        }
+        scoped, self._novel_guard = await novel_memory.prepare(
+            self.project_path,
+            self.project_json,
+            episode,
+            novel_memory.encode(targets.entries),
+            novel_inputs,
+            generator=self.generator,
+        )
+        self._novel_inputs = scoped if self._novel_guard is not None else None
+        if self._novel_guard is not None:
+            problems = await self._novel_guard.check(targets.entries)
+            if problems:
+                raise ValueError("\n".join(problems))
 
         if targets.kind == "video_units":
             if self.content_mode == "ad":
@@ -637,7 +660,7 @@ class ScriptGenerator:
         if targets.kind == "shots":
             return self._build_ad_shot_prompt_authoring_prompt(episode, targets, instructions)
         return build_narration_prompt(
-            project_overview=self.project_json.get("overview", {}),
+            project_overview=(self._novel_inputs or {}).get("project_overview", self.project_json.get("overview", {})),
             style=self.project_json.get("style", ""),
             style_description=self.project_json.get("style_description", ""),
             characters=self._project_bucket("characters"),
@@ -652,6 +675,8 @@ class ScriptGenerator:
         )
 
     def _project_bucket(self, key: str) -> dict:
+        if self._novel_inputs is not None and key in self._novel_inputs:
+            return self._novel_inputs[key]
         bucket = self.project_json.get(key)
         return bucket if isinstance(bucket, dict) else {}
 
@@ -781,6 +806,8 @@ class ScriptGenerator:
         随本次写入撤登记，历史版本与当前媒体文件移进项目回收站。``project_update`` 与剧本在同一写事务内修改
         project.json，确认记录借此与正式剧本一起落盘。
         """
+        self._novel_guard = None
+        self._novel_inputs = None
         self._script_plan_fingerprint = None
         self._script_plan_new_assets = None
         self._artifact_basis = None
@@ -894,7 +921,7 @@ class ScriptGenerator:
         props = self.project_json.get("props")
         props = props if isinstance(props, dict) else {}
         return build_drama_prompt(
-            project_overview=self.project_json.get("overview", {}),
+            project_overview=(self._novel_inputs or {}).get("project_overview", self.project_json.get("overview", {})),
             style=self.project_json.get("style", ""),
             style_description=self.project_json.get("style_description", ""),
             scenes_content=render_drama_content_for_prompt_authoring(content_scenes),
@@ -1246,6 +1273,8 @@ class ScriptGenerator:
                 self.project_path,
                 (self._script_plan_input_claim,),
             )
+        if self._novel_guard is not None:
+            return await self._novel_guard.generate(request)
         return await self.generator.generate(request, project_name=self.project_path.name)
 
     def _freeze_ad_artifact_basis(self, episode: int, project: Mapping[str, Any]) -> None:
@@ -1657,7 +1686,7 @@ class ScriptGenerator:
         self, episode: int, targets: PromptAuthoringTargets, facts: PlanningVideoFacts, instructions: str | None
     ) -> str:
         return build_reference_video_prompt(
-            project_overview=self.project_json.get("overview", {}),
+            project_overview=(self._novel_inputs or {}).get("project_overview", self.project_json.get("overview", {})),
             style=self.project_json.get("style", ""),
             style_description=self.project_json.get("style_description", ""),
             characters=self._project_bucket("characters"),

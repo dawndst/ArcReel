@@ -4199,7 +4199,13 @@ class ProjectManager:
 
         return "\n\n".join(contents)
 
-    async def generate_overview(self, project_name: str) -> dict:
+    async def generate_overview(
+        self,
+        project_name: str,
+        *,
+        source_content_override: str | None = None,
+        source_check: Callable[[dict], None] | None = None,
+    ) -> dict:
         """
         使用 Gemini API 异步生成项目概述
 
@@ -4215,7 +4221,11 @@ class ProjectManager:
         from lib.prompts.prompt_builders_script import build_overview_prompt
 
         # 读取源文件内容
-        source_content = await asyncio.to_thread(self._read_source_files, project_name)
+        source_content = (
+            source_content_override
+            if source_content_override is not None
+            else await asyncio.to_thread(self._read_source_files, project_name)
+        )
         if not source_content:
             raise EmptySourceError("source 目录为空，无法生成概述")
 
@@ -4251,6 +4261,8 @@ class ProjectManager:
 
         # 保存到 project.json（RMW 在单一 _project_lock 内完成，避免并发覆盖其它字段）
         def _mutate(project: dict) -> None:
+            if source_check is not None:
+                source_check(project)
             project["overview"] = overview_dict
             project["source_language"] = overview_dict["language"]
 

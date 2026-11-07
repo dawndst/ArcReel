@@ -69,6 +69,7 @@ from lib.infra.async_thread import (
 from lib.infra.data_root_layout import DataRootLayout
 from lib.infra.json_io import domain_error_on_value_error
 from lib.material.formal_objects import formal_commit_on, release_holder
+from lib.novel_understanding.service import generate_project_overview
 from lib.project import deleted_projects
 from lib.project.asset_fingerprints import compute_asset_fingerprints
 from lib.project.asset_types import asset_name_comparison_key
@@ -281,6 +282,7 @@ def _validated_speech_rate(value: float, _t: Translator) -> float:
 
 
 class CreateProjectRequest(BaseModel):
+    novel_understanding_enabled: bool = True
     name: str | None = None
     title: str | None = None
     style: str | None = ""  # 保留但不再是用户入口
@@ -336,6 +338,7 @@ class EpisodePatch(BaseModel):
 
 
 class UpdateProjectRequest(BaseModel):
+    novel_understanding_enabled: bool | None = None
     title: str | None = None
     style: str | None = None
     aspect_ratio: str | None = None
@@ -759,6 +762,7 @@ async def create_project(
             except FileExistsError as exc:
                 raise HTTPException(status_code=400, detail=_t("project_exists", name=project_name)) from exc
             extras = {field: value for field in _PROJECT_BACKEND_FIELDS if (value := getattr(req, field))}
+            extras["novel_understanding_enabled"] = req.novel_understanding_enabled
             if req.model_settings is not None:
                 extras["model_settings"] = req.model_settings
             # 生成模式与宫格开关并入 extras 一次性写入，避免 create 后再 load-save 的额外 RMW；
@@ -1069,6 +1073,8 @@ async def update_project(name: str, req: UpdateProjectRequest, _t: Translator):
                         else:
                             project.pop(field, None)
 
+                if req.novel_understanding_enabled is not None:
+                    project["novel_understanding_enabled"] = req.novel_understanding_enabled
                 if "video_generate_audio" in req.model_fields_set:
                     if req.video_generate_audio is None:
                         project.pop("video_generate_audio", None)
@@ -2054,7 +2060,7 @@ async def set_project_source(
         if generate_overview:
             try:
                 with project_change_source("webui"):
-                    overview = await manager.generate_overview(name)
+                    overview = await generate_project_overview(manager, name)
                 result["overview"] = overview
             except ModelNotInCatalogError as ov_err:
                 # 文本模型已不在供应商清单中：回传「重新选择模型」指引，而非笼统的生成失败
@@ -2120,7 +2126,7 @@ async def generate_overview(name: str, _t: Translator):
                 extra_passthrough=(EmptySourceError, PydanticValidationError, ModelNotInCatalogError),
             ),
         ):
-            overview = await get_project_manager().generate_overview(name)
+            overview = await generate_project_overview(get_project_manager(), name)
         return {"success": True, "overview": overview}
     except FileNotFoundError as exc:
         raise NotFoundError("project_not_found", name=name) from exc

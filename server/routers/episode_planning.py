@@ -49,6 +49,7 @@ from server.tool_runtime import (
     start_episode_planning,
     start_episode_replan,
     stop_episode_planning,
+    submit_novel_review,
 )
 
 logger = logging.getLogger(__name__)
@@ -128,6 +129,17 @@ async def plan_episodes_to_end(project_name: str, req: EpisodePlanningRequest, u
         services,
         gap=None if req.gap is None else (req.gap.source_file, req.gap.end),
     )
+    if outcome.problem is not None:
+        _raise_problem(outcome.problem, _t)
+    return {"batch": json_value(outcome.value)}
+
+
+@router.post(
+    "/projects/{project_name}/novel-understanding/review", dependencies=[Depends(require_project_migration_ok)]
+)
+async def start_novel_review(project_name: str, user: CurrentUser, _t: Translator):
+    scope, caller, services = _context(project_name, user.id)
+    outcome = await submit_novel_review(scope, caller, services)
     if outcome.problem is not None:
         _raise_problem(outcome.problem, _t)
     return {"batch": json_value(outcome.value)}

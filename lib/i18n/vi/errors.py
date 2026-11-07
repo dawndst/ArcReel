@@ -1,4 +1,7 @@
 MESSAGES = {
+    "novel_adoption_confirm": "Áp dụng sẽ cập nhật dàn ý và đánh dấu sản phẩm hiện có cần kiểm tra.",
+    "novel_review_stale": "Nguồn, tập hoặc cài đặt đã đổi. Hãy duyệt lại trước khi áp dụng.",
+
     "episode_position_name": "Tập {position}",
     "episode_unlisted_name": "Tập chưa đặt tên",
     "episode_script_name": "Kịch bản của “{name}”",

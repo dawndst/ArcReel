@@ -48,6 +48,7 @@ from lib.infra.content_digest import prefixed_sha256_file
 from lib.infra.path_safety import PathTraversalError, safe_join
 from lib.infra.schema_guards import is_int, is_str
 from lib.infra.text_utils import strip_json_code_fences
+from lib.novel_understanding import service as novel_memory
 from lib.project.asset_types import ASSET_SPECS, BUCKET_KEY, asset_name_comparison_key
 from lib.project.project_manager import ProjectManager, is_reference_video_project
 from lib.prompts.prompt_builders_reference import build_reference_units_split_prompt
@@ -976,6 +977,15 @@ async def generate_drama_script_plan(
     except ValueError as exc:
         raise TextGenerationError(f"❌ {exc}") from exc
 
+    prompt_inputs, novel_guard = await novel_memory.prepare(
+        project_path,
+        project,
+        episode,
+        novel_text,
+        prompt_inputs,
+        dry_run=request.dry_run,
+    )
+
     try:
         default_duration, supported_durations = await fetch_storyboard_durations(
             project, config_resolver=config_resolver
@@ -1019,13 +1029,15 @@ async def generate_drama_script_plan(
         generator = await TextGenerator.create(
             TextTaskType.SCRIPT, project_name=project_name, purpose=CallPurpose.SCRIPT_GENERATION
         )
-        result = await generator.generate(
-            BackendTextGenerationRequest(
-                prompt=prompt,
-                response_schema=schema,
-                max_output_tokens=DEFAULT_MAX_OUTPUT_TOKENS,
-            ),
-            project_name=project_name,
+        generation_request = BackendTextGenerationRequest(
+            prompt=prompt,
+            response_schema=schema,
+            max_output_tokens=DEFAULT_MAX_OUTPUT_TOKENS,
+        )
+        result = (
+            await novel_guard.generate(generation_request)
+            if novel_guard is not None
+            else await generator.generate(generation_request, project_name=project_name)
         )
         content = _parse_normalized_content(result.text, schema)
         raw_scenes = content.get("scenes")
@@ -1715,6 +1727,15 @@ async def generate_reference_script_plan(
     except ValueError as exc:
         raise TextGenerationError(f"❌ {exc}") from exc
 
+    prompt_inputs, novel_guard = await novel_memory.prepare(
+        project_path,
+        project,
+        episode,
+        novel_text,
+        prompt_inputs,
+        dry_run=request.dry_run,
+    )
+
     try:
         characters = cast(dict[str, Any], prompt_inputs["characters"])
         scenes = cast(dict[str, Any], prompt_inputs["scenes"])
@@ -1762,13 +1783,15 @@ async def generate_reference_script_plan(
         generator = await TextGenerator.create(
             TextTaskType.SCRIPT, project_name=project_name, purpose=CallPurpose.SCRIPT_GENERATION
         )
-        result = await generator.generate(
-            BackendTextGenerationRequest(
-                prompt=prompt,
-                response_schema=schema,
-                max_output_tokens=DEFAULT_MAX_OUTPUT_TOKENS,
-            ),
-            project_name=project_name,
+        generation_request = BackendTextGenerationRequest(
+            prompt=prompt,
+            response_schema=schema,
+            max_output_tokens=DEFAULT_MAX_OUTPUT_TOKENS,
+        )
+        result = (
+            await novel_guard.generate(generation_request)
+            if novel_guard is not None
+            else await generator.generate(generation_request, project_name=project_name)
         )
         flat = _parse_script_plan_json(result.text, schema, label="script_plan 拆分内容", top_shape="{units}")
         flat_units = flat.get("units")

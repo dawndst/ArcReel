@@ -82,6 +82,7 @@ from lib.infra.async_thread import run_sync_transaction
 from lib.infra.path_safety import PathTraversalError, safe_join
 from lib.infra.text_metrics import count_reading_units, reading_unit_noun
 from lib.infra.text_utils import strip_json_code_fences
+from lib.novel_understanding import service as novel_memory
 from lib.project.project_manager import ProjectManager
 from lib.prompts.prompt_templates.builtin import builtin_templates
 from lib.script import script_review
@@ -902,19 +903,55 @@ class EpisodePlanner:
         # 窗口只取一个文件里的原文，一个窗口内只有一种源文件类型
         source_kind = whole_source_file_kind(project, window.source_rel) or DEFAULT_SOURCE_KIND
 
+        memory = await novel_memory.ensure(self.project_path, dict(project), self.generator)
+        prompt_project = dict(project)
+        extra_context = ""
+        if memory is not None:
+            prompt_project["overview"] = {}
+            extra_context = memory.writer_context(window.source_rel, window_end, window_text)
+
+        async def check_novel(drafts: list[NarrationEpisodeDraft], ends: list[int]) -> None:
+            if memory is None:
+                return
+            assert self.generator is not None
+            failures = []
+            for index, (draft, end) in enumerate(zip(drafts, ends, strict=True)):
+                failures.extend(
+                    await novel_memory.review(
+                        self.project_path,
+                        memory,
+                        self.generator,
+                        item_id=str(index),
+                        cutoff=(window.source_rel, window.start + end),
+                        content=draft.model_dump(),
+                        stage="episode_plan",
+                    )
+                )
+            if failures:
+                raise _DraftRejected(failures)
+
         def _prompt(failure: list[str] | None) -> str:
-            return _build_planning_prompt(
-                project=project,
-                source_kind=source_kind,
-                window=window_text,
-                window_is_final=window_is_final,
-                followed_by_episode=window.followed_by_episode and window_is_final,
-                max_episodes=max_episodes,
-                content_mode=content_mode,
-                context_entries=context_entries,
-                instructions=instructions,
-                progress=progress,
-                failure=failure,
+            return (
+                _build_planning_prompt(
+                    project=prompt_project,
+                    source_kind=source_kind,
+                    window=window_text,
+                    window_is_final=window_is_final,
+                    followed_by_episode=window.followed_by_episode and window_is_final,
+                    max_episodes=max_episodes,
+                    content_mode=content_mode,
+                    context_entries=context_entries,
+                    instructions=instructions,
+                    progress=progress,
+                    failure=failure,
+                )
+                + extra_context
+                + (
+                    "\n只输出符合以下 Schema 的 JSON：\n"
+                    + json.dumps(draft_model.model_json_schema(), ensure_ascii=False)
+                    if memory is not None
+                    else ""
+                )
             )
 
         drafts, ends = await self._request_validated_drafts(
@@ -923,6 +960,8 @@ class EpisodePlanner:
             window_text,
             snap_whitespace_tail=window_is_final,
             max_episodes=max_episodes,
+            check=check_novel,
+            plain_json=memory is not None,
         )
         if not drafts:
             raise NoCutPointError(source_file=window.source_rel, offset=window.start)
@@ -940,6 +979,8 @@ class EpisodePlanner:
         *,
         snap_whitespace_tail: bool,
         max_episodes: int | None,
+        check: Callable[[list[NarrationEpisodeDraft], list[int]], Awaitable[None]] | None = None,
+        plain_json: bool = False,
     ) -> tuple[list[NarrationEpisodeDraft], list[int]]:
         """LLM 调用 + schema/机械校验循环；重试 prompt 附上一轮失败原因。模型返回空列表时原样返回。
 
@@ -959,7 +1000,7 @@ class EpisodePlanner:
                 result = await self.generator.generate(
                     TextGenerationRequest(
                         prompt=prompt_builder(failure),
-                        response_schema=draft_model,
+                        response_schema=None if plain_json else draft_model,
                         max_output_tokens=DEFAULT_MAX_OUTPUT_TOKENS,
                     ),
                     project_name=self.project_name,
@@ -983,6 +1024,8 @@ class EpisodePlanner:
                     )
                     drafts = drafts[:max_episodes]
                 ends = _resolve_boundaries(window, drafts, snap_whitespace_tail=snap_whitespace_tail)
+                if check is not None:
+                    await check(drafts, ends)
                 return drafts, ends
             except _DraftRejected as exc:
                 failure = exc.reasons

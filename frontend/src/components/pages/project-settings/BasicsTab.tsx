@@ -1,6 +1,7 @@
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "cn";
+import { Switch } from "@/components/ui/switch";
 
 import { DurationTierPicker } from "@/components/shared/DurationTierPicker";
 import { EpisodeTargetDurationField } from "@/components/shared/EpisodeTargetDurationField";
@@ -35,6 +36,14 @@ export function BasicsTab({ value, savedValue, onChange, facts }: BasicsTabProps
     <div className="flex flex-col gap-6">
       <TabHeader title={t("project_settings_tab_basics")} />
 
+      {facts.contentMode === "drama" && (
+        <SettingsBlock title={t("novel_understanding_title")}>
+          <label className="flex items-center justify-between gap-4 text-sm">
+            <span>{t("novel_understanding_description")}</span>
+            <Switch checked={value.novelUnderstanding} onCheckedChange={(next) => onChange((prev) => ({ ...prev, novelUnderstanding: next }))} />
+          </label>
+        </SettingsBlock>
+      )}
       <SettingsBlock title={t("aspect_ratio")} titleId={aspectId}>
         <div role="radiogroup" aria-labelledby={aspectId} className="flex gap-2.5">
           {ASPECT_RATIOS.map(({ ratio, labelKey, glyph }) => {
