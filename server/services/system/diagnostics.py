@@ -92,6 +92,9 @@ def _db_url() -> str:
             ]
             query = urlencode(masked)
 
+        # SQLite 的空 authority 和三/四条斜杠区分相对/绝对文件路径，urlunparse 不认自定义 scheme。
+        if parsed.scheme.startswith("sqlite") and not netloc and raw.startswith(f"{parsed.scheme}:///"):
+            return f"{parsed.scheme}://" + urlunparse(parsed._replace(scheme="", netloc="", query=query))
         return urlunparse(parsed._replace(netloc=netloc, query=query))
     except Exception:
         # 脱敏失败时回退到原始字符串，避免诊断包完全失败；调用方 _safe 会再兜一层。
