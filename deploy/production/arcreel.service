@@ -1,0 +1,16 @@
+[Unit]
+Description=ArcReel production workbench
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/ArcReel
+EnvironmentFile=/root/.config/arcreel/runtime.env
+ExecStart=/root/ArcReel/.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 18920
+Restart=on-failure
+RestartSec=5
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

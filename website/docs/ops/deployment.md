@@ -23,6 +23,16 @@ ArcReel 当前按单一可信操作员设计，不支持互不信任的用户共
 
 ## 1. 默认部署：SQLite {#sqlite-deployment}
 
+### 源码部署：独立 systemd 实例 {#systemd-source-instance}
+
+本 fork 的 `deploy/production/arcreel.service` 是单机源码部署示例，使用 `/root/ArcReel` 工作目录和 `127.0.0.1:18920`，不取代上游 Compose 配置。安装路径不同时需修改服务文件。先按贡献指南安装依赖、构建 `frontend/dist`，并安装 Linux Agent 运行时需要的 `bubblewrap` 和 `socat`。
+
+运行配置放在 `/root/.config/arcreel/runtime.env`，权限设为 `0600`，至少配置 `AUTH_USERNAME`、`AUTH_PASSWORD` 和独立的 `ARCREEL_DATA_DIR`。保持 `AUTH_ENABLED=true`，将 `CORS_ORIGINS` 设为实际 HTTPS 站点地址；确保服务的 `PATH` 包含受支持的 Node.js 及系统工具。密钥和运行数据不提交到仓库。
+
+安装服务文件后执行 `systemctl daemon-reload` 和 `systemctl enable --now arcreel`。使用 `curl http://127.0.0.1:18920/health` 检查启动，并检查登录及项目操作。反向代理示例见 `deploy/production/arcreel.caddy.example`，替换域名后再加载到 Caddy。
+
+独立实例使用空数据根，由用户重新导入小说，不自动迁移旧工作台产物。备份需包含整个数据根和运行配置；升级前先备份，回滚时同时恢复匹配的数据版本。首页和健康检查通过不代表供应商已配置或模型调用已验证。
+
 ### 1.1 启动 {#sqlite-start}
 
 ```bash
