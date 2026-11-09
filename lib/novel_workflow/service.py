@@ -138,7 +138,9 @@ async def read_notes(path: Path, generator, note_ids: list[str], expected: str) 
     if not notes or len(notes) != len(wanted):
         raise ValueError("Select existing Notes")
     rules = await asyncio.to_thread(store.rule, path, "read")
-    chapter_rule = await asyncio.to_thread(store.rule, path, "chapter")
+    from lib.novel_workflow import settings
+
+    chapter_rule = await asyncio.to_thread(settings.chapter_rule, path)
     progress = {"phase": "reading", "total": len(notes), "done": 0, "note_id": None, "started_at": now()}
     try:
         for index, note in enumerate(notes):
@@ -168,7 +170,7 @@ async def read_notes(path: Path, generator, note_ids: list[str], expected: str) 
             overview = await synthesis.chapter(path, generator, extracted, chapter_rule)
             await asyncio.to_thread(current, path, expected)
             live_rule = await asyncio.to_thread(store.rule, path, "read")
-            if live_rule != rules or await asyncio.to_thread(store.rule, path, "chapter") != chapter_rule:
+            if live_rule != rules or await asyncio.to_thread(settings.chapter_rule, path) != chapter_rule:
                 raise ValueError("Reading rules changed during generation; completed fragment cache is preserved")
             result = {
                 "basis": digest([note["basis"], rules, chapter_rule, context_basis, overview, extracted, 2]),
@@ -191,6 +193,11 @@ async def read_notes(path: Path, generator, note_ids: list[str], expected: str) 
             await run_noninterruptible_sync(store.write, target, result)
         book = await asyncio.to_thread(memory.ledger, path, notebook)
         await run_noninterruptible_sync(store.write, store.root(path) / "ledger.json", book)
+        if (await asyncio.to_thread(settings.get, path))["understanding_enabled"]:
+            from lib.novel_workflow.understanding import understand_notes
+
+            progress.update(phase="understanding", done=0)
+            await understand_notes(path, generator, note_ids, expected)
         progress.update(phase="complete", done=len(notes), completed_at=now())
         return {"read_notes": len(notes)}
     except Exception as exc:
@@ -239,6 +246,9 @@ def validate_svt(
 
 
 async def generate_svts(path: Path, generator, note_ids: list[str], expected: str) -> dict:
+    from lib.novel_workflow.understanding import require_understood
+
+    await asyncio.to_thread(require_understood, path, note_ids)
     notebook = await asyncio.to_thread(current, path, expected)
     wanted = set(note_ids)
     notes = [n for n in notebook["notes"] if n["id"] in wanted]

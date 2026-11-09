@@ -105,7 +105,7 @@ class Highlight(StrictModel):
 
 
 class ChapterSynthesis(StrictModel):
-    summary: str = Field(min_length=1, max_length=600)
+    summary: str = Field(min_length=1, max_length=3000)
     cause: str
     conflict: str
     action: str

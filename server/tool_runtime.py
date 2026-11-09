@@ -3341,8 +3341,9 @@ async def _execute_queued_text_task(
         planner = await EpisodePlanner.create(path)
         assert planner.generator is not None
         from lib.novel_workflow.review import review_scope
+        from lib.novel_workflow.understanding import understand_notes
 
-        action = {"read": read_notes, "svt": generate_svts, "review": review_scope}[payload["action"]]
+        action = {"read": read_notes, "svt": generate_svts, "review": review_scope, "understand": understand_notes}[payload["action"]]
         return await action(path, planner.generator, payload["note_ids"], payload["source_basis"])
     if task_type == _TEXT_EPISODE_PLAN and payload.get("novel_action") == "review":
         from lib.novel_understanding.editorial import inspect_episodes

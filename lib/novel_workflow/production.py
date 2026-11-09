@@ -11,7 +11,7 @@ from lib.backends.text_backends.base import resolve_schema, structured_fallback_
 from lib.episode.episode_source_commands import add_own_source_episode, write_episode_source_file
 from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest
-from lib.novel_workflow import chapters, store
+from lib.novel_workflow import chapters, store, understanding
 
 
 def arrange_episode(manager, name: str, group_id: str) -> int:
@@ -31,6 +31,8 @@ def arrange_episode(manager, name: str, group_id: str) -> int:
         readings = [store.note_result(path, n) for n in notes]
         if any(r is None for r in readings):
             raise ValueError("Read every Note in this group before arranging an episode")
+        understanding.require_understood(path, group["note_ids"])
+        known = understanding.production_context(path, group["note_ids"])
         text = "\n\n".join("".join(c["text"] for c in chapters.chunks(path, project, n)) for n in notes)
         if len(text) > 60000:
             raise ValueError("This group exceeds the episode source context budget; arrange fewer Notes per episode")
@@ -42,6 +44,7 @@ def arrange_episode(manager, name: str, group_id: str) -> int:
         entry = next(e for e in project["episodes"] if e["episode"] == episode)
         entry["note_source"] = {
             "group_id": group_id,
+            "understanding_basis": known["basis"],
             "source_basis": notebook["source_basis"],
             "note_bases": {n["id"]: r["basis"] for n, r in zip(notes, readings, strict=True)},
             "text_basis": digest(text),
@@ -73,6 +76,10 @@ def validate_binding(path: Path, episode: int, binding: dict) -> tuple[dict, lis
         if not result or result["basis"] != basis:
             raise ValueError("Note evidence or reading rules changed; review the arrangement before generating")
         readings.append(result)
+    understanding.require_understood(path, list(binding["note_bases"]))
+    known = understanding.production_context(path, list(binding["note_bases"]))
+    if binding.get("understanding_basis") != known["basis"]:
+        raise ValueError("跨章理解依据已变化，请重新编排本集后生成")
     return project, readings
 
 
@@ -134,5 +141,9 @@ async def prepare(path, episode, binding, inputs, generator, *, dry_run=False):
         if used + len(quote) <= 10000:
             selected.append(quote)
             used += len(quote)
+    known = await asyncio.to_thread(understanding.production_context, path, list(binding["note_bases"]))
+    context += "\n本集开始前已揭示、可引用的跨章依据（不能当作新增剧情）：" + json.dumps(
+        known["links"], ensure_ascii=False
+    )
     context += "\n原文资产依据：" + json.dumps(selected, ensure_ascii=False)
     return scoped, None if dry_run else NoteProductionGuard(path, episode, binding, generator, context)

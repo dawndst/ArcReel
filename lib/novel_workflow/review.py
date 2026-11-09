@@ -35,7 +35,9 @@ def validate(value, facts, note_ids):
 
 async def review_scope(path, generator, note_ids, expected):
     from lib.novel_workflow.service import ask, current
+    from lib.novel_workflow.understanding import require_understood
 
+    await asyncio.to_thread(require_understood, path, note_ids)
     notebook = await asyncio.to_thread(current, path, expected)
     wanted = set(note_ids)
     notes = [n for n in notebook["notes"] if n["id"] in wanted]

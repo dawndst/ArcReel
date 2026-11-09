@@ -24,7 +24,7 @@ class SourceRequest(BaseModel):
 
 
 class ReadingRequest(SourceRequest):
-    action: Literal["read", "svt", "review"]
+    action: Literal["read", "svt", "review", "understand"]
     note_ids: list[str] = Field(min_length=1, max_length=10000)
 
 
@@ -117,3 +117,15 @@ async def arrange_episode(name: str, group_id: str):
         return await run_sync_transaction(commit)
     except (ValueError, FileNotFoundError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+class UnderstandingSettings(BaseModel):
+    summary_max_chars: int = Field(ge=400, le=3000)
+    understanding_enabled: bool
+
+
+@router.patch("/projects/{name}/novel-workflow/settings", dependencies=[Depends(require_project_migration_ok)])
+async def update_settings(name: str, req: UnderstandingSettings):
+    from lib.novel_workflow.settings import update
+
+    return await invoke(name, lambda path, _project: update(path, req.model_dump()))

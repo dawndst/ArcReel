@@ -28,6 +28,9 @@ def packs(values, budget=18000):
 
 async def chapter(path, generator, extracted, rule):
     from lib.novel_workflow.service import ask
+    from lib.novel_workflow.settings import get
+
+    limit = (await asyncio.to_thread(get, path))["summary_max_chars"]
 
     facts = {v["id"]: v for part in extracted for v in records(part)}
     if not facts:
@@ -48,6 +51,10 @@ async def chapter(path, generator, extracted, rule):
             else:
 
                 def validate(value, allowed=allowed):
+                    if len(value.summary) > limit:
+                        raise ValueError(
+                            f"Chapter summary exceeds configured limit {limit}; condense without losing core causality"
+                        )
                     if not set(value.evidence_ids) <= allowed:
                         raise ValueError("Chapter summary cited unknown evidence")
                     return value.model_dump()

@@ -41,7 +41,7 @@ def initialize(path: Path, project: dict, expected: str) -> dict:
         result = {**preview, "groups": previous.get("groups", []) if previous else [], "initialized_at": now()}
         if previous:
             write(root(path) / "history" / f"{uuid4().hex}.json", previous)
-        for name in ("read", "chapter", "svt", "review"):
+        for name in ("read", "chapter", "svt", "review", "understand"):
             file = root(path) / "rules" / f"{name}.md"
             if not file.exists():
                 file.parent.mkdir(parents=True, exist_ok=True)
@@ -51,14 +51,18 @@ def initialize(path: Path, project: dict, expected: str) -> dict:
 
 
 def reading_key(path: Path, note: dict) -> str:
-    return digest([note["basis"], rule(path, "read"), rule(path, "chapter"), 2])
+    from lib.novel_workflow.settings import chapter_rule
+
+    return digest([note["basis"], rule(path, "read"), chapter_rule(path), 2])
 
 
 def valid_readings(path: Path, notebook=None, *, before=None) -> dict:
     """Resolve cache validity once in reveal order, with bounded file reads."""
     notebook = notebook if notebook is not None else state(path)
     bases, readings = {}, {}
-    read_rule, chapter_rule = rule(path, "read"), rule(path, "chapter")
+    from lib.novel_workflow.settings import chapter_rule as configured_chapter_rule
+
+    read_rule, chapter_rule = rule(path, "read"), configured_chapter_rule(path)
     for note in notebook["notes"] if notebook else []:
         if before is not None and note["order"] >= before:
             break
@@ -127,7 +131,17 @@ def dissolve_group(path: Path, group_id: str) -> None:
 def view(path: Path, project: dict) -> dict:
     current = state(path)
     if current is None:
-        return {"initialized": False, "notes": [], "groups": [], "svts": [], "progress": None, "stale": False}
+        from lib.novel_workflow import settings
+
+        return {
+            "settings": settings.get(path),
+            "initialized": False,
+            "notes": [],
+            "groups": [],
+            "svts": [],
+            "progress": None,
+            "stale": False,
+        }
     preview = chapters.index(path, project)
     stale = preview["source_basis"] != current["source_basis"]
     notes = []
@@ -154,7 +168,7 @@ def view(path: Path, project: dict) -> dict:
             or any(valid_results.get(i) != basis for i, basis in svts.get("note_bases", {}).items())
         )
     )
-    from lib.novel_workflow import memory
+    from lib.novel_workflow import memory, settings, understanding
 
     book = memory.ledger(path, current, readings=readings) if not stale else None
     reviews = []
@@ -168,6 +182,8 @@ def view(path: Path, project: dict) -> dict:
         reviews.append(review)
     return {
         **current,
+        "settings": settings.get(path),
+        "understanding": understanding.view(path, current) if not stale else {"links": [], "reports": []},
         "ledger": book,
         "reviews": sorted(reviews, key=lambda r: r["created_at"], reverse=True),
         "initialized": True,

@@ -15,6 +15,9 @@ def project(tmp_path):
     data = {"whole_source_files": [{"source_file": "source/book.txt"}]}
     (tmp_path / "project.json").write_text(json.dumps(data))
     preview = chapters.index(tmp_path, data)
+    from lib.novel_workflow.settings import update
+
+    update(tmp_path, {"understanding_enabled": False})
     return data, store.initialize(tmp_path, data, preview["source_basis"])
 
 

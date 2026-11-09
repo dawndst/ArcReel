@@ -63,3 +63,16 @@ it("shows a consolidated chapter summary and lets review suggestions select sour
   expect(merge).not.toHaveBeenCalled();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
+it("saves independent summary and understanding settings without starting a model task", async () => {
+  const save = vi.spyOn(API, "updateNoteSettings").mockResolvedValue({ summary_max_chars: 2400, understanding_enabled: false });
+  const run = vi.spyOn(API, "runNoteWorkflow");
+  render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  fireEvent.click(await screen.findByRole("button", { name: "阅读设置" }));
+  const dialog = screen.getByRole("dialog");
+  fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "2400" } });
+  fireEvent.click(within(dialog).getByRole("checkbox"));
+  fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(save).toHaveBeenCalledWith("demo", { summary_max_chars: 2400, understanding_enabled: false });
+  expect(run).not.toHaveBeenCalled();
+});

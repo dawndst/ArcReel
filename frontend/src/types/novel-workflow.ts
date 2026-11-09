@@ -16,6 +16,8 @@ export interface NovelSVT {
   dialogues: NoteDialogue[]; evidence: NoteEvidence[];
 }
 export interface NovelWorkflow {
+  settings?: { summary_max_chars: number; understanding_enabled: boolean };
+  understanding?: { links: UnderstandingLink[]; reports: UnderstandingReport[] };
   initialized: boolean; source_basis?: string; notes: ChapterNote[]; groups: NoteGroup[]; stale: boolean;
   ledger?: NovelLedger | null; reviews?: NovelScopeReview[];
   svts: NovelSVT[]; svt_stale?: boolean; suggestions?: string[];
@@ -35,3 +37,16 @@ export interface NovelLedger {
 export interface AdaptationAdvice { action: "keep" | "compress" | "combine" | "omit_candidate"; note_ids: string[]; evidence_ids: string[]; reason: string; character_impact: string; thread_impact: string; dialogue_impact: string; preserve: string }
 export interface ReviewSection { theme: string; mainline: string; advice: AdaptationAdvice[]; questions: string[] }
 export interface NovelScopeReview { conclusion?: { theme: string; mainline: string; must_preserve: string; adaptation_risks: string; evidence_ids: string[] }; id: string; note_ids: string[]; stale: boolean; sections: ReviewSection[]; overview: ReviewSection[]; created_at: string; scope_kind: string; evidence: Record<string, NoteFact> }
+
+export interface UnderstandingLink {
+  id: string; kind: "identity" | "thread_resolution" | "state" | "world_rule" | "causal" | "contradiction";
+  subject: string; description: string; status: "supported" | "uncertain"; story_time: string;
+  story_start_note_id: string | null; story_end_note_id: string | null;
+  note_ids: string[]; evidence: NoteEvidence[]; revealed_at: { note_id: string; order: number; offset: number };
+}
+export interface UnderstandingReport {
+  id: string; stale: boolean; created_at: string; selected_note_ids: string[]; searched_note_count: number;
+  inspected_note_ids: string[]; unread_inspected_note_ids: string[];
+  unresolved: { note_id: string; question: string }[];
+  inspections: { anchor_note_id: string; queries: string[]; note_ids: string[]; round: number }[];
+}
