@@ -423,6 +423,9 @@ class ScriptBatchEditor:
                         )
                     )
 
+                from lib.script.shot_hierarchy import repair_removed_segments
+
+                repair_removed_segments(original, candidate)
                 structure = validate_script_structure(copy.deepcopy(candidate))
                 if not structure.valid:
                     message = structure.error_messages[0]
@@ -676,7 +679,11 @@ def blank_item_after(script: dict[str, Any], after_id: str | None) -> dict[str, 
     items, id_field, kind = resolve_items(script)
     if kind not in _BLANK_ITEM_FIELDS:
         raise ScriptEditError(f"{kind} does not support blank item insertion")
-    duration = None if after_id is None else items[_find_index(items, id_field, after_id)].get("duration_seconds")
+    from lib.script.shot_hierarchy import placement_for_new_shot
+
+    anchor = None if after_id is None else items[_find_index(items, id_field, after_id)]
+    placement = placement_for_new_shot(items, anchor) if kind == "scenes" else {}
+    duration = anchor.get("duration_seconds") if anchor else None
     if isinstance(duration, float) and duration.is_integer():
         # JSON 里的 5.0 与 5 是同一个整数时长，剧本结构校验同样接受。
         duration = int(duration)
@@ -684,6 +691,7 @@ def blank_item_after(script: dict[str, Any], after_id: str | None) -> dict[str, 
         id_field: new_item_id(script),
         "duration_seconds": duration if isinstance(duration, int) and not isinstance(duration, bool) else 8,
         **copy.deepcopy(_BLANK_ITEM_FIELDS[kind]),
+        **placement,
         "image_prompt": None,
         "video_prompt": None,
     }
@@ -792,6 +800,15 @@ def _apply_operation(
                 insert_at = _find_index(items, id_field, operation.after_id) + 1
             except ScriptEditError as exc:
                 raise _OperationApplyError(str(exc), location=("after_id",)) from exc
+        if kind == "scenes" and operation.after_id and item.get("scene_number") is not None:
+            anchor = items[insert_at - 1]
+            anchor_key = (anchor.get("scene_number"), anchor.get("shot_number"))
+            if (item.get("scene_number"), item.get("shot_number")) != anchor_key:
+                while (
+                    insert_at < len(items)
+                    and (items[insert_at].get("scene_number"), items[insert_at].get("shot_number")) == anchor_key
+                ):
+                    insert_at += 1
         removed = removed_items.pop(item_id, None)
         if not preserve_removed_assets:
             removed = None

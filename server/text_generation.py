@@ -990,6 +990,11 @@ async def generate_drama_script_plan(
         default_duration, supported_durations = await fetch_storyboard_durations(
             project, config_resolver=config_resolver
         )
+        from lib.script.shot_hierarchy import segment_durations
+
+        supported_durations = segment_durations(supported_durations)
+        if default_duration not in supported_durations:
+            default_duration = None
         prompt = build_normalize_prompt(
             novel_text=novel_text,
             project_overview=cast(dict[str, Any], prompt_inputs["project_overview"]),
@@ -1025,7 +1030,7 @@ async def generate_drama_script_plan(
                 draft_path,
                 script_plan_path,
             )
-        schema = build_drama_normalized_script_model(supported_durations)
+        schema = build_drama_normalized_script_model(supported_durations, hierarchy=True)
         generator = await TextGenerator.create(
             TextTaskType.SCRIPT, project_name=project_name, purpose=CallPurpose.SCRIPT_GENERATION
         )
@@ -1043,7 +1048,10 @@ async def generate_drama_script_plan(
         raw_scenes = content.get("scenes")
         if not isinstance(raw_scenes, list) or not raw_scenes:
             raise ValueError("script_plan 规范化内容结构异常：scenes 必须是非空的分镜对象数组")
+        previous_scene = None
         for scene in raw_scenes:
+            scene["segment_break"] = previous_scene is not None and scene["scene_number"] != previous_scene
+            previous_scene = scene["scene_number"]
             admission = admit_script_unit("scenes", scene, ignore_marker=True)
             if admission.allowed:
                 scene.pop("needs_replan", None)

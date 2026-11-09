@@ -13,6 +13,7 @@ from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Fie
 from pydantic.json_schema import SkipJsonSchema
 
 from lib.script.script_skeleton import resolve_declared_kind
+from lib.script.shot_hierarchy import ShotPlacement, segment_durations, validate_hierarchy
 
 # 所有剧本模型默认禁止额外字段:Agent 的 `patch_episode_script` 通过 `_set_nested` 允许在
 # dict 上凭空创建叶子(为了让 Agent 补 LLM 漏写的 optional 字段);若 Pydantic 走默认
@@ -481,7 +482,7 @@ class Utterance(BaseModel):
         return self
 
 
-class DramaScene(BaseModel):
+class DramaScene(ShotPlacement):
     """剧情演绎的分镜。"""
 
     model_config = _STRICT_CONFIG
@@ -599,6 +600,11 @@ class DramaEpisodeScript(BaseModel):
     next_episode_teaser: SkipJsonSchema[str | None] = Field(default=None, description="下集预告语（来自分集账本）")
     scenes: list[DramaScene] = Field(description="分镜列表")
 
+    @model_validator(mode="after")
+    def validate_scene_shots(self):
+        validate_hierarchy(self.scenes)
+        return self
+
 
 # ============ 剧情演绎两段式：script_plan 内容 / prompt_authoring 视觉（见 ADR 0041） ============
 #
@@ -609,7 +615,7 @@ class DramaEpisodeScript(BaseModel):
 # 写回正式脚本条目（ScriptGenerator._merge_visual_layer）。
 
 
-class DramaSceneContent(BaseModel):
+class DramaSceneContent(ShotPlacement):
     """script_plan（normalize）产出的分镜内容层：除视觉层（image_prompt / video_prompt）外的全部字段。
 
     作为 prompt_authoring 视觉生成、以及后续 web 审阅 / 编辑的结构化中间态契约（落盘于
@@ -652,6 +658,12 @@ class DramaNormalizedScript(BaseModel):
 
     title: str = Field(description="剧集标题")
     scenes: list[DramaSceneContent] = Field(description="分镜内容列表")
+
+    @model_validator(mode="after")
+    def validate_scene_shots(self):
+        validate_hierarchy(self.scenes)
+        return self
+
     new_assets: list[PlanNewAsset] = Field(
         default_factory=list, description="本集规划引用的、尚未登记的角色 / 场景 / 道具及其处理决定"
     )
@@ -1133,18 +1145,28 @@ def build_episode_script_model(content_mode: str, supported_durations: list[int]
     )
 
 
-def build_drama_normalized_script_model(supported_durations: list[int]) -> type[BaseModel]:
+def build_drama_normalized_script_model(supported_durations: list[int], *, hierarchy: bool = False) -> type[BaseModel]:
     """构造 script_plan 规范化剧本模型，``duration_seconds`` 被 ``supported_durations`` 枚举硬约束。
 
     内容抽取前移后由 script_plan 决定分镜时长，故 duration 枚举约束加在内容层 ``DramaSceneContent`` 上
     （与 ``build_episode_script_model`` 同口径，渲染为 response_schema 的 enum / const）；prompt_authoring 视觉层
     不含 duration，沿用静态 ``DramaVisualScript``。
     """
+    if hierarchy:
+        supported_durations = segment_durations(supported_durations)
     scene = _constrained_duration_item(
         DramaSceneContent,
         _duration_literal(supported_durations),
         "分镜时长（秒），必须取 supported_durations 中的值",
     )
+    if hierarchy:
+        scene = create_model(
+            "HierarchicalShotSegment",
+            __base__=scene,
+            scene_number=(int, Field(ge=1, description="叙事场号，从1开始；时间或地点变化才换场")),
+            shot_number=(int, Field(ge=1, description="场内镜头号；同一长镜头的SEG共用此号")),
+            segment_number=(int | None, Field(description="不拆段填null；长镜头拆段依次填1、2…")),
+        )
     return create_model(
         "DramaNormalizedScript",
         __base__=DramaNormalizedScript,

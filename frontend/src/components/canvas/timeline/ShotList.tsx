@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { shotHierarchyCode } from "@/utils/shot-hierarchy";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, SearchIcon } from "lucide-react";
 import { cn } from "cn";
@@ -109,7 +110,7 @@ export function ShotList({
 
   // 显示的位置跟着显示顺序走：改序在途时按新顺序编号，落定后与剧本一致。
   const positionById = useMemo(() => new Map(orderedIds.map((id, i) => [id, i + 1])), [orderedIds]);
-  const positionLabel = (id: string) => t("common:item_position_shot", { position: positionById.get(id) });
+  const positionLabel = (id: string) => shotHierarchyCode(segments[indexById.get(id)!]) ?? t("common:item_position_shot", { position: positionById.get(id) });
 
   const visibleIds = useMemo(() => {
     if (!search) return orderedIds;
@@ -117,7 +118,7 @@ export function ShotList({
     return orderedIds.filter((id) => {
       const seg = segments[indexById.get(id)!];
       return (
-        String(positionById.get(id)) === query.trim() || getSegmentText(seg, contentMode).toLowerCase().includes(query)
+        String(positionById.get(id)) === query.trim() || (shotHierarchyCode(seg)?.toLowerCase().includes(query) ?? false) || getSegmentText(seg, contentMode).toLowerCase().includes(query)
       );
     });
   }, [orderedIds, search, segments, indexById, positionById, contentMode]);
@@ -229,7 +230,7 @@ export function ShotList({
           disabled={!sortable || moveDisabled || search !== ""}
         >
           <ul className="flex flex-col gap-0.5">
-            {visibleIds.map((id) => {
+            {visibleIds.map((id, visibleIndex) => {
               const index = indexById.get(id)!;
               const seg = segments[index];
               const text = getSegmentText(seg, contentMode);
@@ -239,7 +240,12 @@ export function ShotList({
                 ? API.getFileUrl(projectName, sbPath, fingerprints[sbPath] ?? null, { width: 160 })
                 : null;
               const section = contentMode === "ad" ? (seg as AdShot).section : undefined;
+              const code = shotHierarchyCode(seg);
+              const sceneCode = code?.split("-SH")[0];
+              const previousCode = visibleIndex > 0 ? shotHierarchyCode(segments[indexById.get(visibleIds[visibleIndex - 1])!])?.split("-SH")[0] : null;
               return (
+                <Fragment key={id}>
+                {sceneCode && sceneCode !== previousCode && <li className="mt-3 border-b pb-1 text-xs font-semibold text-muted-foreground">{sceneCode}</li>}
                 <SortableItem
                   key={id}
                   id={id}
@@ -265,9 +271,10 @@ export function ShotList({
                       {sbUrl ? (
                         <img src={sbUrl} alt="" className="size-full object-cover" loading="lazy" decoding="async" />
                       ) : null}
-                      <ItemPositionBadge position={positionById.get(id) ?? null} kind="shot" overlay />
+                      <ItemPositionBadge position={"shot_number" in seg && typeof seg.shot_number === "number" ? seg.shot_number : positionById.get(id) ?? null} kind="shot" overlay />
                     </span>
                     <span className="flex min-w-0 flex-1 flex-col gap-1">
+                      {shotHierarchyCode(seg) && <span className="break-all font-mono text-[10px] font-semibold text-primary">{shotHierarchyCode(seg)}</span>}
                       <span className="flex items-center gap-1.5">
                         <StatusBadge status={statusFromAssets(seg.generated_assets?.status)} />
                       </span>
@@ -292,6 +299,7 @@ export function ShotList({
                   </button>
                   {sortable ? <SortableHandle label={t("shot_reorder", { id: positionLabel(id) })} /> : null}
                 </SortableItem>
+                </Fragment>
               );
             })}
           </ul>

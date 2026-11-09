@@ -1,3 +1,4 @@
+import type { ShotPlacement } from "@/utils/shot-hierarchy";
 /**
  * Script / segment / scene type definitions.
  *
@@ -109,7 +110,7 @@ export type Utterance = DialogueUtterance | VoiceoverUtterance;
  * DramaSceneContent / DramaNormalizedScript 与 NarrationScriptPlanSegment / NarrationScriptPlanDraft：
  * script_plan 已定内容层，prompt_authoring 视觉生成（image_prompt / video_prompt）由用户确认后才触发。
  */
-export interface DramaSceneContent {
+export interface DramaSceneContent extends ShotPlacement {
   scene_id: string;
   duration_seconds: number;
   segment_break: boolean;
@@ -296,7 +297,7 @@ export interface NarrationSegment {
   pending_authoring?: boolean;
 }
 
-export interface DramaScene {
+export interface DramaScene extends ShotPlacement {
   scene_id: string;
   duration_seconds: DurationSeconds;
   segment_break: boolean;

@@ -1514,6 +1514,10 @@ class ScriptGenerator:
         rewritten_dupes = sorted(sid for sid, count in Counter(rewritten_ids).items() if count > 1)
         if rewritten_dupes:
             raise ValueError(f"脚本规划内容文件 scene_id 改写到 episode={episode} 后重复: {rewritten_dupes}")
+        if any(scene.get("scene_number") is not None for scene in scenes):
+            from lib.script.script_models import DramaNormalizedScript
+
+            DramaNormalizedScript.model_validate(data)
         return data
 
     def _assert_reference_script_plan_durations(

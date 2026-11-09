@@ -1427,3 +1427,32 @@ def test_episode_without_source_ignores_an_unregistered_episode_file(tmp_path: P
     assert accepted.success is True
     assert rejected.success is False
     assert rejected.problems[0].code == "source_text_not_verbatim"
+
+
+def test_hierarchical_insert_after_seg_keeps_original_shot_together(tmp_path: Path) -> None:
+    pm, service = _storyboard_project(tmp_path, "drama", ["E1S01", "E1S02", "E1S03"])
+    script = pm.load_script("demo", "episode_1.json")
+    for index, scene in enumerate(script["scenes"]):
+        scene.update(scene_number=1, shot_number=1 if index < 2 else 2, segment_number=index + 1 if index < 2 else None)
+    pm.save_script("demo", script, "episode_1.json")
+    item = blank_item_after(script, "E1S01")
+    result = service.execute("demo", _command(pm, [{"op": "insert_after", "after_id": "E1S01", "item": item}]))
+    assert result.success, result.problems
+    scenes = pm.load_script("demo", "episode_1.json")["scenes"]
+    assert [scene["scene_id"] for scene in scenes] == ["E1S01", "E1S02", "E1S04", "E1S03"]
+    assert scenes[2]["shot_number"] == 3
+    assert scenes[2]["segment_number"] is None
+
+
+def test_hierarchical_remove_closes_seg_gap_without_changing_runtime_ids(tmp_path: Path) -> None:
+    pm, service = _storyboard_project(tmp_path, "drama", ["E1S01", "E1S02"])
+    script = pm.load_script("demo", "episode_1.json")
+    for index, scene in enumerate(script["scenes"]):
+        scene.update(scene_number=1, shot_number=1, segment_number=index + 1)
+    pm.save_script("demo", script, "episode_1.json")
+    result = service.execute("demo", _command(pm, [{"op": "remove", "id": "E1S01"}]))
+    assert result.success, result.problems
+    scenes = pm.load_script("demo", "episode_1.json")["scenes"]
+    assert len(scenes) == 1
+    assert scenes[0]["scene_id"] == "E1S02"
+    assert scenes[0]["segment_number"] is None

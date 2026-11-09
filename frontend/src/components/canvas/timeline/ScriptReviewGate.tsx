@@ -1,3 +1,5 @@
+import { Input } from "@/components/ui/input";
+import { MAX_SEGMENT_SECONDS, shotHierarchyCode } from "@/utils/shot-hierarchy";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock, Loader2, Lock, RotateCcw, Save } from "lucide-react";
@@ -111,6 +113,7 @@ function MetaChips({ items }: { items: string[] }) {
 /** 条目头部：位置、时长与章节切分点；可编辑时时长用档位下拉、切分点用开关，越档就地标红说明。 */
 function ItemHeader({
   position,
+  hierarchical = false,
   durationSeconds,
   segmentBreak,
   readOnly,
@@ -120,6 +123,7 @@ function ItemHeader({
 }: {
   /** 条目在规划里的位置，从 1 起。 */
   position: number;
+  hierarchical?: boolean;
   durationSeconds: number;
   segmentBreak: boolean;
   readOnly: boolean;
@@ -137,7 +141,7 @@ function ItemHeader({
         {readOnly ? (
           <>
             <span className="text-xs text-muted-foreground tabular-nums">{durationSeconds}s</span>
-            {segmentBreak && <Badge variant="outline">{t("review_segment_break")}</Badge>}
+            {!hierarchical && segmentBreak && <Badge variant="outline">{t("review_segment_break")}</Badge>}
           </>
         ) : (
           <>
@@ -149,11 +153,11 @@ function ItemHeader({
               label={t("review_item_duration_label", { item: itemLabel })}
               endpointFixed={context.durationEndpointFixed}
             />
-            <SegmentBreakToggle
+            {!hierarchical && <SegmentBreakToggle
               checked={segmentBreak}
               onChange={(segment_break) => onChange({ segment_break })}
               disabled={disabled}
-            />
+            />}
           </>
         )}
       </div>
@@ -277,14 +281,22 @@ function DramaSceneCard({
   const { t } = useTranslation("dashboard");
   return (
     <ItemCardShell notes={notes}>
+      {shotHierarchyCode(scene) && <p className="mb-2 font-mono text-xs font-semibold text-primary">{shotHierarchyCode(scene)}</p>}
+      {!readOnly && scene.scene_number != null && <div className="mb-3 flex flex-wrap gap-3">
+        {(["scene_number", "shot_number", "segment_number"] as const).map((key) => <label key={key} className="text-xs text-muted-foreground">
+          {{ scene_number: "SCN", shot_number: "SH", segment_number: "SEG" }[key]}
+          <Input type="number" min={1} step={1} className="mt-1 w-20" disabled={disabled} value={scene[key] ?? ""} onChange={(e) => onChange({ [key]: e.target.value ? Number(e.target.value) : null })} />
+        </label>)}
+      </div>}
       <div className={`flex items-start justify-between gap-2 ${readOnly ? "mb-3" : "mb-2"}`}>
         <ItemHeader
-          position={position}
+          hierarchical={scene.scene_number != null}
+          position={scene.shot_number ?? position}
           durationSeconds={scene.duration_seconds}
           segmentBreak={scene.segment_break}
           readOnly={readOnly}
           disabled={disabled}
-          context={context}
+          context={{ ...context, durationOptions: scene.scene_number != null ? context.durationOptions?.filter((d) => d <= MAX_SEGMENT_SECONDS) ?? null : context.durationOptions }}
           onChange={onChange}
         />
         {readOnly && <MetaChips items={[...scene.characters_in_scene, ...scene.scenes, ...scene.props]} />}

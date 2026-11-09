@@ -1,3 +1,4 @@
+import { MAX_SEGMENT_SECONDS, shotHierarchyCode } from "@/utils/shot-hierarchy";
 import { useCallback, useEffect, useId, useMemo, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Film, ImageIcon, Timer } from "lucide-react";
@@ -140,6 +141,9 @@ export interface ShotEditHandle {
  * 这些字段都先进入未保存修改，由提示条统一保存或放弃。可选字段只在对应内容类型下存在。
  */
 interface ShotFields {
+  scene_number?: number | null;
+  shot_number?: number | null;
+  segment_number?: number | null;
   image_prompt: ImagePromptValue;
   video_prompt: VideoPromptValue;
   duration_seconds: number;
@@ -159,6 +163,7 @@ interface ShotFields {
 }
 
 const SHOT_FIELD_KEYS = [
+  "scene_number", "shot_number", "segment_number",
   "image_prompt",
   "video_prompt",
   "duration_seconds",
@@ -235,6 +240,9 @@ function shotFieldsOf(seg: Segment, mode: DetailContentMode): ShotFields {
     const scene = seg as DramaScene;
     return {
       ...base,
+      scene_number: scene.scene_number,
+      shot_number: scene.shot_number,
+      segment_number: scene.segment_number,
       characters: scene.characters_in_scene ?? [],
       segment_break: scene.segment_break === true,
       utterances: scene.utterances ?? EMPTY_UTTERANCES,
@@ -1058,6 +1066,7 @@ export function ShotDetail({
 
   const header = (
     <ShotDetailHeader
+      hierarchyCode={shotHierarchyCode(segment)}
       segmentId={segmentId}
       index={selectedIndex}
       total={totalCount}
@@ -1068,14 +1077,20 @@ export function ShotDetail({
             segmentId={segmentId}
             projectName={projectName}
             scriptFile={scriptFile}
-            durationOptions={durationOptions}
+            durationOptions={shotHierarchyCode(segment) ? durationOptions.filter((d) => d <= MAX_SEGMENT_SECONDS) : durationOptions}
             durationEndpointFixed={durationEndpointFixed}
             durationWarningReason={durationWarningReason}
             onChange={readOnly ? undefined : (seconds) => setField("duration_seconds", seconds)}
             busy={durationBusy}
           />
           <StatusBadge status={status} />
-          {(isNarration || isDrama) && !readOnly && (
+          {isDrama && shotHierarchyCode(segment) && !readOnly && <div className="flex gap-2">
+            {(["scene_number", "shot_number", "segment_number"] as const).map((key) => <label key={key} className="text-xs text-muted-foreground">
+              {{ scene_number: "SCN", shot_number: "SH", segment_number: "SEG" }[key]}
+              <Input type="number" min={1} step={1} className="mt-1 w-16" disabled={durationBusy} value={fields[key] ?? ""} onChange={(e) => setField(key, e.target.value ? Number(e.target.value) : key === "segment_number" ? null : 1)} />
+            </label>)}
+          </div>}
+          {(isNarration || (isDrama && !shotHierarchyCode(segment))) && !readOnly && (
             <SegmentBreakToggle
               checked={fields.segment_break === true}
               onChange={(next) => setField("segment_break", next)}

@@ -1621,6 +1621,9 @@ async def update_scene(
                 raise HTTPException(status_code=404, detail=_t("scene_not_found", id=scene_id))
             allowed = {
                 "duration_seconds",
+                "scene_number",
+                "shot_number",
+                "segment_number",
                 "image_prompt",
                 "video_prompt",
                 "characters_in_scene",
@@ -1632,7 +1635,7 @@ async def update_scene(
             }
             fields: dict[str, Any] = {}
             for key, raw_value in req.updates.items():
-                if key not in allowed or (raw_value is None and key != "note"):
+                if key not in allowed or (raw_value is None and key not in {"note", "segment_number"}):
                     continue
                 value = raw_value
                 if key in {"characters_in_scene", "scenes", "props"} and isinstance(value, list):

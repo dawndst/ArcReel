@@ -56,8 +56,8 @@ interface NavItem {
 }
 
 /**
- * 工作区侧栏：上方是工作区导航（项目概览、分集、角色、场景、道具，广告项目另有商品、没有分集），
- * 下方是分集列表（搜索、排序与每集的操作）。宽度由外壳的调宽手柄决定；折叠时收为图标栏。
+ * 工作区侧栏：上方是分集列表（搜索、排序与每集的操作），
+ * 下方是工作区导航（项目概览、小说理解与改编、角色、场景、道具）。宽度由外壳的调宽手柄决定；折叠时收为图标栏。
  */
 export function AssetSidebar({ collapsed, onCollapsedChange }: AssetSidebarProps) {
   const { t } = useTranslation(["common", "dashboard"]);
@@ -170,18 +170,6 @@ export function AssetSidebar({ collapsed, onCollapsedChange }: AssetSidebarProps
 
   return (
     <div className="@container/sidebar relative flex h-full min-w-0 flex-col">
-      <nav aria-label={t("dashboard:workspace_nav_label")} className={cn("flex shrink-0 flex-col gap-0.5 p-2", collapsed && "items-center")}>
-        {navItems.map((item) =>
-          collapsed ? (
-            <RailLink key={item.key} href={item.path} label={item.label} icon={item.icon} active={isNavActive(item)} />
-          ) : (
-            <NavLink key={item.key} item={item} active={isNavActive(item)} />
-          ),
-        )}
-      </nav>
-
-      <Separator />
-
       {collapsed ? (
         <div className="relative flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto py-2">
           {addEpisodeMenu}
@@ -265,6 +253,18 @@ export function AssetSidebar({ collapsed, onCollapsedChange }: AssetSidebarProps
           </div>
         </section>
       )}
+
+      <Separator />
+
+      <nav aria-label={t("dashboard:workspace_nav_label")} className={cn("flex shrink-0 flex-col gap-0.5 p-2", collapsed && "items-center")}>
+        {navItems.map((item) =>
+          collapsed ? (
+            <RailLink key={item.key} href={item.path} label={item.label} icon={item.icon} active={isNavActive(item)} />
+          ) : (
+            <NavLink key={item.key} item={item} active={isNavActive(item)} />
+          ),
+        )}
+      </nav>
 
       <div className={cn("flex shrink-0 border-t border-border p-2", collapsed && "justify-center")}>
         <Button

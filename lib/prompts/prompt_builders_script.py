@@ -178,6 +178,14 @@ def render_drama_content_for_prompt_authoring(content_scenes: list) -> str:
         duration = scene.get("duration_seconds")
         header = f"### {sid}" + (f"（时长 {duration} 秒）" if duration else "")
         lines = [header]
+        if scene.get("scene_number") is not None:
+            placement = f"SCN{scene['scene_number']} / SH{scene['shot_number']}"
+            if scene.get("segment_number") is not None:
+                placement += f" / SEG{scene['segment_number']}"
+                lines.append(
+                    "这是同一镜头的连续生成片段，承接相邻SEG的动作、人物位置、服装、光线与视线，不添加切镜头、不重复整段对白。"
+                )
+            lines.append("叙事层级：" + placement)
         raw_chars = scene.get("characters_in_scene")
         raw_scenes_ref = scene.get("scenes")
         raw_props_ref = scene.get("props")

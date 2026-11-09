@@ -185,11 +185,15 @@ def resolve_previous_storyboard_path(
         raise KeyError(f"scene/segment not found: {resource_id}")
 
     target_item, index = resolved
-    if index == 0 or bool(target_item.get("segment_break")):
+    if index == 0:
         return None
 
     previous_item = items[index - 1]
     if not isinstance(previous_item, dict):
+        return None
+    from lib.script.shot_hierarchy import starts_new_scene
+
+    if starts_new_scene(previous_item, target_item):
         return None
     previous_id = str(previous_item.get(id_field) or "").strip()
     if not previous_id:
@@ -212,10 +216,12 @@ def group_scenes_by_segment_break(items: list[dict], id_field: str) -> list[list
     Returns:
         List of groups, each a list of consecutive scene dicts.
     """
+    from lib.script.shot_hierarchy import starts_new_scene
+
     groups: list[list[dict]] = []
     current: list[dict] = []
     for item in items:
-        if item.get("segment_break", False) and current:
+        if current and starts_new_scene(current[-1], item):
             groups.append(current)
             current = []
         current.append(item)

@@ -6,6 +6,7 @@ import { TooltipIconButton } from "./TooltipIconButton";
 
 interface ShotDetailHeaderProps {
   segmentId: string;
+  hierarchyCode?: string | null;
   index: number;
   total: number;
   /** 位置后面的属性：时长、状态、切分点开关等。 */
@@ -27,6 +28,7 @@ interface ShotDetailHeaderProps {
 /** 分镜详情页头：左侧「位置 / 总数」与属性，右侧移动、增删、上一镜 / 下一镜与备注。 */
 export function ShotDetailHeader({
   segmentId,
+  hierarchyCode,
   index,
   total,
   meta,
@@ -42,7 +44,7 @@ export function ShotDetailHeader({
   const { t } = useTranslation("dashboard");
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-border/50 px-5 py-2.5">
-      <ItemPositionOfTotal itemId={segmentId} kind="shot" position={index + 1} total={total} />
+      {hierarchyCode ? <span className="font-mono text-xs font-semibold text-primary">{hierarchyCode}</span> : <ItemPositionOfTotal itemId={segmentId} kind="shot" position={index + 1} total={total} />}
       {meta}
       <div className="ml-auto flex items-center gap-0.5">
         {onMoveEarlier && onMoveLater ? (

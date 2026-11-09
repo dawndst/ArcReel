@@ -1056,6 +1056,9 @@ async def test_normalize_drama_script_passes_project_name_to_backend(
                         "scenes": [
                             {
                                 "scene_id": "E1S01",
+                                "scene_number": 1,
+                                "shot_number": 1,
+                                "segment_number": None,
                                 "duration_seconds": 4,
                                 "segment_break": False,
                                 "characters_in_scene": [],
@@ -1137,6 +1140,9 @@ async def test_normalize_drama_script_registers_the_frozen_explicit_source_basis
                             "scenes": [
                                 {
                                     "scene_id": "E1S01",
+                                    "scene_number": 1,
+                                    "shot_number": 1,
+                                    "segment_number": None,
                                     "duration_seconds": 4,
                                     "segment_break": False,
                                     "characters_in_scene": [],
@@ -1214,6 +1220,9 @@ async def test_normalize_drama_script_preserves_legacy_request_basis_when_manife
                             "scenes": [
                                 {
                                     "scene_id": "E1S01",
+                                    "scene_number": 1,
+                                    "shot_number": 1,
+                                    "segment_number": None,
                                     "duration_seconds": 4,
                                     "segment_break": False,
                                     "characters_in_scene": [],
@@ -1270,6 +1279,9 @@ async def test_normalize_drama_script_marks_mixed_machine_candidate_before_revie
                         "scenes": [
                             {
                                 "scene_id": "E1S01",
+                                "scene_number": 1,
+                                "shot_number": 1,
+                                "segment_number": None,
                                 "duration_seconds": 4,
                                 "segment_break": False,
                                 "characters_in_scene": ["阿离"],
