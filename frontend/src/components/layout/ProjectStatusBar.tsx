@@ -464,7 +464,7 @@ export function ProjectStatusBar({ projectName }: { projectName: string }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
       {bar}
-      <NovelReadingProgress key={projectName} projectName={projectName} active={readingTaskActive && project.novel_understanding_enabled !== false} />
+      <NovelReadingProgress key={projectName} projectName={projectName} notebook={project.novel_workflow_enabled === true} active={readingTaskActive && (project.novel_workflow_enabled === true || project.novel_understanding_enabled !== false)} />
       {migrationReport && <MigrationReportNotice projectName={projectName} report={migrationReport} episodes={episodes} />}
     </div>
   );

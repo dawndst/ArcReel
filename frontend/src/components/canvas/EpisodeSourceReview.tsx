@@ -289,7 +289,7 @@ function EpisodeSource({
   const titleId = useId();
   const isDrama = useProjectsStore((s) => s.currentProjectData?.content_mode === "drama");
   const origin = sourceOriginOf(meta);
-  const editable = origin !== "whole_source";
+  const editable = origin !== "whole_source" && !meta?.note_source;
   // 无原文的集没有集原文文件：盘上同名的 episode_N.txt 是未登记文件，不当作本集原文读取
   const withoutSource = meta !== undefined && origin === "none";
   const fetchKey = `${projectName}::${episode}`;

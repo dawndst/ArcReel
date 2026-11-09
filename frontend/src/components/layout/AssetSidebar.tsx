@@ -100,9 +100,9 @@ export function AssetSidebar({ collapsed, onCollapsedChange }: AssetSidebarProps
           {
             key: "episodes",
             path: `/${WORKSPACE_ROUTE_EPISODES}`,
-            label: t("dashboard:workspace_nav_episodes"),
+            label: t(currentProjectData?.novel_workflow_enabled === true ? "dashboard:nw_title" : "dashboard:workspace_nav_episodes"),
             icon: BookOpen,
-            count: episodes.length,
+            count: currentProjectData?.novel_workflow_enabled === true ? undefined : episodes.length,
           },
         ]),
     {

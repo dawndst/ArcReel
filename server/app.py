@@ -95,6 +95,7 @@ from server.routers import (
     grids,
     market,
     market_submissions,
+    novel_workflow,
     object_storage,
     official_service,
     onboarding,
@@ -699,6 +700,7 @@ app.include_router(
     tags=["项目回收站"],
 )
 app.include_router(episodes_view.router, prefix="/api/v1", dependencies=[Depends(get_current_user)], tags=["分集视图"])
+app.include_router(novel_workflow.router, prefix="/api/v1", dependencies=[Depends(get_current_user)], tags=["章节与主线事件"])
 app.include_router(
     episode_management.router, prefix="/api/v1", dependencies=[Depends(get_current_user)], tags=["集管理"]
 )

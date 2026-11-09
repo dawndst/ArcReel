@@ -1,3 +1,4 @@
+import { NovelWorkbench } from "../novel-workflow/NovelWorkbench";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useSearch } from "wouter";
@@ -129,7 +130,8 @@ function useCurrentEpisode(scrollRoot: RefObject<HTMLElement | null>, view: Epis
  * 查询参数 `upload=whole_source|episode` 打开上传对话框，`episode=<集 ID>` 把原文滚到这一集，
  * `create` 打开新建一集对话框。
  */
-export function EpisodesView({ projectName }: { projectName: string }) {
+function LegacyEpisodesView({ projectName }: { projectName: string }) {
+  const manualOnly = useProjectsStore((state) => state.currentProjectData?.novel_workflow_enabled === true);
   const { t } = useTranslation("dashboard");
   const { view, error, reload, episodes } = useEpisodesViewData(projectName);
   const search = useSearch();
@@ -238,7 +240,7 @@ export function EpisodesView({ projectName }: { projectName: string }) {
   const menuActions: EpisodeMenuActions = {
     splitBusy: split.busy,
     planBlocked:
-      view.replan !== null ? t("replan_pending_hint") : planning ? t("episode_planning_busy") : null,
+      manualOnly ? t("nw_manual_only") : view.replan !== null ? t("replan_pending_hint") : planning ? t("episode_planning_busy") : null,
     onCreateAfter: setCreateAfter,
     onMergeWithNext: split.mergeWithNext,
     onClearAfter: split.clearAfter,
@@ -250,6 +252,7 @@ export function EpisodesView({ projectName }: { projectName: string }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <EpisodesHeader
+        manualOnly={manualOnly}
         projectName={projectName}
         view={view}
         episodeCount={episodes.length}
@@ -257,7 +260,7 @@ export function EpisodesView({ projectName }: { projectName: string }) {
         onUpload={setUpload}
         onCreate={() => setCreateAfter(null)}
       />
-      <NovelUnderstandingPanel key={projectName} projectName={projectName} planning={planning} onChanged={reload} episodes={episodes} />
+      {!manualOnly && <NovelUnderstandingPanel key={projectName} projectName={projectName} planning={planning} onChanged={reload} episodes={episodes} />}
       <UnregisteredFilesBanner
         projectName={projectName}
         files={view.unregistered}
@@ -361,4 +364,17 @@ function EmptySource({ hasEpisodes, onUpload }: { hasEpisodes: boolean; onUpload
       </EmptyContent>
     </Empty>
   );
+}
+
+
+export function EpisodesView({ projectName }: { projectName: string }) {
+  const { t } = useTranslation("dashboard");
+  const project = useProjectsStore((state) => state.currentProjectData);
+  const [production, setProduction] = useState(false);
+  const enabled = project?.content_mode === "drama" && project.novel_workflow_enabled === true;
+  if (enabled && !production) return <NovelWorkbench key={projectName} projectName={projectName} onProduction={() => setProduction(true)} />;
+  return <div className="flex min-h-0 flex-1 flex-col">
+    {enabled && <div className="border-b px-4 py-2"><Button size="sm" variant="outline" onClick={() => setProduction(false)}>{t("nw_back")}</Button></div>}
+    <LegacyEpisodesView projectName={projectName} />
+  </div>;
 }

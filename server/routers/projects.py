@@ -283,6 +283,7 @@ def _validated_speech_rate(value: float, _t: Translator) -> float:
 
 class CreateProjectRequest(BaseModel):
     novel_understanding_enabled: bool = True
+    novel_workflow_enabled: bool = True
     name: str | None = None
     title: str | None = None
     style: str | None = ""  # 保留但不再是用户入口
@@ -339,6 +340,7 @@ class EpisodePatch(BaseModel):
 
 class UpdateProjectRequest(BaseModel):
     novel_understanding_enabled: bool | None = None
+    novel_workflow_enabled: bool | None = None
     title: str | None = None
     style: str | None = None
     aspect_ratio: str | None = None
@@ -763,6 +765,7 @@ async def create_project(
                 raise HTTPException(status_code=400, detail=_t("project_exists", name=project_name)) from exc
             extras = {field: value for field in _PROJECT_BACKEND_FIELDS if (value := getattr(req, field))}
             extras["novel_understanding_enabled"] = req.novel_understanding_enabled
+            extras["novel_workflow_enabled"] = req.novel_workflow_enabled
             if req.model_settings is not None:
                 extras["model_settings"] = req.model_settings
             # 生成模式与宫格开关并入 extras 一次性写入，避免 create 后再 load-save 的额外 RMW；
@@ -1073,6 +1076,8 @@ async def update_project(name: str, req: UpdateProjectRequest, _t: Translator):
                         else:
                             project.pop(field, None)
 
+                if req.novel_workflow_enabled is not None:
+                    project["novel_workflow_enabled"] = req.novel_workflow_enabled
                 if req.novel_understanding_enabled is not None:
                     project["novel_understanding_enabled"] = req.novel_understanding_enabled
                 if "video_generate_audio" in req.model_fields_set:

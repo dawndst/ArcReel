@@ -26,6 +26,7 @@ from lib.infra.json_io import atomic_write_json, load_json
 from lib.infra.text_utils import strip_json_code_fences
 from lib.novel_understanding import store
 from lib.novel_understanding.models import BookSynthesis, ReadChunk, ReadingDraft, ReviewDraft, StoryFact
+from lib.novel_workflow.production import NoteProductionGuard
 
 stop_requested: ContextVar[Callable[[], bool] | None] = ContextVar("novel_stop_requested", default=None)
 
@@ -497,7 +498,18 @@ async def prepare(
     *,
     dry_run: bool = False,
     generator: TextGenerator | None = None,
-) -> tuple[dict[str, Any], ProductionGuard | None]:
+) -> tuple[dict[str, Any], ProductionGuard | NoteProductionGuard | None]:
+    entry = next((e for e in project.get("episodes", []) if e.get("episode") == episode), {})
+    if project.get("novel_workflow_enabled") is True and entry.get("note_source"):
+        from lib.backends.providers import CallPurpose
+        from lib.backends.text_backends.base import TextTaskType
+        from lib.novel_workflow.production import prepare as prepare_notes
+
+        if generator is None and not dry_run:
+            generator = await TextGenerator.create(
+                TextTaskType.SCRIPT, path.name, purpose=CallPurpose.SCRIPT_GENERATION
+            )
+        return await prepare_notes(path, episode, entry["note_source"], inputs, generator, dry_run=dry_run)
     cutoff = episode_cutoff(project, episode)
     if not applicable(project) or cutoff is None:
         return inputs, None

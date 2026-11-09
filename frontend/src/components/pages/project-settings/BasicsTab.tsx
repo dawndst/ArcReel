@@ -37,6 +37,14 @@ export function BasicsTab({ value, savedValue, onChange, facts }: BasicsTabProps
       <TabHeader title={t("project_settings_tab_basics")} />
 
       {facts.contentMode === "drama" && (
+        <SettingsBlock title={t("nw_title")}>
+          <label className="flex items-center justify-between gap-4 text-sm">
+            <span>{t("nw_setting")}</span>
+            <Switch checked={value.novelWorkflow} onCheckedChange={(next) => onChange((prev) => ({ ...prev, novelWorkflow: next }))} />
+          </label>
+        </SettingsBlock>
+      )}
+      {facts.contentMode === "drama" && (
         <SettingsBlock title={t("novel_understanding_title")}>
           <label className="flex items-center justify-between gap-4 text-sm">
             <span>{t("novel_understanding_description")}</span>

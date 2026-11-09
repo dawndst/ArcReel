@@ -20,6 +20,7 @@ import { formatVolume, type SourceUploadMode } from "./episodes-view-model";
 
 interface EpisodesHeaderProps {
   projectName: string;
+  manualOnly?: boolean;
   view: EpisodesView;
   episodeCount: number;
   /** 本项目有分集规划在排队或执行。 */
@@ -32,7 +33,7 @@ interface EpisodesHeaderProps {
  * 「分集」视图的页头工具行：左侧是标题、集数与整本源文的分集进度，右侧是「AI 规划分集」弹层、新建一集与上传原文。
  * 有新的分集方案时规划按钮不可用，先在方案栏里采纳或放弃。
  */
-export function EpisodesHeader({ projectName, view, episodeCount, planning, onUpload, onCreate }: EpisodesHeaderProps) {
+export function EpisodesHeader({ projectName, view, episodeCount, planning, onUpload, onCreate, manualOnly = false }: EpisodesHeaderProps) {
   const { t } = useTranslation("dashboard");
   const [planOpen, setPlanOpen] = useState(false);
   const hasSource = view.files.length > 0;
@@ -56,7 +57,7 @@ export function EpisodesHeader({ projectName, view, episodeCount, planning, onUp
       <span className="num shrink-0 text-xs text-muted-foreground">
         {t("episodes_view_episode_count", { count: episodeCount })}
       </span>
-      {hasSource ? (
+      {hasSource && !manualOnly ? (
         <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
           <Progress value={percent} aria-label={t("episodes_view_progress_label")} className="w-20 shrink-0" />
           <span className="num hidden truncate @min-[52rem]/episodes-header:inline">
@@ -68,7 +69,7 @@ export function EpisodesHeader({ projectName, view, episodeCount, planning, onUp
         </div>
       ) : null}
       <span className="flex-1" />
-      {hasSource ? (
+      {hasSource && !manualOnly ? (
         <Popover open={planOpen} onOpenChange={setPlanOpen}>
           <PopoverTrigger
             render={

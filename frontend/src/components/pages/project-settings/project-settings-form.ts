@@ -45,6 +45,7 @@ export type ProjectStyle =
 /** 项目设置四个表单分页（基础、风格、模型、配音）共用的一个编辑单元。 */
 export interface ProjectSettingsForm {
   novelUnderstanding: boolean;
+  novelWorkflow: boolean;
   aspectRatio: string;
   gridStoryboard: boolean;
   /** 口播语速估算（阅读单位 / 秒）；null 按项目语言的默认速度估算。 */
@@ -66,7 +67,7 @@ export interface ProjectSettingsForm {
 
 /** 属于各表单分页的字段，用于在侧栏标出有修改的分页。 */
 export const FORM_TAB_FIELDS = {
-  basics: ["novelUnderstanding", "aspectRatio", "gridStoryboard", "speechRate", "episodeTargetDuration", "adTargetDuration"],
+  basics: ["novelWorkflow", "novelUnderstanding", "aspectRatio", "gridStoryboard", "speechRate", "episodeTargetDuration", "adTargetDuration"],
   style: ["style"],
   models: ["models"],
   voice: ["narration", "voiceBinding"],
@@ -94,6 +95,7 @@ function sameFields(a: ProjectSettingsForm, b: ProjectSettingsForm, fields: read
 
 const ALL_FIELDS = Object.keys({
   novelUnderstanding: 0,
+  novelWorkflow: 0,
   aspectRatio: 0,
   gridStoryboard: 0,
   speechRate: 0,
@@ -190,6 +192,7 @@ export function deriveForm(
   return {
     // 后端 get_aspect_ratio() 未设置时按 9:16 生成，这里显示实际生效的比例
     novelUnderstanding: project.novel_understanding_enabled !== false,
+    novelWorkflow: project.novel_workflow_enabled === true,
     aspectRatio: str(project.aspect_ratio) || "9:16",
     gridStoryboard: project.grid_storyboard === true,
     speechRate: finiteOrNull(project.speech_rate_units_per_second),
@@ -281,6 +284,7 @@ function fullProjectPatch(
     text_backend_simple: models.textBackendSimple || null,
     text_backend_complex: models.textBackendComplex || null,
     novel_understanding_enabled: value.novelUnderstanding,
+    novel_workflow_enabled: value.novelWorkflow,
     aspect_ratio: value.aspectRatio || undefined,
     // 生成方式创建后不可更改，不在 PATCH 面上；宫格只在开关可见时写，广告项目对 true 返回 400
     ...(gridToggleVisible(facts) ? { grid_storyboard: value.gridStoryboard } : {}),

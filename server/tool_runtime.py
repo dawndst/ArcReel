@@ -822,7 +822,7 @@ async def _submit_text_task(
             return ToolOutcome(problem=ToolProblem(**problem.model_dump(mode="json")))
         result = task.get("result") or {}
         if task_type == _TEXT_EPISODE_PLAN:
-            if payload.get("novel_action") == "review":
+            if payload.get("novel_action") in {"review", "notes"}:
                 return ToolOutcome(value=TextGenerationResult(str(result)))
             return ToolOutcome(value=PlanEpisodesResult.model_validate(result))
         if task_type == TEXT_DRAFT_REPAIR_TASK_TYPE:
@@ -2944,6 +2944,12 @@ def _plan_episodes_preflight(projects: ProjectManager, project_name: str) -> Non
 async def _plan_episodes_gate(scope: ProjectScope, services: Services) -> ToolProblem | None:
     if problem := await migration_gate(scope, services):
         return problem
+    project = await asyncio.to_thread(services.projects.load_project, scope.project_name)
+    if project.get("content_mode") == "drama" and project.get("novel_workflow_enabled") is True:
+        return ToolProblem(
+            "episode_planning_refused",
+            "当前使用逐章 Note → SVT → 人工编排流程，请在小说改编页选择 Note 组合后编排为一集。",
+        )
     try:
         await asyncio.to_thread(_plan_episodes_preflight, services.projects, scope.project_name)
     except OperationNotAdmittedError as exc:
@@ -2959,6 +2965,23 @@ async def submit_novel_review(scope: ProjectScope, caller: CallerContext, servic
         operation="plan_episodes",
         unit_id=EPISODE_PLANNING_SLOT,
         payload={"novel_action": "review"},
+        scope=scope,
+        caller=caller,
+        services=services,
+        conflict_resource_ids=EPISODE_PLANNING_SLOTS,
+    )
+
+
+async def submit_note_workflow(
+    scope: ProjectScope, caller: CallerContext, services: Services, payload: dict
+) -> ToolOutcome[Any]:
+    if problem := await migration_gate(scope, services):
+        return ToolOutcome(problem=problem)
+    return await _submit_text_task(
+        task_type=_TEXT_EPISODE_PLAN,
+        operation="plan_episodes",
+        unit_id=EPISODE_PLANNING_SLOT,
+        payload={"novel_action": "notes", **payload},
         scope=scope,
         caller=caller,
         services=services,
@@ -3311,6 +3334,14 @@ async def _execute_queued_text_task(
         scope = ProjectScope(project_name=str(task["project_name"]), data_root=DataRootLayout.current().root)
         services = services or Services.defaults(await asyncio.to_thread(ProjectManager, scope.data_root))
     task_type = task["task_type"]
+    if task_type == _TEXT_EPISODE_PLAN and payload.get("novel_action") == "notes":
+        from lib.novel_workflow.service import generate_svts, read_notes
+
+        path = await asyncio.to_thread(services.projects.get_project_path, scope.project_name)
+        planner = await EpisodePlanner.create(path)
+        assert planner.generator is not None
+        action = read_notes if payload["action"] == "read" else generate_svts
+        return await action(path, planner.generator, payload["note_ids"], payload["source_basis"])
     if task_type == _TEXT_EPISODE_PLAN and payload.get("novel_action") == "review":
         from lib.novel_understanding.editorial import inspect_episodes
 
