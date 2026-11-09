@@ -53,6 +53,7 @@ describe("EpisodeSourceReview", () => {
     useEpisodeSurfaceStore.setState({ request: null });
     useAssistantStore.getState().setInput("");
     vi.restoreAllMocks();
+    vi.spyOn(API, "getEpisodeGuide").mockResolvedValue({ guide: null, stale: false, source_range: null });
   });
 
   it("puts the starter above a cut episode's read-only source and points edits to the Episodes view", async () => {
@@ -81,7 +82,7 @@ describe("EpisodeSourceReview", () => {
 
     render(<EpisodeSourceReview projectName="demo" episode={1} episodes={[spanning]} />);
 
-    expect(screen.getByText("part_1.txt – part_2.txt")).toBeInTheDocument();
+    expect(screen.getAllByText("part_1.txt – part_2.txt")).toHaveLength(2);
     expect(screen.queryByText("900–120")).not.toBeInTheDocument();
     expect(screen.queryByText(/约 .* 字/)).not.toBeInTheDocument();
   });
@@ -314,24 +315,20 @@ describe("EpisodeSourceReview", () => {
     expect(within(rail).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["1主角登场", "2遭遇冲突"]);
     expect(within(rail).getByText("反派现身")).toBeInTheDocument();
 
-    const bare = makeEpisode({ episode: 3, outline: undefined, hook: undefined });
+    const bare = makeEpisode({ episode: 3, source_origin: "none", source_range: undefined, outline: undefined, hook: undefined });
     rerender(<EpisodeSourceReview projectName="demo" episode={3} episodes={[bare]} />);
     expect(screen.queryByRole("complementary", { name: "本集导览" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /本集导览/ })).not.toBeInTheDocument();
   });
 
-  it("collapses the narrow-view guide and re-expands it for a different episode", async () => {
+  it("provides one generation entry and replaces the guide when switching episodes", async () => {
     vi.spyOn(API, "getSourceContent").mockResolvedValue("text");
     const episodes = [makeEpisode(), makeEpisode({ episode: 2, outline: { story_beats: ["新的一集"] } })];
-
     const { rerender } = render(<EpisodeSourceReview projectName="demo" episode={1} episodes={episodes} />);
-
-    const toggle = screen.getByRole("button", { name: /本集导览/ });
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-
+    expect(screen.getAllByRole("button", { name: "生成完整导览" })).toHaveLength(1);
     rerender(<EpisodeSourceReview projectName="demo" episode={2} episodes={episodes} />);
-    expect(screen.getByRole("button", { name: /本集导览/ })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("新的一集")).toBeInTheDocument();
+    expect(screen.queryByText("主角登场")).not.toBeInTheDocument();
+    await screen.findByText("text");
   });
 });

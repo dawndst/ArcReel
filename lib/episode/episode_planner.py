@@ -39,6 +39,7 @@ from lib.backends.text_backends.base import (
 )
 from lib.backends.text_generator import TextGenerator
 from lib.episode.episode_excerpts import edge_sentences
+from lib.episode.episode_guide_models import EpisodeGuide
 from lib.episode.episode_ids import allocate_episode_ids, episode_id_high_water
 from lib.episode.episode_ledger import (
     SOURCE_FINGERPRINTS_KEY,
@@ -257,6 +258,7 @@ class DramaEpisodeDraft(NarrationEpisodeDraft):
 
     story_beats: list[str] = Field(min_length=1)
     next_episode_teaser: str | None = None
+    guide: EpisodeGuide | None = None
 
 
 class NarrationPlanDraft(BaseModel):
@@ -447,6 +449,8 @@ def _ledger_entry_from_draft(
             "story_beats": list(draft_ep.story_beats),
             "next_episode_teaser": draft_ep.next_episode_teaser,
         }
+        if draft_ep.guide:
+            entry["outline"]["guide"] = draft_ep.guide.model_dump()
     return entry
 
 
@@ -464,6 +468,8 @@ def _candidate_entry_from_draft(
             "story_beats": list(draft_ep.story_beats),
             "next_episode_teaser": draft_ep.next_episode_teaser,
         }
+        if draft_ep.guide:
+            entry["outline"]["guide"] = draft_ep.guide.model_dump()
     return entry
 
 

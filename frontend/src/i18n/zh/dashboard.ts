@@ -1,6 +1,20 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  guide_generate: "生成完整导览",
+  guide_regenerate: "重新生成导览",
+  guide_generating: "正在阅读本集并生成导览…",
+  guide_scope: "仅阅读本集原文，不启动全书阅读。取舍建议不会自动修改分集。",
+  guide_stale: "本集原文或导览规则已变化，请重新生成。",
+  guide_summary: "本集概况",
+  guide_events: "关键剧情",
+  guide_changes: "人物与关系变化",
+  guide_value: "改编价值与建议",
+  guide_keep: "建议保留",
+  guide_compress: "建议压缩",
+  guide_merge: "建议合并",
+  guide_original: "查看原分集规划的剧情与钩子",
+
   novel_working: "资料与大纲处理中",
   novel_understanding_title: "小说理解与改编审查",
   novel_understanding_description: "默认开启：分批阅读并缓存证据，检查一致性与提前揭示；首次运行需要额外模型调用。关闭后沿用原有流程。",

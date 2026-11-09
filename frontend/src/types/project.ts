@@ -1,3 +1,4 @@
+import type { EpisodeGuide } from "./episode-guide";
 /**
  * Project-related type definitions.
  *
@@ -156,7 +157,7 @@ export interface EpisodeMeta {
    */
   ledger_status?: "planned" | "consumed" | "stale";
   /** Written by episode_planner at split time (drama only) */
-  outline?: { story_beats?: string[]; next_episode_teaser?: string };
+  outline?: { story_beats?: string[]; next_episode_teaser?: string; guide?: EpisodeGuide | null };
   /** 上一次提示词编写的附加指令，打开「编写提示词」时预填 */
   prompt_authoring_instructions?: string;
   /** 上一次 AI 规划脚本的附加指令，重新生成时预填 */

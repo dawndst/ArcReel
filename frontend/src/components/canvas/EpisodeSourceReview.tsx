@@ -1,8 +1,8 @@
+import { EpisodeGuideDetails } from "./EpisodeGuideDetails";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
-import { Anchor, ChevronRight } from "lucide-react";
+import { Anchor } from "lucide-react";
 import { Link } from "wouter";
-import { cn } from "cn";
 import { API } from "@/api";
 import { useStaysInEpisodeView } from "@/components/canvas/episode-page/EpisodeViewScope";
 import { ImpactConfirmDialog } from "@/components/canvas/episodes/ImpactConfirmDialog";
@@ -11,8 +11,6 @@ import { episodesViewPath } from "@/components/canvas/episodes/episodes-view-mod
 import { ScriptPlanStart } from "@/components/canvas/shared/ScriptPlanStart";
 import { UnsavedChangesBar } from "@/components/shared/edit-unit/UnsavedChangesBar";
 import { useEditUnit } from "@/components/shared/edit-unit/useEditUnit";
-import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Textarea } from "@/components/ui/textarea";
 import { useEpisodeSurfaceRequest } from "@/stores/episode-surface-store";
 import { useAppStore } from "@/stores/app-store";
@@ -24,7 +22,7 @@ import { episodeDisplayName, episodePosition } from "@/utils/episode-display";
 
 /**
  * 「脚本规划」tab 的起步态：本集既没有脚本规划也没有正式脚本。自上而下是起步区（首次规划的唯一入口）
- * 与本集原文；本集导览在视图宽 860px 以上放右侧栏并随滚动固定，更窄时回到原文上方、可折叠。
+ * 与本集原文；本集导览在视图宽 860px 以上放右侧栏，更窄时排在起步区与原文前。
  * 适用 narration、drama 与参考生视频；广告项目恒单集、没有源文切片，由集页排除。
  *
  * 本集原文按来源区分：切自整本源文的集只读（集文件由分集规划派生，去「分集」视图修改）；自带原文的集
@@ -78,53 +76,9 @@ function GuideContent({ meta }: { meta: EpisodeMeta | undefined }) {
   );
 }
 
-function guideSummary(meta: EpisodeMeta | undefined, t: (key: string, options?: Record<string, unknown>) => string) {
-  const beats = meta?.outline?.story_beats?.length ?? 0;
-  return [
-    beats > 0 ? t("episode_workspace_guide_beats", { count: beats }) : null,
-    meta?.hook ? t("episode_workspace_guide_hook") : null,
-  ].filter((part): part is string => part !== null);
-}
-
-/** 窄视图：导览放在原文上方，默认展开，可以收起。 */
-function GuideCollapsible({ meta, className }: { meta: EpisodeMeta | undefined; className?: string }) {
+function GuideHeading() {
   const { t } = useTranslation("dashboard");
-  return (
-    <div className={cn("rounded-xl border border-border p-1", className)}>
-      <Collapsible defaultOpen>
-        <CollapsibleTrigger render={<Button variant="ghost" size="sm" className="w-full justify-start" />}>
-          <ChevronRight aria-hidden data-icon="inline-start" className="group-aria-expanded/button:rotate-90" />
-          <span className="font-medium text-foreground">{t("episode_workspace_guide_title")}</span>
-          {guideSummary(meta, t).map((part) => (
-            <span key={part} className="font-normal text-muted-foreground">
-              {part}
-            </span>
-          ))}
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <div className="px-2.5 pt-2 pb-2">
-            <GuideContent meta={meta} />
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-    </div>
-  );
-}
-
-/** 宽视图：导览在右侧栏，随滚动固定在视野里。 */
-function GuideRail({ meta, className }: { meta: EpisodeMeta | undefined; className?: string }) {
-  const { t } = useTranslation("dashboard");
-  const titleId = useId();
-  return (
-    <aside aria-labelledby={titleId} className={className}>
-      <div className="flex flex-col gap-3">
-        <h2 id={titleId} className="text-sm font-medium text-muted-foreground">
-          {t("episode_workspace_guide_title")}
-        </h2>
-        <GuideContent meta={meta} />
-      </div>
-    </aside>
-  );
+  return <h2 className="mb-3 text-base font-semibold">{t("episode_workspace_guide_title")}</h2>;
 }
 
 // ---------------------------------------------------------------------------
@@ -422,8 +376,10 @@ export function EpisodeSourceReview({
   episode: number;
   episodes: EpisodeMeta[];
 }) {
+  const { t } = useTranslation("dashboard");
   const meta = episodes.find((e) => e.episode === episode);
-  const guide = hasGuide(meta);
+  const guide = hasGuide(meta) || sourceOriginOf(meta) !== "none";
+  const revision = useAppStore((state) => state.getEntityRevision(`episode:${episode}`) + state.getEntityRevision("project:project"));
   // 规划读的是已保存的原文：同页原文有未保存修改时先保存，保存失败或不确认改类型时不提交
   const sourceRef = useRef<SourceEditHandle | null>(null);
   const saveSource = useCallback(() => sourceRef.current?.save() ?? Promise.resolve(true), []);
@@ -443,14 +399,25 @@ export function EpisodeSourceReview({
             savedInstructions={meta?.script_plan_instructions ?? ""}
             prepare={saveSource}
           />
-          {guide && <GuideCollapsible key={episode} meta={meta} className="@min-[860px]/plan-start:hidden" />}
+
           <EpisodeSource projectName={projectName} episode={episode} episodes={episodes} meta={meta} editRef={sourceRef} />
         </div>
         {guide && (
-          <GuideRail
-            meta={meta}
-            className="hidden self-start @min-[860px]/plan-start:sticky @min-[860px]/plan-start:top-6 @min-[860px]/plan-start:block"
-          />
+          <aside aria-label={t("episode_workspace_guide_title")} className="order-first min-w-0 self-start @min-[860px]/plan-start:order-last">
+            <GuideHeading />
+            {sourceOriginOf(meta) !== "none" ? (
+              <EpisodeGuideDetails
+                key={`${projectName}:${episode}`}
+                projectName={projectName}
+                episode={episode}
+                initial={meta?.outline?.guide}
+                revision={revision}
+                prepare={saveSource}
+                fallback={<GuideContent meta={meta} />}
+              />
+            ) : <GuideContent meta={meta} />}
+            <div className="mt-4"><SourceRangeNote meta={meta} /></div>
+          </aside>
         )}
       </div>
     </div>

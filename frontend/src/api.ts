@@ -1,3 +1,4 @@
+import type { EpisodeGuideResponse } from "@/types/episode-guide";
 import type { NovelStatus, NovelAdoption } from "@/types/novel-understanding";
 /**
  * API 调用封装 (TypeScript)
@@ -2146,6 +2147,12 @@ class API {
   }
 
   /** 「分集」视图：整本源文按集分段、每集体量与首尾句、source/ 里没有登记的文件。 */
+  static async getEpisodeGuide(name: string, episode: number, options: { signal?: AbortSignal } = {}): Promise<EpisodeGuideResponse> {
+    return this.request(`/projects/${encodeURIComponent(name)}/episodes/${episode}/guide`, options);
+  }
+  static async generateEpisodeGuide(name: string, episode: number): Promise<EpisodeGuideResponse> {
+    return this.request(`/projects/${encodeURIComponent(name)}/episodes/${episode}/guide`, { method: "POST" });
+  }
   static async getNovelUnderstanding(name: string, options: { signal?: AbortSignal } = {}): Promise<NovelStatus> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-understanding`, options);
   }

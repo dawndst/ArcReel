@@ -22,6 +22,7 @@ from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from lib.episode.episode_guide_models import EpisodeGuide
 from lib.episode.episode_paths import episode_drafts_dir, episode_script_relpath
 from lib.infra.path_safety import safe_exists
 from lib.infra.text_utils import normalize_newlines
@@ -103,6 +104,7 @@ class EpisodeOutline(BaseModel):
 
     story_beats: list[str] = Field(default_factory=list)
     next_episode_teaser: str | None = None
+    guide: EpisodeGuide | None = None
 
 
 #: 从这一 schema 起，下集大纲取播出顺序中紧接的那一集，且没有规划数据时退为只给标题。

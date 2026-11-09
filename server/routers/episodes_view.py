@@ -574,3 +574,59 @@ async def adopt_editorial(name: str, req: AdoptEditorialRequest, _t: Translator)
         return await run_sync_transaction(commit)
     except novel_store.NovelUnderstandingError as exc:
         raise HTTPException(status_code=409, detail=_t("novel_review_stale")) from exc
+
+
+_guide_running: set[tuple[str, int]] = set()
+
+
+@router.get("/projects/{name}/episodes/{episode}/guide")
+async def get_episode_guide(name: str, episode: int):
+    from lib.episode import episode_guide
+
+    def read():
+        manager = get_project_manager()
+        path = manager.get_project_path(name)
+        data = episode_guide.snapshot(path, manager.load_project(name), episode)
+        return {**episode_guide.cached(path, data), "running": (name, episode) in _guide_running}
+
+    try:
+        return await asyncio.to_thread(read)
+    except (ValueError, FileNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/projects/{name}/episodes/{episode}/guide", dependencies=[Depends(require_project_migration_ok)])
+async def generate_episode_guide(name: str, episode: int):
+    from lib.episode import episode_guide
+
+    def read():
+        manager = get_project_manager()
+        path = manager.get_project_path(name)
+        return path, episode_guide.snapshot(path, manager.load_project(name), episode)
+
+    key = (name, episode)
+    if key in _guide_running:
+        raise HTTPException(status_code=409, detail="Episode guide generation is already running")
+    _guide_running.add(key)
+    try:
+        path, data = await asyncio.to_thread(read)
+        guide = await episode_guide.generate(path, data)
+
+        def commit():
+            from lib.artifacts.formal_write import project_metadata_lock
+
+            with project_metadata_lock(path):
+                _, current = read()
+                if current["basis"] != data["basis"]:
+                    raise HTTPException(
+                        status_code=409, detail="Episode source or guide rules changed; regenerate the guide"
+                    )
+                episode_guide.save(path, data, guide)
+                return episode_guide.cached(path, data)
+
+        return await run_sync_transaction(commit)
+    except (ValueError, FileNotFoundError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    finally:
+        _guide_running.discard(key)

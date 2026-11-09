@@ -1,6 +1,20 @@
 import type enDashboard from "@/i18n/en/dashboard";
 
 export default {
+  guide_generate: "Tạo tổng quan đầy đủ",
+  guide_regenerate: "Tạo lại tổng quan",
+  guide_generating: "Đang đọc tập này và tạo tổng quan…",
+  guide_scope: "Chỉ đọc nguyên văn tập này. Không đọc toàn bộ sách hoặc tự áp dụng đề xuất.",
+  guide_stale: "Nguyên văn hoặc quy tắc đã thay đổi. Hãy tạo lại tổng quan.",
+  guide_summary: "Khái quát tập",
+  guide_events: "Diễn biến chính",
+  guide_changes: "Thay đổi nhân vật và quan hệ",
+  guide_value: "Giá trị chuyển thể và đề xuất",
+  guide_keep: "Nên giữ",
+  guide_compress: "Nên rút gọn",
+  guide_merge: "Cân nhắc gộp",
+  guide_original: "Diễn biến và nút thắt ban đầu",
+
   novel_working: "Đang xử lý tư liệu và dàn ý",
   novel_understanding_title: "Hiểu tiểu thuyết và duyệt chuyển thể",
   novel_understanding_description: "Bật mặc định: lưu bằng chứng, kiểm tra tính nhất quán và tiết lộ sớm. Lần đầu cần thêm lượt gọi mô hình. Tắt để dùng quy trình gốc.",

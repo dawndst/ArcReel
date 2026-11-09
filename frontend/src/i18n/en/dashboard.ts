@@ -1,5 +1,19 @@
 
 export default {
+  guide_generate: "Generate complete guide",
+  guide_regenerate: "Regenerate guide",
+  guide_generating: "Reading this episode and generating guide…",
+  guide_scope: "Reads this episode only. Does not start full-book reading or apply editorial decisions.",
+  guide_stale: "Source or guide rules changed. Regenerate this guide.",
+  guide_summary: "Episode overview",
+  guide_events: "Key events",
+  guide_changes: "Character and relationship changes",
+  guide_value: "Adaptation value and recommendation",
+  guide_keep: "Keep",
+  guide_compress: "Compress",
+  guide_merge: "Consider merging",
+  guide_original: "Original planned events and hook",
+
   novel_working: "Processing memory and outlines",
   novel_understanding_title: "Novel understanding & adaptation review",
   novel_understanding_description: "Enabled by default: cache source evidence and check consistency and early reveals. The first run uses additional model calls. Turn off to use the original workflow.",
