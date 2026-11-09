@@ -2163,7 +2163,7 @@ class API {
   static async initializeChapterNotes(name: string, source_basis: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/initialize`, { method: "POST", body: JSON.stringify({ source_basis }) });
   }
-  static async runNoteWorkflow(name: string, action: "read" | "svt", note_ids: string[], source_basis: string): Promise<unknown> {
+  static async runNoteWorkflow(name: string, action: "read" | "svt" | "review", note_ids: string[], source_basis: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action, note_ids, source_basis }) });
   }
   static async createNoteGroup(name: string, note_ids: string[], title: string, source_basis: string): Promise<unknown> {

@@ -24,7 +24,7 @@ class SourceRequest(BaseModel):
 
 
 class ReadingRequest(SourceRequest):
-    action: Literal["read", "svt"]
+    action: Literal["read", "svt", "review"]
     note_ids: list[str] = Field(min_length=1, max_length=10000)
 
 

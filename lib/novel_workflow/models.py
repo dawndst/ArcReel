@@ -46,15 +46,6 @@ class Event(StrictModel):
     dialogues: list[Dialogue] = Field(default_factory=list)
 
 
-class Reading(StrictModel):
-    complete: bool
-    summary: str
-    assets: list[Mention] = Field(default_factory=list)
-    changes: list[Change] = Field(default_factory=list)
-    events: list[Event] = Field(default_factory=list)
-    questions: list[str] = Field(default_factory=list)
-
-
 class Moment(StrictModel):
     event_ids: list[str] = Field(min_length=1)
     description: str
@@ -77,3 +68,87 @@ class SVTBatch(StrictModel):
     svts: list[SVTDraft] = Field(default_factory=list)
     supporting_event_ids: list[str] = Field(default_factory=list)
     merge_suggestions: list[str] = Field(default_factory=list)
+
+
+class Alias(StrictModel):
+    name: str
+    alias: str
+    identity_scope: str = ""
+    quote: str = Field(min_length=2)
+
+
+class Relation(StrictModel):
+    subject: str
+    target: str
+    relation: str
+    previous: str = "未明确"
+    trigger: str
+    story_time: str = "未明确"
+    quote: str = Field(min_length=2)
+
+
+class Thread(StrictModel):
+    kind: Literal["seed", "resolution"]
+    description: str
+    seed_id: str | None = None
+    quote: str = Field(min_length=2)
+
+
+class Highlight(StrictModel):
+    kind: Literal["payoff", "growth", "fear", "ethical_conflict", "revelation", "tragedy", "hook"]
+    description: str
+    beneficiary: str
+    intensity: Literal["small", "large"]
+    reason: str
+    visual: str
+    quote: str = Field(min_length=2)
+
+
+class ChapterSynthesis(StrictModel):
+    summary: str = Field(min_length=1, max_length=600)
+    cause: str
+    conflict: str
+    action: str
+    outcome: str
+    hook: str
+    evidence_ids: list[str] = Field(min_length=1)
+    questions: list[str] = Field(default_factory=list)
+
+
+class AdaptationAdvice(StrictModel):
+    action: Literal["keep", "compress", "combine", "omit_candidate"]
+    note_ids: list[str] = Field(min_length=1)
+    evidence_ids: list[str] = Field(min_length=1)
+    reason: str
+    character_impact: str
+    thread_impact: str
+    dialogue_impact: str
+    preserve: str
+
+
+class ScopeReview(StrictModel):
+    theme: str
+    mainline: str
+    advice: list[AdaptationAdvice] = Field(min_length=1)
+    questions: list[str] = Field(default_factory=list)
+
+
+class Reading(StrictModel):
+    complete: bool
+    summary: str
+    assets: list[Mention] = Field(default_factory=list)
+    changes: list[Change] = Field(default_factory=list)
+    events: list[Event] = Field(default_factory=list)
+    aliases: list[Alias] = Field(default_factory=list)
+    relations: list[Relation] = Field(default_factory=list)
+    threads: list[Thread] = Field(default_factory=list)
+    highlights: list[Highlight] = Field(default_factory=list)
+    questions: list[str] = Field(default_factory=list)
+
+
+class RangeConclusion(StrictModel):
+    theme: str = Field(min_length=1, max_length=400)
+    mainline: str = Field(min_length=1, max_length=2400)
+    must_preserve: str = Field(min_length=1, max_length=1600)
+    adaptation_risks: str = Field(min_length=1, max_length=1600)
+    evidence_ids: list[str] = Field(min_length=1, max_length=40)

@@ -41,7 +41,7 @@ def initialize(path: Path, project: dict, expected: str) -> dict:
         result = {**preview, "groups": previous.get("groups", []) if previous else [], "initialized_at": now()}
         if previous:
             write(root(path) / "history" / f"{uuid4().hex}.json", previous)
-        for name in ("read", "svt"):
+        for name in ("read", "chapter", "svt", "review"):
             file = root(path) / "rules" / f"{name}.md"
             if not file.exists():
                 file.parent.mkdir(parents=True, exist_ok=True)
@@ -51,12 +51,33 @@ def initialize(path: Path, project: dict, expected: str) -> dict:
 
 
 def reading_key(path: Path, note: dict) -> str:
-    return digest([note["basis"], rule(path, "read")])
+    return digest([note["basis"], rule(path, "read"), rule(path, "chapter"), 2])
+
+
+def valid_readings(path: Path, notebook=None, *, before=None) -> dict:
+    """Resolve cache validity once in reveal order, with bounded file reads."""
+    notebook = notebook if notebook is not None else state(path)
+    bases, readings = {}, {}
+    read_rule, chapter_rule = rule(path, "read"), rule(path, "chapter")
+    for note in notebook["notes"] if notebook else []:
+        if before is not None and note["order"] >= before:
+            break
+        key = digest([note["basis"], read_rule, chapter_rule, 2])
+        target = root(path) / "notes" / note["id"] / f"{key}.json"
+        if target.exists():
+            result = load_json(target)
+            if "context_basis" not in result or result["context_basis"] == digest(bases):
+                bases[note["id"]] = result["basis"]
+                readings[note["id"]] = result
+    return readings
+
+
+def reading_context(path: Path, note: dict) -> dict:
+    return {i: r["basis"] for i, r in valid_readings(path, before=note["order"]).items()}
 
 
 def note_result(path: Path, note: dict) -> dict | None:
-    target = root(path) / "notes" / note["id"] / f"{reading_key(path, note)}.json"
-    return load_json(target) if target.exists() else None
+    return valid_readings(path, before=note["order"] + 1).get(note["id"])
 
 
 def require_current(path: Path, project: dict, expected: str) -> dict:
@@ -110,9 +131,17 @@ def view(path: Path, project: dict) -> dict:
     preview = chapters.index(path, project)
     stale = preview["source_basis"] != current["source_basis"]
     notes = []
+    readings = valid_readings(path, current) if not stale else {}
     for note in current["notes"]:
-        result = note_result(path, note) if not stale else None
-        notes.append({**note, "reading": result, "status": "stale" if stale else "read" if result else "unread"})
+        result = readings.get(note["id"])
+        older = any((root(path) / "notes" / note["id"]).glob("*.json")) if result is None else False
+        notes.append(
+            {
+                **note,
+                "reading": result,
+                "status": "stale" if stale else "read" if result else "outdated" if older else "unread",
+            }
+        )
     progress_file = root(path) / "progress.json"
     svt_file = root(path) / "svts.json"
     svts = load_json(svt_file) if svt_file.exists() else None
@@ -125,8 +154,22 @@ def view(path: Path, project: dict) -> dict:
             or any(valid_results.get(i) != basis for i, basis in svts.get("note_bases", {}).items())
         )
     )
+    from lib.novel_workflow import memory
+
+    book = memory.ledger(path, current, readings=readings) if not stale else None
+    reviews = []
+    for file in sorted((root(path) / "reviews").glob("*.json")):
+        review = load_json(file)
+        review["stale"] = (
+            stale
+            or review["rule_basis"] != digest(rule(path, "review"))
+            or any(valid_results.get(i) != b for i, b in review["note_bases"].items())
+        )
+        reviews.append(review)
     return {
         **current,
+        "ledger": book,
+        "reviews": sorted(reviews, key=lambda r: r["created_at"], reverse=True),
         "initialized": True,
         "notes": notes,
         "stale": stale,

@@ -3340,7 +3340,9 @@ async def _execute_queued_text_task(
         path = await asyncio.to_thread(services.projects.get_project_path, scope.project_name)
         planner = await EpisodePlanner.create(path)
         assert planner.generator is not None
-        action = read_notes if payload["action"] == "read" else generate_svts
+        from lib.novel_workflow.review import review_scope
+
+        action = {"read": read_notes, "svt": generate_svts, "review": review_scope}[payload["action"]]
         return await action(path, planner.generator, payload["note_ids"], payload["source_basis"])
     if task_type == _TEXT_EPISODE_PLAN and payload.get("novel_action") == "review":
         from lib.novel_understanding.editorial import inspect_episodes
