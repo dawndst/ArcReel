@@ -285,7 +285,8 @@ async def test_review_is_scoped_cited_and_does_not_modify_human_groups(tmp_path)
     group = await asyncio.to_thread(store.group_notes, tmp_path, data, ids, "人工组合", index["source_basis"])
     await review_scope(tmp_path, Reviewer(), [ids[0]], index["source_basis"])
     result = await asyncio.to_thread(store.view, tmp_path, data)
-    assert result["groups"] == [group]
+    assert store.state(tmp_path)["groups"] == [group]
+    assert result["groups"] == [{**group, "summary_stale": False}]
     review = result["reviews"][0]
     assert review["note_ids"] == [ids[0]]
     assert review["scope_kind"] == "selected"

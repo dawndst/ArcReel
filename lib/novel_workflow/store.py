@@ -41,7 +41,7 @@ def initialize(path: Path, project: dict, expected: str) -> dict:
         result = {**preview, "groups": previous.get("groups", []) if previous else [], "initialized_at": now()}
         if previous:
             write(root(path) / "history" / f"{uuid4().hex}.json", previous)
-        for name in ("read", "chapter", "svt", "review", "understand"):
+        for name in ("read", "chapter", "svt", "review", "understand", "group", "scenes"):
             file = root(path) / "rules" / f"{name}.md"
             if not file.exists():
                 file.parent.mkdir(parents=True, exist_ok=True)
@@ -106,6 +106,8 @@ def group_notes(path: Path, project: dict, note_ids: list[str], title: str, expe
         by_id = {n["id"]: n for n in current["notes"]}
         if not note_ids or len(set(note_ids)) != len(note_ids) or any(i not in by_id for i in note_ids):
             raise ValueError("Select existing, distinct Notes")
+        if any(set(g["note_ids"]) & set(note_ids) for g in current["groups"]):
+            raise ValueError("章节已在资料组中，请先解散原组合再重新归组")
         ordered = sorted(note_ids, key=lambda i: by_id[i]["order"])
         group = {
             "id": uuid4().hex,
@@ -114,6 +116,7 @@ def group_notes(path: Path, project: dict, note_ids: list[str], title: str, expe
             "source_basis": expected,
             "created_at": now(),
             "created_by": "human",
+            "usage": "candidate",
         }
         current["groups"].append(group)
         write(root(path) / "index.json", current)
@@ -190,8 +193,31 @@ def view(path: Path, project: dict) -> dict:
             or any(valid_results.get(i) != b for i, b in review["note_bases"].items())
         )
         reviews.append(review)
+    from lib.novel_workflow import scene_library
+
+    groups = []
+    for group in current["groups"]:
+        group = dict(group)
+        group["summary_stale"] = bool(group.get("synopsis")) and (
+            stale
+            or group.get("summary_rule_basis") != digest(rule(path, "group"))
+            or any(valid_results.get(i) != b for i, b in group.get("summary_bases", {}).items())
+        )
+        groups.append(group)
     return {
         **current,
+        "groups": groups,
+        "scene_batches": scene_library.view(path, current, readings),
+        "pending_assemblies": [
+            {
+                "episode": e["episode"],
+                "title": e["title"],
+                "source_basis": e["note_source"]["source_basis"],
+                **e["director_selection"],
+            }
+            for e in project.get("episodes", [])
+            if e.get("director_selection", {}).get("pending")
+        ],
         "settings": settings.get(path),
         "scope": scope.view(path, current, readings),
         "understanding": understanding.view(path, current) if not stale else {"links": [], "reports": []},

@@ -29,11 +29,11 @@ export function NovelReadingProgress({ projectName, active, notebook = false }: 
     void poll();
     return () => { controller.abort(); clearTimeout(timer); };
   }, [projectName, active, notebook]);
-  if (!active || !status?.enabled || !["reading", "synthesizing"].includes(status.phase)) return null;
+  if (!active || !status?.enabled || !["reading", "synthesizing", "scenes", "group_summary"].includes(status.phase)) return null;
   return (
     <span role="status" title={t("novel_understanding_title")} className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs text-primary">
       <Loader2 aria-hidden className="size-3 animate-spin" />
-      {t(`novel_phase_${status.phase}`)} · {status.coverage ?? 0}%
+      {t(status.phase === "scenes" ? "nw_phase_scenes" : status.phase === "group_summary" ? "nw_group_summarize" : `novel_phase_${status.phase}`)} · {status.coverage ?? 0}%
     </span>
   );
 }

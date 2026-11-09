@@ -1,9 +1,13 @@
 import asyncio
+import json
 from pathlib import Path
 
+import pytest
+
 from lib.novel_understanding.store import digest
-from lib.novel_workflow import chapters, store
-from lib.novel_workflow.production import arrange_episode, validate_binding
+from lib.novel_workflow import chapters, scene_library, scope, store, understanding
+from lib.novel_workflow.director import assemble
+from lib.novel_workflow.production import validate_binding
 from lib.project.project_manager import ProjectManager
 
 
@@ -22,81 +26,127 @@ def setup(tmp_path: Path):
     project = pm.load_project("demo")
     indexed = chapters.index(path, project)
     store.initialize(path, project, indexed["source_basis"])
-    for note in indexed["notes"]:
+    library = {"batches": {}}
+    for index, note in enumerate(indexed["notes"]):
         basis = store.reading_key(path, note)
         store.write(
             store.root(path) / "notes" / note["id"] / f"{basis}.json",
             {"basis": basis, "summaries": ["本章事件"], "assets": [], "changes": [], "events": [], "questions": []},
         )
-    group = store.group_notes(path, project, [n["id"] for n in indexed["notes"]], "人工编排", indexed["source_basis"])
-    return pm, path, group
+        quote = ["甲取剑。", "乙开门。"][index]
+        segments = [
+            {
+                "duration_seconds": 8,
+                "scene_description": f"动作{j}",
+                "characters_in_scene": [],
+                "scenes": [],
+                "props": [],
+                "utterances": [],
+            }
+            for j in range(index + 1)
+        ]
+        shot = {
+            "id": f"SH-{index}",
+            "title": quote,
+            "quote": quote,
+            "segments": segments,
+            "evidence": {
+                "quote": quote,
+                "note_id": note["id"],
+                "source_file": "source/book.txt",
+                "start": index * 10 + 6,
+                "end": index * 10 + 10,
+            },
+        }
+        library["batches"][str(index)] = {
+            "basis": str(index),
+            "note_id": note["id"],
+            "note_order": index,
+            "part": 0,
+            "source_basis": indexed["source_basis"],
+            "rule_basis": digest(store.rule(path, "scenes")),
+            "note_bases": {note["id"]: basis},
+            "understanding_basis": understanding.production_context(path, [note["id"]])["basis"],
+            "scenes": [
+                {
+                    "id": f"SCN-{index}",
+                    "title": quote,
+                    "location": "未明",
+                    "time": "未明",
+                    "purpose": "行动",
+                    "shots": [shot],
+                }
+            ],
+            "skipped_reason": "",
+        }
+    store.write(store.root(path) / "scene_library.json", library)
+    return pm, path, indexed
 
 
-async def test_arrangement_reuses_same_episode_and_freezes_note_sources(tmp_path):
-    pm, path, group = await asyncio.to_thread(setup, tmp_path)
-    episode = await asyncio.to_thread(arrange_episode, pm, "demo", group["id"])
-    again = await asyncio.to_thread(arrange_episode, pm, "demo", group["id"])
-    assert again == episode
+async def test_director_order_preserves_segments_and_retry_does_not_duplicate_episode(tmp_path):
+    pm, path, indexed = await asyncio.to_thread(setup, tmp_path)
+    args = (pm, "demo", ["SH-1", "SH-0"], "导演编排", indexed["source_basis"], "request-one")
+    episode = await asyncio.to_thread(assemble, *args)
+    assert await asyncio.to_thread(assemble, *args) == episode
     project = await asyncio.to_thread(pm.load_project, "demo")
     assert len(project["episodes"]) == 1
-    binding = project["episodes"][0]["note_source"]
-    assert len(binding["note_bases"]) == 2
-    _, readings = await asyncio.to_thread(validate_binding, path, episode, binding)
-    assert len(readings) == 2
-    assert binding["text_basis"] == digest(await asyncio.to_thread((path / f"source/episode_{episode}.txt").read_text))
+    plan = json.loads((path / f"drafts/episode_{episode}/script_plan_normalized_script.json").read_text())
+    assert [(s["scene_number"], s["shot_number"], s["segment_number"]) for s in plan["scenes"]] == [
+        (1, 1, 1),
+        (1, 1, 2),
+        (2, 1, None),
+    ]
+    assert plan["scenes"][0]["source_text"] == "乙开门。"
+    assert not store.state(path)["groups"]
+    await asyncio.to_thread(validate_binding, path, episode, project["episodes"][0]["note_source"])
 
 
-async def test_enabled_understanding_is_required_and_bound_to_production(tmp_path):
-    import pytest
-
-    from lib.novel_workflow import settings
-
-    pm, path, group = await asyncio.to_thread(setup, tmp_path)
-    await asyncio.to_thread(settings.update, path, {"understanding_enabled": True})
-    with pytest.raises(ValueError, match="尚未完成"):
-        await asyncio.to_thread(arrange_episode, pm, "demo", group["id"])
-
-    def save_report():
-        notebook = store.state(path)
-        bases = {n["id"]: store.note_result(path, n)["basis"] for n in notebook["notes"]}
-        store.write(
-            store.root(path) / "understanding/reports/test.json",
-            {
-                "id": "test",
-                "source_basis": notebook["source_basis"],
-                "rule_basis": digest(store.rule(path, "understand")),
-                "note_bases": bases,
-                "created_at": "2026-11-09T00:00:00Z",
-                "selected_note_ids": list(bases),
-                "links": [],
-            },
-        )
-
-    await asyncio.to_thread(save_report)
-    episode = await asyncio.to_thread(arrange_episode, pm, "demo", group["id"])
+async def test_only_selected_shots_enter_episode_and_outside_scope_is_rejected(tmp_path):
+    pm, path, indexed = await asyncio.to_thread(setup, tmp_path)
     project = await asyncio.to_thread(pm.load_project, "demo")
-    binding = project["episodes"][0]["note_source"]
-    assert binding["understanding_basis"] == digest([])
-    await asyncio.to_thread(validate_binding, path, episode, binding)
-    await asyncio.to_thread((store.root(path) / "rules/understand.md").write_text, "New understanding rule")
-    with pytest.raises(ValueError, match="尚未完成"):
-        await asyncio.to_thread(validate_binding, path, episode, binding)
+    first = indexed["notes"][0]["id"]
+    await asyncio.to_thread(scope.configure, path, project, [first], indexed["source_basis"])
+    with pytest.raises(ValueError, match="依据失效"):
+        await asyncio.to_thread(assemble, pm, "demo", ["SH-1"], "未来", indexed["source_basis"], "bad")
+    episode = await asyncio.to_thread(assemble, pm, "demo", ["SH-0"], "一镜成集", indexed["source_basis"], "good")
+    text = (path / f"source/episode_{episode}.txt").read_text()
+    assert text == "甲取剑。"
+    assert len((await asyncio.to_thread(pm.load_project, "demo"))["episodes"]) == 1
 
 
-async def test_single_available_chapter_can_enter_production(tmp_path):
-    from lib.novel_workflow import scope
+async def test_library_change_blocks_production_and_duplicate_shots_rejected(tmp_path):
+    pm, path, indexed = await asyncio.to_thread(setup, tmp_path)
+    with pytest.raises(ValueError, match="不重复"):
+        await asyncio.to_thread(assemble, pm, "demo", ["SH-0", "SH-0"], "重复", indexed["source_basis"], "duplicate")
+    episode = await asyncio.to_thread(assemble, pm, "demo", ["SH-0"], "选定", indexed["source_basis"], "selected")
+    project = await asyncio.to_thread(pm.load_project, "demo")
+    library = scene_library.catalog(path)
+    library["batches"]["0"]["scenes"][0]["shots"][0]["segments"][0]["scene_description"] = "被改变的动作"
+    store.write(store.root(path) / "scene_library.json", library)
+    with pytest.raises(ValueError, match="镜头已变化"):
+        await asyncio.to_thread(validate_binding, path, episode, project["episodes"][0]["note_source"])
 
-    pm, path, _group = await asyncio.to_thread(setup, tmp_path)
 
-    def arrange_one():
-        notebook = store.state(path)
-        project = pm.load_project("demo")
-        first = notebook["notes"][0]["id"]
-        scope.configure(path, project, [first], notebook["source_basis"])
-        group = store.group_notes(path, project, [first], "单章成片", notebook["source_basis"])
-        episode = arrange_episode(pm, "demo", group["id"])
-        binding = pm.load_project("demo")["episodes"][0]["note_source"]
-        assert set(binding["note_bases"]) == {first}
-        validate_binding(path, episode, binding)
+async def test_native_review_receives_selected_content_and_failed_publication_resumes(tmp_path, monkeypatch):
+    from lib.novel_workflow import director
+    from server.services.project.script_review import ScriptReviewService
 
-    await asyncio.to_thread(arrange_one)
+    pm, path, indexed = await asyncio.to_thread(setup, tmp_path)
+    real_write = director.write_formal_script_plan_locked
+
+    def fail(*args, **kwargs):
+        raise OSError("disk failure")
+
+    monkeypatch.setattr(director, "write_formal_script_plan_locked", fail)
+    args = (pm, "demo", ["SH-1"], "待完成", indexed["source_basis"], "recoverable")
+    with pytest.raises(OSError, match="disk failure"):
+        await asyncio.to_thread(assemble, *args)
+    pending = await asyncio.to_thread(store.view, path, await asyncio.to_thread(pm.load_project, "demo"))
+    assert len(pending["pending_assemblies"]) == 1
+    monkeypatch.setattr(director, "write_formal_script_plan_locked", real_write)
+    episode = await asyncio.to_thread(assemble, *args)
+    assert len((await asyncio.to_thread(pm.load_project, "demo"))["episodes"]) == 1
+    review = await ScriptReviewService(pm).get_state("demo", episode)
+    assert review["status"] == "pending_review"
+    assert len(review["content"]["scenes"]) == 2
+    assert review["content"]["scenes"][0]["source_text"] == "乙开门。"

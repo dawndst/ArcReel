@@ -16,3 +16,9 @@ it("does not fetch when no text task is active", () => {
   render(<NovelReadingProgress projectName="demo" active={false} />);
   expect(fetch).not.toHaveBeenCalled();
 });
+
+it("shows scene generation as its actual stage instead of hiding it", async () => {
+  vi.spyOn(API, "getNovelWorkflow").mockResolvedValue({ initialized: true, notes: [], groups: [], svts: [], stale: false, progress: { phase: "scenes", done: 1, total: 2 } });
+  render(<NovelReadingProgress projectName="demo" active notebook />);
+  expect(await screen.findByRole("status")).toHaveTextContent("生成场与镜头 · 50%");
+});

@@ -1,0 +1,53 @@
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import type { ChapterNote, SceneLibraryBatch } from "@/types/novel-workflow";
+
+export function SceneLibraryPanel({ batches, notes, disabled, selection, setSelection, title, setTitle, assemble, source }: {
+  batches: SceneLibraryBatch[]; notes: ChapterNote[]; disabled: boolean;
+  selection: string[]; setSelection: (ids: string[]) => void; title: string; setTitle: (title: string) => void;
+  assemble: () => void; source: (note: string) => void;
+}) {
+  const { t } = useTranslation("dashboard");
+  const [filter, setFilter] = useState("");
+  const allShots = batches.flatMap((b) => b.scenes.flatMap((scene) => scene.shots.map((shot) => ({ ...shot, scene, stale: b.stale }))));
+  const byId = new Map(allShots.map((shot) => [shot.id, shot]));
+  const invalid = selection.some((id) => !byId.has(id) || byId.get(id)?.stale);
+  const total = selection.reduce((sum, id) => sum + (byId.get(id)?.segments.reduce((s, seg) => s + seg.duration_seconds, 0) ?? 0), 0);
+  const toggle = (ids: string[]) => setSelection(ids.every((id) => selection.includes(id)) ? selection.filter((id) => !ids.includes(id)) : [...selection, ...ids.filter((id) => !selection.includes(id))]);
+  const move = (index: number, offset: number) => { const next = [...selection]; [next[index], next[index + offset]] = [next[index + offset], next[index]]; setSelection(next); };
+  return <div className="@container/scene-library relative min-h-0 flex-1 overflow-y-auto"><div className="grid grid-cols-1 @min-[900px]/scene-library:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className="min-w-0 space-y-4 p-5">
+      <p className="text-sm text-muted-foreground">{t("nw_scene_library_hint")}</p>
+      <Input aria-label={t("nw_scene_search")} placeholder={t("nw_scene_search")} value={filter} onChange={(e) => setFilter(e.target.value)} />
+      {!batches.length && <p className="text-sm">{t("nw_scene_empty")}</p>}
+      {batches.map((batch) => <div key={batch.basis} className="space-y-3">
+        <button className="text-sm font-semibold text-primary underline" onClick={() => source(batch.note_id)}>{notes.find((n) => n.id === batch.note_id)?.title ?? batch.note_id}</button>
+        {batch.stale && <p className="text-sm text-destructive">{t("nw_scene_stale")}</p>}
+        {batch.skipped_reason && <p className="text-sm text-muted-foreground">{t("nw_scene_skipped")}：{batch.skipped_reason}</p>}
+        {batch.scenes.filter((scene) => JSON.stringify(scene).includes(filter)).map((scene) => <article key={scene.id} className="rounded-xl border">
+          <div className="space-y-1 border-b bg-muted/30 p-3">
+            <label className="flex items-center gap-2 font-semibold"><input type="checkbox" aria-label={t("nw_select_scene", { title: scene.title })} disabled={disabled || batch.stale} checked={scene.shots.every((s) => selection.includes(s.id))} onChange={() => toggle(scene.shots.map((s) => s.id))} />{scene.title}</label>
+            <p className="font-mono text-xs text-muted-foreground">{scene.id}</p><p className="text-xs">{scene.location} · {scene.time}</p><p className="text-sm">{scene.purpose}</p>
+          </div>
+          {scene.shots.map((shot) => <div key={shot.id} className="space-y-2 border-b p-3 last:border-b-0">
+            <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" aria-label={t("nw_select_shot", { title: shot.title })} disabled={disabled || batch.stale} checked={selection.includes(shot.id)} onChange={() => toggle([shot.id])} />{shot.title}<span className="ml-auto text-xs">{shot.segments.reduce((n, s) => n + s.duration_seconds, 0)}s</span></label>
+            <p className="font-mono text-xs text-muted-foreground">{shot.id}</p>
+            {shot.segments.map((segment, i) => <div key={i} className="space-y-1 rounded bg-muted/30 p-2 text-sm"><strong>{shot.segments.length > 1 ? `SEG${i + 1} · ` : ""}{segment.duration_seconds}s</strong><p>{segment.scene_description}</p>{segment.utterances.map((u, j) => <p key={j} className="text-primary">{u.speaker ? `${u.speaker}：` : ""}{u.text}</p>)}</div>)}
+            <details className="text-xs text-muted-foreground"><summary>{t("nw_evidence")}</summary><blockquote className="mt-2 border-l-2 pl-2">{shot.evidence.quote}</blockquote><button className="mt-2 underline" onClick={() => source(shot.evidence.note_id)}>{t("nw_group_view_notes")}</button></details>
+          </div>)}
+        </article>)}
+      </div>)}
+    </div>
+    <aside className="order-first space-y-3 border-l bg-card p-4 @min-[900px]/scene-library:sticky @min-[900px]/scene-library:top-0 @min-[900px]/scene-library:order-last @min-[900px]/scene-library:self-start" aria-label={t("nw_director_assembly")}>
+      <h2 className="font-semibold">{t("nw_director_assembly")}</h2><p className="text-sm">{t("nw_selected_shots", { count: selection.length, seconds: total })}</p>
+      <p className="text-xs text-muted-foreground">{t("nw_director_order_hint")}</p>
+      <ol className="space-y-2">{selection.map((id, i) => <li key={id} className="rounded border p-2 text-sm"><span>{i + 1}. {byId.get(id)?.title ?? id}</span><div className="mt-1 flex gap-1"><Button variant="ghost" size="sm" disabled={disabled || i === 0} aria-label={t("nw_move_up", { index: i + 1 })} onClick={() => move(i, -1)}>↑</Button><Button variant="ghost" size="sm" disabled={disabled || i === selection.length - 1} aria-label={t("nw_move_down", { index: i + 1 })} onClick={() => move(i, 1)}>↓</Button><Button variant="ghost" size="sm" disabled={disabled} onClick={() => toggle([id])}>{t("nw_remove_selection")}</Button></div></li>)}</ol>
+      {invalid && <p className="text-sm text-destructive">{t("nw_scene_stale")}</p>}
+      <Input aria-label={t("nw_episode_title")} placeholder={t("nw_episode_title")} value={title} disabled={disabled} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
+      <Button className="w-full" disabled={disabled || invalid || !selection.length || !title.trim()} onClick={assemble}>{t("nw_assemble_selected")}</Button>
+      <p className="text-xs text-muted-foreground">{t("nw_assembly_no_ai")}</p>
+    </aside>
+  </div></div>;
+}

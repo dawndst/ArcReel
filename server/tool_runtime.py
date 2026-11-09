@@ -2948,7 +2948,7 @@ async def _plan_episodes_gate(scope: ProjectScope, services: Services) -> ToolPr
     if project.get("content_mode") == "drama" and project.get("novel_workflow_enabled") is True:
         return ToolProblem(
             "episode_planning_refused",
-            "当前使用逐章 Note → SVT → 人工编排流程，请在小说改编页选择 Note 组合后编排为一集。",
+            "当前使用 Note → SVT → 场镜素材库 → 导演组集流程，请在场镜素材库勾选场和镜头后组成一集。Note 组合只用于资料管理。",
         )
     try:
         await asyncio.to_thread(_plan_episodes_preflight, services.projects, scope.project_name)
@@ -3340,10 +3340,22 @@ async def _execute_queued_text_task(
         path = await asyncio.to_thread(services.projects.get_project_path, scope.project_name)
         planner = await EpisodePlanner.create(path)
         assert planner.generator is not None
+        from lib.novel_workflow.grouping import summarize
         from lib.novel_workflow.review import review_scope
+        from lib.novel_workflow.scene_library import generate as generate_scenes
         from lib.novel_workflow.understanding import understand_notes
 
-        action = {"read": read_notes, "svt": generate_svts, "review": review_scope, "understand": understand_notes}[payload["action"]]
+        if payload["action"] == "group_summary":
+            return await summarize(
+                path, planner.generator, payload["note_ids"], payload["source_basis"], payload.get("group_id")
+            )
+        action = {
+            "read": read_notes,
+            "svt": generate_svts,
+            "review": review_scope,
+            "understand": understand_notes,
+            "scenes": generate_scenes,
+        }[payload["action"]]
         return await action(path, planner.generator, payload["note_ids"], payload["source_basis"])
     if task_type == _TEXT_EPISODE_PLAN and payload.get("novel_action") == "review":
         from lib.novel_understanding.editorial import inspect_episodes

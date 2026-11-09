@@ -10,13 +10,15 @@ export interface ChapterNote {
   status?: "read" | "unread" | "stale" | "outdated";
   reading?: { overview?: NoteOverview; aliases?: NoteAlias[]; relations?: NoteRelation[]; threads?: NoteThread[]; highlights?: NoteHighlight[]; basis: string; summaries: string[]; assets: NoteAsset[]; changes: NoteChange[]; events: NoteEvent[]; questions: string[] } | null;
 }
-export interface NoteGroup { id: string; title: string; note_ids: string[]; source_basis: string; created_by: string }
+export interface NoteGroup { usage?: "reference" | "candidate"; synopsis?: NoteOverview; summary_stale?: boolean; id: string; title: string; note_ids: string[]; source_basis: string; created_by: string }
 export interface NovelSVT {
   id: string; title: string; summary: string; note_ids: string[]; status: "open" | "closed"; mainline_reason: string; stale?: boolean;
   climaxes: { description: string; reason: string }[]; payoffs: { description: string; reason: string }[];
   dialogues: NoteDialogue[]; evidence: NoteEvidence[];
 }
 export interface NovelWorkflow {
+  scene_batches?: SceneLibraryBatch[];
+  pending_assemblies?: { episode: number; title: string; source_basis: string; request_id: string; shot_ids: string[] }[];
   scope?: { configured: boolean; note_ids: string[]; available_count: number; read_count: number; total_count: number; mode: "ongoing" };
   settings?: { summary_max_chars: number; understanding_enabled: boolean };
   understanding?: { links: UnderstandingLink[]; reports: UnderstandingReport[] };
@@ -52,3 +54,8 @@ export interface UnderstandingReport {
   unresolved: { note_id: string; question: string }[];
   inspections: { anchor_note_id: string; queries: string[]; note_ids: string[]; round: number }[];
 }
+
+export interface LibrarySegment { duration_seconds: number; scene_description: string; characters_in_scene: string[]; scenes: string[]; props: string[]; utterances: { kind: string; speaker: string | null; text: string }[] }
+export interface LibraryShot { id: string; title: string; segments: LibrarySegment[]; evidence: NoteEvidence }
+export interface LibraryScene { id: string; title: string; location: string; time: string; purpose: string; shots: LibraryShot[] }
+export interface SceneLibraryBatch { basis: string; note_id: string; stale: boolean; scenes: LibraryScene[]; skipped_reason: string }

@@ -382,8 +382,14 @@ export function ProjectStatusBar({ projectName }: { projectName: string }) {
   const activePlanning = useActiveResourceIds("text_episode_plan", projectName);
   const planningActive = EPISODE_PLANNING_SLOTS.some((slot) => activePlanning.has(slot));
   const guide = useMemo(
-    () => (workflowStatus ? projectNextGuide(t, workflowStatus, episodes, { planningActive }) : null),
-    [t, workflowStatus, episodes, planningActive],
+    () => {
+      if (project?.novel_workflow_enabled && workflowStatus && ["plan_episodes", "create_episode", "replan_episodes"].includes(workflowStatus.next_action.type)) {
+        return { title: t("nw_director_assembly"), detail: t("nw_scene_library_hint"), instruction: false,
+          primary: [{ kind: "nav" as const, label: t("nw_title"), to: episodesViewPath() }], alternatives: [], episodeId: null };
+      }
+      return workflowStatus ? projectNextGuide(t, workflowStatus, episodes, { planningActive }) : null;
+    },
+    [t, workflowStatus, episodes, planningActive, project?.novel_workflow_enabled],
   );
 
   if (!project || !summary) return null;

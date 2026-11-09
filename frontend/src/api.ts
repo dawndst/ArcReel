@@ -2170,14 +2170,17 @@ class API {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/settings`, { method: "PATCH", body: JSON.stringify(values) });
   }
 
-  static async runNoteWorkflow(name: string, action: "read" | "svt" | "review" | "understand", note_ids: string[], source_basis: string): Promise<unknown> {
-    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action, note_ids, source_basis }) });
+  static async runNoteWorkflow(name: string, action: "read" | "svt" | "review" | "understand" | "scenes" | "group_summary", note_ids: string[], source_basis: string, group_id?: string): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action, note_ids, source_basis, group_id }) });
   }
   static async createNoteGroup(name: string, note_ids: string[], title: string, source_basis: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/groups`, { method: "POST", body: JSON.stringify({ note_ids, title, source_basis }) });
   }
-  static async arrangeNoteGroup(name: string, id: string): Promise<{ episode: number }> {
-    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/groups/${encodeURIComponent(id)}/episode`, { method: "POST" });
+  static async setNoteGroupUsage(name: string, id: string, usage: "reference" | "candidate", source_basis: string): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/groups/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ usage, source_basis }) });
+  }
+  static async assembleDirectorEpisode(name: string, shot_ids: string[], title: string, source_basis: string, request_id: string): Promise<{ episode: number }> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/episodes`, { method: "POST", body: JSON.stringify({ shot_ids, title, source_basis, request_id }) });
   }
   static async dissolveNoteGroup(name: string, id: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/groups/${encodeURIComponent(id)}`, { method: "DELETE" });

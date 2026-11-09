@@ -24,8 +24,10 @@ class SourceRequest(BaseModel):
 
 
 class ReadingRequest(SourceRequest):
-    action: Literal["read", "svt", "review", "understand"]
+    action: Literal["read", "svt", "review", "understand", "scenes", "group_summary"]
     note_ids: list[str] = Field(min_length=1, max_length=10000)
+
+    group_id: str | None = Field(default=None, max_length=100)
 
 
 class GroupRequest(SourceRequest):
@@ -104,19 +106,33 @@ async def note_source(name: str, note_id: str):
     return await invoke(name, read)
 
 
-@router.post(
-    "/projects/{name}/novel-workflow/groups/{group_id}/episode", dependencies=[Depends(require_project_migration_ok)]
-)
-async def arrange_episode(name: str, group_id: str):
-    from lib.novel_workflow.production import arrange_episode as arrange
+class GroupUsageRequest(SourceRequest):
+    usage: Literal["reference", "candidate"]
 
-    def commit():
-        return {"episode": arrange(get_project_manager(), name, group_id)}
 
-    try:
-        return await run_sync_transaction(commit)
-    except (ValueError, FileNotFoundError) as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+@router.patch("/projects/{name}/novel-workflow/groups/{group_id}", dependencies=[Depends(require_project_migration_ok)])
+async def group_usage(name: str, group_id: str, req: GroupUsageRequest):
+    from lib.novel_workflow.grouping import set_usage
+
+    return await invoke(name, lambda path, project: set_usage(path, project, group_id, req.usage, req.source_basis))
+
+
+class AssemblyRequest(SourceRequest):
+    shot_ids: list[str] = Field(min_length=1, max_length=300)
+    title: str = Field(min_length=1, max_length=200)
+    request_id: str = Field(min_length=1, max_length=100)
+
+
+@router.post("/projects/{name}/novel-workflow/episodes", dependencies=[Depends(require_project_migration_ok)])
+async def assemble_episode(name: str, req: AssemblyRequest):
+    from lib.novel_workflow.director import assemble
+
+    return await invoke(
+        name,
+        lambda _path, _project: {
+            "episode": assemble(get_project_manager(), name, req.shot_ids, req.title, req.source_basis, req.request_id)
+        },
+    )
 
 
 class UnderstandingSettings(BaseModel):
