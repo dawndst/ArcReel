@@ -77,6 +77,7 @@ class ReadChunk(BaseModel):
     summary: str
     facts: list[StoryFact]
     open_questions: list[str]
+    reading_summaries: list[str] = Field(default_factory=list)
 
 
 class BookSynthesis(BaseModel):

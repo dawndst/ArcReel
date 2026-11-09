@@ -33,6 +33,7 @@ import {
   type GuideButton,
   type ProjectNextGuide,
 } from "./project-guide";
+import { NovelReadingProgress } from "./NovelReadingProgress";
 import { MigrationReportNotice } from "./MigrationReportNotice";
 
 /** 任务状态连续跳变时合并成一次重新求解的窗口（毫秒），与集页面板同一取值。 */
@@ -367,6 +368,7 @@ export function ProjectStatusBar({ projectName }: { projectName: string }) {
   const [, setLocation] = useLocation();
   const demoMode = useDemoWorkbench();
   const project = useProjectsStore((s) => s.currentProjectData);
+  const readingTaskActive = useTasksStore((s) => s.tasks.some((task) => task.project_name === projectName && task.task_type.startsWith("text_") && (task.status === "running" || task.status === "queued")));
   const currentEpisode = useCurrentEpisodeId();
   const [open, setOpen] = useState<Open>(null);
 
@@ -459,11 +461,11 @@ export function ProjectStatusBar({ projectName }: { projectName: string }) {
       )}
     </div>
   );
-  if (!migrationReport) return bar;
   return (
     <div className="flex min-w-0 items-center gap-2">
       {bar}
-      <MigrationReportNotice projectName={projectName} report={migrationReport} episodes={episodes} />
+      <NovelReadingProgress key={projectName} projectName={projectName} active={readingTaskActive && project.novel_understanding_enabled !== false} />
+      {migrationReport && <MigrationReportNotice projectName={projectName} report={migrationReport} episodes={episodes} />}
     </div>
   );
 }

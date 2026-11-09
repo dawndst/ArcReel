@@ -132,10 +132,17 @@ def read_state(project_path: Path) -> dict[str, Any]:
 
 
 def write_state(
-    project_path: Path, source: BookSource, *, phase: str, completed: list[ReadChunk], error: str | None = None
+    project_path: Path,
+    source: BookSource,
+    *,
+    phase: str,
+    completed: list[ReadChunk],
+    error: str | None = None,
+    partial: list[ReadChunk] | None = None,
 ) -> dict[str, Any]:
     directory = run_dir(project_path, source)
     directory.mkdir(parents=True, exist_ok=True)
+    read_parts = [*completed, *(partial or [])]
     state = {
         "version": STORE_VERSION,
         "run_id": source.run_id,
@@ -145,8 +152,8 @@ def write_state(
         "total_chunks": len(source.chunks),
         "completed_chunks": len(completed),
         "total_chars": source.total_chars,
-        "read_chars": sum(chunk.end - chunk.start for chunk in completed),
-        "facts_count": len({fact.id for chunk in completed for fact in chunk.facts}),
+        "read_chars": sum(chunk.end - chunk.start for chunk in read_parts),
+        "facts_count": len({fact.id for chunk in read_parts for fact in chunk.facts}),
         "updated_at": now(),
         "error": error,
     }
@@ -160,8 +167,10 @@ def chunk_path(project_path: Path, source: BookSource, chunk: Chunk) -> Path:
     return run_dir(project_path, source) / "chunks" / f"{chunk.index:06d}.json"
 
 
-def cached_chunk(project_path: Path, source: BookSource, chunk: Chunk) -> ReadChunk | None:
-    path = chunk_path(project_path, source, chunk)
+def cached_chunk(
+    project_path: Path, source: BookSource, chunk: Chunk, *, cache_path: Path | None = None
+) -> ReadChunk | None:
+    path = cache_path or chunk_path(project_path, source, chunk)
     if not path.exists():
         return None
     value = ReadChunk.model_validate(load_json(path))

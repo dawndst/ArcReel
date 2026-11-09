@@ -13,7 +13,12 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ValidationError
 
-from lib.backends.text_backends.base import TextGenerationRequest, resolve_schema, structured_fallback_reason
+from lib.backends.text_backends.base import (
+    TextGenerationRequest,
+    TextOutputTruncatedError,
+    resolve_schema,
+    structured_fallback_reason,
+)
 from lib.backends.text_generator import TextGenerator
 from lib.episode.episode_ledger import parse_source_range
 from lib.infra.async_thread import run_noninterruptible_sync, run_sync_transaction
@@ -119,7 +124,7 @@ async def ask(
         check_stop()
         result = await generator.generate(
             TextGenerationRequest(
-                prompt=prompt + instruction + failure, max_output_tokens=12000 if schema is ReadingDraft else 6000
+                prompt=prompt + instruction + failure, max_output_tokens=24000 if schema is ReadingDraft else 12000
             ),
             project_name=path.name,
             require_complete=True,
@@ -137,6 +142,111 @@ def save_json(path: Path, value: Any) -> None:
     atomic_write_json(path, value)
 
 
+MIN_READING_CHARS = 1000
+
+
+def child_chunk(parent: store.Chunk, start: int, end: int) -> store.Chunk:
+    input_start = max(parent.input_start, start - min(200, (end - start) // 4))
+    return store.Chunk(
+        parent.index,
+        parent.source_file,
+        start,
+        end,
+        input_start,
+        parent.text[input_start - parent.input_start : end - parent.input_start],
+        parent.source_digest,
+    )
+
+
+async def read_chunk(
+    path: Path,
+    source: store.BookSource,
+    chunk: store.Chunk,
+    generator: TextGenerator,
+    completed: list[ReadChunk],
+    partial: list[ReadChunk],
+    *,
+    child: bool = False,
+) -> ReadChunk:
+    check_stop()
+    await asyncio.to_thread(assert_current, path, source)
+    cache = (
+        store.run_dir(path, source) / "parts" / str(chunk.index) / f"{chunk.start}-{chunk.end}.json"
+        if child
+        else store.chunk_path(path, source, chunk)
+    )
+    value = await asyncio.to_thread(store.cached_chunk, path, source, chunk, cache_path=cache)
+    split_path = cache.with_suffix(".split.json")
+    if value is None:
+        await run_sync_transaction(
+            store.write_state, path, source, phase="reading", completed=completed, partial=partial
+        )
+        split = await asyncio.to_thread(load_json, split_path) if await asyncio.to_thread(split_path.exists) else None
+        if split is None:
+            failure = ""
+            context = [summary for c in [*completed, *partial] for summary in (c.reading_summaries or [c.summary])][-2:]
+            try:
+                for attempt in range(3):
+                    draft = await ask(
+                        path,
+                        source,
+                        generator,
+                        ReadingDraft,
+                        source.rules["reading"]
+                        + "\n优先提取重要事实，避免重复，单条陈述简短。\n前段记忆仅用于理解代词，新事实仍须由当前原文直接支持：\n"
+                        + encode(context)
+                        + "\n"
+                        + failure
+                        + "\n<source>\n"
+                        + chunk.text
+                        + "\n</source>",
+                        f"read-{chunk.index}-{chunk.start}-{chunk.end}-{attempt}",
+                    )
+                    try:
+                        value = store.ground_chunk(chunk, draft)
+                        break
+                    except store.NovelUnderstandingError as exc:
+                        failure = str(exc)
+                if value is None:
+                    raise store.NovelUnderstandingError(failure)
+            except TextOutputTruncatedError as exc:
+                if chunk.end - chunk.start <= MIN_READING_CHARS:
+                    raise store.NovelUnderstandingError(
+                        f"Reading output still truncated for a small source range ({chunk.start}:{chunk.end}); "
+                        "completed reading is saved. Check the text provider output budget before resuming."
+                    ) from exc
+                split = {"at": (chunk.start + chunk.end) // 2}
+                # Persist the partition before calling children: a retry never resubmits the oversized parent.
+                await run_noninterruptible_sync(save_json, split_path, split)
+        if split is not None:
+            at = split["at"]
+            left = await read_chunk(
+                path, source, child_chunk(chunk, chunk.start, at), generator, completed, partial, child=True
+            )
+            right = await read_chunk(
+                path, source, child_chunk(chunk, at, chunk.end), generator, completed, partial, child=True
+            )
+            summaries = [s for c in (left, right) for s in (c.reading_summaries or [c.summary])]
+            value = ReadChunk(
+                index=chunk.index,
+                source_file=chunk.source_file,
+                start=chunk.start,
+                end=chunk.end,
+                source_digest=chunk.source_digest,
+                summary="\n".join(summaries),
+                reading_summaries=summaries,
+                facts=list({f.id: f for c in (left, right) for f in c.facts}.values()),
+                open_questions=list(dict.fromkeys(q for c in (left, right) for q in c.open_questions)),
+            )
+        assert value is not None
+        await run_noninterruptible_sync(save_json, cache, value.model_dump())
+    # Keep non-overlapping coverage even when a parent was reconstructed from cached descendants.
+    partial[:] = [c for c in partial if not (chunk.start <= c.start and c.end <= chunk.end)]
+    partial.append(value)
+    await run_sync_transaction(store.write_state, path, source, phase="reading", completed=completed, partial=partial)
+    return value
+
+
 async def ensure(path: Path, project: dict[str, Any], generator: TextGenerator) -> Memory | None:
     if not applicable(project):
         return None
@@ -150,43 +260,19 @@ async def ensure(path: Path, project: dict[str, Any], generator: TextGenerator) 
             return None
         source = await asyncio.to_thread(store.source_snapshot, path, project)
         completed: list[ReadChunk] = []
+        partial: list[ReadChunk] = []
         try:
             for chunk in source.chunks:
                 check_stop()
                 await asyncio.to_thread(assert_current, path, source)
-                value = await asyncio.to_thread(store.cached_chunk, path, source, chunk)
-                if value is None:
-                    await run_sync_transaction(store.write_state, path, source, phase="reading", completed=completed)
-                    failure = ""
-                    for attempt in range(3):
-                        draft = await ask(
-                            path,
-                            source,
-                            generator,
-                            ReadingDraft,
-                            source.rules["reading"]
-                            + "\n前段记忆仅用于理解代词，新事实仍须由当前原文直接支持：\n"
-                            + encode([c.summary for c in completed[-2:]])
-                            + "\n"
-                            + failure
-                            + "\n<source>\n"
-                            + chunk.text
-                            + "\n</source>",
-                            f"read-{chunk.index}-{attempt}",
-                        )
-                        try:
-                            value = store.ground_chunk(chunk, draft)
-                            break
-                        except store.NovelUnderstandingError as exc:
-                            failure = str(exc)
-                    if value is None:
-                        raise store.NovelUnderstandingError(failure)
-                    await run_noninterruptible_sync(store.save_chunk, path, source, chunk, value)
+                partial.clear()
+                value = await read_chunk(path, source, chunk, generator, completed, partial)
+                partial.clear()
                 completed.append(value)
             await asyncio.to_thread(assert_current, path, source)
             await run_sync_transaction(store.write_state, path, source, phase="synthesizing", completed=completed)
             # A bounded reduction tree; full atomic facts remain on disk independently.
-            nodes = [c.summary for c in completed]
+            nodes = [summary for c in completed for summary in (c.reading_summaries or [c.summary])]
             level = 0
             synthesis = BookSynthesis(synopsis="", genre="", theme="", world_setting="")
             while nodes:
@@ -223,6 +309,7 @@ async def ensure(path: Path, project: dict[str, Any], generator: TextGenerator) 
                 phase="interrupted" if isinstance(exc, (asyncio.CancelledError, NovelReadingInterrupted)) else "failed",
                 completed=completed,
                 error=str(exc)[:1500],
+                partial=partial,
             )
             raise
 

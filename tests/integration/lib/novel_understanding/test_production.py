@@ -344,3 +344,48 @@ async def test_invalid_json_response_is_preserved_then_retried(book):
     assert "上一轮 JSON 不符合结构要求" in fake.requests[1].prompt
     responses = await asyncio.to_thread(lambda: list((store.run_dir(path, memory.source) / "responses").glob("*.json")))
     assert len(responses) == 3
+
+
+@pytest.mark.asyncio
+async def test_truncated_reading_splits_and_resumes_without_repeating_paid_parts(book):
+    from lib.backends.text_backends.base import TextOutputTruncatedError
+
+    path, project, _ = book
+    text = EARLY + "。" * 1200 + LATE + "！" * 1200
+    await asyncio.to_thread((path / "source" / "book.txt").write_text, text, encoding="utf-8")
+    left = ReadingDraft(summary="少年阶段", facts=[reading().facts[0]])
+    right = ReadingDraft(summary="成年形态", facts=[reading().facts[1]])
+    gen, fake = generator(
+        TextOutputTruncatedError(provider="fake", model="test", output_tokens=24000),
+        left.model_dump_json(),
+        RuntimeError("temporary failure"),
+        right.model_dump_json(),
+        synthesis(),
+    )
+    with pytest.raises(RuntimeError, match="temporary failure"):
+        await service.ensure(path, project, gen)
+    state = await asyncio.to_thread(store.status, path, project)
+    assert state["completed_chunks"] == 0
+    assert state["read_chars"] == len(text) // 2
+    memory = await service.ensure(path, project, gen)
+    assert memory is not None
+    assert len(fake.requests) == 5
+    assert memory.chunks[0].reading_summaries == ["少年阶段", "成年形态"]
+    assert {f.evidence.quote for f in memory.facts} == {EARLY, LATE}
+    assert all(text[f.evidence.start : f.evidence.end] == f.evidence.quote for f in memory.facts)
+    state = await asyncio.to_thread(store.status, path, project)
+    assert state["coverage"] == 100
+    assert state["read_chars"] == len(text)
+    assert len(fake.requests[1].prompt) < len(fake.requests[0].prompt)
+
+
+@pytest.mark.asyncio
+async def test_truncated_minimum_reading_range_stops_without_infinite_retry(book):
+    from lib.backends.text_backends.base import TextOutputTruncatedError
+
+    path, project, _ = book
+    gen, fake = generator(TextOutputTruncatedError(provider="fake", model="test"))
+    with pytest.raises(store.NovelUnderstandingError, match="small source range"):
+        await service.ensure(path, project, gen)
+    assert len(fake.requests) == 1
+    assert (await asyncio.to_thread(store.status, path, project))["read_chars"] == 0
