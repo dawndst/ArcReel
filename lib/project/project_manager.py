@@ -4227,7 +4227,14 @@ class ProjectManager:
         from lib.backends.providers import CallPurpose
         from lib.backends.text_backends.base import TextGenerationRequest, TextTaskType
         from lib.backends.text_generator import TextGenerator
+        from lib.novel_workflow.routing import enabled
         from lib.prompts.prompt_builders_script import build_overview_prompt
+
+        current_project = await asyncio.to_thread(self.load_project, project_name)
+        if enabled(current_project) and source_content_override is None:
+            from lib.novel_workflow.overview import generate
+
+            return await generate(self, project_name)
 
         # 读取源文件内容
         source_content = (

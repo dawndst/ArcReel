@@ -41,7 +41,18 @@ def initialize(path: Path, project: dict, expected: str) -> dict:
         result = {**preview, "groups": previous.get("groups", []) if previous else [], "initialized_at": now()}
         if previous:
             write(root(path) / "history" / f"{uuid4().hex}.json", previous)
-        for name in ("read", "chapter", "svt", "review", "understand", "group", "scenes", "scope", "production"):
+        for name in (
+            "read",
+            "chapter",
+            "svt",
+            "review",
+            "understand",
+            "group",
+            "scenes",
+            "scope",
+            "production",
+            "overview",
+        ):
             file = root(path) / "rules" / f"{name}.md"
             if not file.exists():
                 file.parent.mkdir(parents=True, exist_ok=True)

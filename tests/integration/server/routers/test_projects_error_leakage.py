@@ -204,6 +204,20 @@ class TestUnexpectedErrorsDoNotLeak:
             assert payload["overview"] is None
             assert "重新选择模型" in payload["overview_error"]
 
+    def test_note_overview_prerequisite_is_actionable_409(self, tmp_path, monkeypatch):
+        from lib.novel_workflow.routing import WorkflowError
+
+        client = build_projects_client(monkeypatch, _FakePM(tmp_path))
+
+        async def missing_notes(*args):
+            raise WorkflowError("请先完成所选 Notes 精读，再生成故事设定。")
+
+        monkeypatch.setattr(projects, "generate_project_overview", missing_notes)
+        with client:
+            response = client.post("/api/v1/projects/ready/generate-overview")
+            assert response.status_code == 409
+            assert "Notes 精读" in response.json()["detail"]
+
     def test_generate_overview_unexpected_error_maps_to_500(self, tmp_path, monkeypatch):
         sentinel = "LEAKED_SECRET_generate_overview"
         client = build_projects_client(monkeypatch, _FakePM(tmp_path))

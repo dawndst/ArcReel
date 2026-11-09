@@ -7,6 +7,7 @@ from lib.novel_workflow import settings, store
 from lib.prompts.prompt_templates.builtin import builtin_templates
 
 TITLES = {
+    "overview": ("故事设定：Note 归纳", "只汇总当前可用范围的精读成果，不重新读取全书"),
     "scope": ("未完结小说与可用章节", "限定阅读范围、保留待续线索，不要求读完全书"),
     "production": ("导演选镜后的生产约束", "保留导演选择、防止未选内容和未来设定混入制作"),
     "read": ("章节精读", "人物、资产、事件、线索及原文依据"),
@@ -70,11 +71,7 @@ def catalog(path, project):
     seen = set()
     for meta in builtin_templates.list_templates():
         content, partials = builtin_templates.read_source(meta.id)
-        category = (
-            "other"
-            if project.get("novel_workflow_enabled") and meta.stage in ("episode_plan", "source_overview")
-            else "production"
-        )
+        category = "other" if project.get("novel_workflow_enabled") and meta.stage == "episode_plan" else "production"
         add(
             "template/" + meta.id,
             meta.title,
@@ -120,17 +117,25 @@ def catalog(path, project):
         if "/scripts/" in file.as_posix():
             continue
         rel = file.relative_to(profile)
-        local = path / rel
+        variant = file.name.startswith("SKILL.") and file.name != "SKILL.md"
+        current_variant = not variant or file.name == f"SKILL.{mode}.md"
+        local_rel = rel.with_name("SKILL.md") if variant and current_variant else rel
+        local = path / local_rel
         # Only regular in-project prompt documents are read; no env or settings files.
-        active = local.is_file() and not local.is_symlink() and local.resolve().is_relative_to(path.resolve())
+        active = (
+            current_variant
+            and local.is_file()
+            and not local.is_symlink()
+            and local.resolve().is_relative_to(path.resolve())
+        )
         selected = local if active else file
         add(
             "agent/" + rel.as_posix(),
             file.parent.name + " / " + file.name,
             "Agent 技能或参考规则；仅在对应 Agent 流程调用时生效",
-            "agent",
+            "agent" if current_variant else "other",
             selected.read_text(encoding="utf-8"),
             "project" if active else "default",
-            rel.as_posix(),
+            local_rel.as_posix() if active else rel.as_posix(),
         )
     return {"entries": entries, "read_only": True}

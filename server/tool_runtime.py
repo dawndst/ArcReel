@@ -2958,6 +2958,13 @@ async def _plan_episodes_gate(scope: ProjectScope, services: Services) -> ToolPr
 
 
 async def submit_novel_review(scope: ProjectScope, caller: CallerContext, services: Services) -> ToolOutcome[Any]:
+    from lib.novel_workflow.routing import enabled
+
+    project = await asyncio.to_thread(services.projects.load_project, scope.project_name)
+    if enabled(project):
+        return ToolOutcome(
+            problem=ToolProblem("episode_planning_refused", "请使用小说工作台的 Note 范围改编建议；旧分集评估已停用。")
+        )
     if problem := await migration_gate(scope, services):
         return ToolOutcome(problem=problem)
     return await _submit_text_task(
@@ -3334,12 +3341,25 @@ async def _execute_queued_text_task(
         scope = ProjectScope(project_name=str(task["project_name"]), data_root=DataRootLayout.current().root)
         services = services or Services.defaults(await asyncio.to_thread(ProjectManager, scope.data_root))
     task_type = task["task_type"]
+    if task_type == _TEXT_EPISODE_PLAN and payload.get("novel_action") != "notes":
+        from lib.novel_workflow.routing import reject_legacy
+
+        reject_legacy(await asyncio.to_thread(services.projects.load_project, scope.project_name))
     if task_type == _TEXT_EPISODE_PLAN and payload.get("novel_action") == "notes":
         from lib.novel_workflow.service import generate_svts, read_notes
 
         path = await asyncio.to_thread(services.projects.get_project_path, scope.project_name)
-        planner = await EpisodePlanner.create(path)
-        assert planner.generator is not None
+        from lib.backends.providers import CallPurpose
+        from lib.backends.text_backends.base import TextTaskType
+        from lib.backends.text_generator import TextGenerator
+        from lib.novel_workflow.routing import WorkflowError, enabled
+
+        project = await asyncio.to_thread(services.projects.load_project, scope.project_name)
+        if not enabled(project):
+            raise WorkflowError("Note 工作流已关闭，请刷新后重新选择操作。")
+        generator = await TextGenerator.create(
+            TextTaskType.SCRIPT, scope.project_name, purpose=CallPurpose.EPISODE_PLANNING
+        )
         from lib.novel_workflow.grouping import summarize
         from lib.novel_workflow.review import review_scope
         from lib.novel_workflow.scene_library import generate as generate_scenes
@@ -3347,7 +3367,7 @@ async def _execute_queued_text_task(
 
         if payload["action"] == "group_summary":
             return await summarize(
-                path, planner.generator, payload["note_ids"], payload["source_basis"], payload.get("group_id")
+                path, generator, payload["note_ids"], payload["source_basis"], payload.get("group_id")
             )
         action = {
             "read": read_notes,
@@ -3356,7 +3376,7 @@ async def _execute_queued_text_task(
             "understand": understand_notes,
             "scenes": generate_scenes,
         }[payload["action"]]
-        return await action(path, planner.generator, payload["note_ids"], payload["source_basis"])
+        return await action(path, generator, payload["note_ids"], payload["source_basis"])
     if task_type == _TEXT_EPISODE_PLAN and payload.get("novel_action") == "review":
         from lib.novel_understanding.editorial import inspect_episodes
 
@@ -3432,6 +3452,14 @@ async def reset_episode_planning(
         return ToolOutcome(problem=problem)
     value = request.value
     project_before = await asyncio.to_thread(services.projects.load_project, scope.project_name)
+    from lib.novel_workflow.routing import enabled
+
+    if enabled(project_before):
+        return ToolOutcome(
+            problem=ToolProblem(
+                "episode_planning_refused", "Note 工作流不使用旧分集重置；请在小说工作台管理 Notes 和导演组集。"
+            )
+        )
     try:
         result = await _run_sync_transaction(
             lambda: resetter(

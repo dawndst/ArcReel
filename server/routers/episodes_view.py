@@ -209,6 +209,14 @@ _MANUAL_SPLIT_STATUS: dict[str, int] = {
 
 
 def _run_manual_split(project_dir: Path, req: _ManualSplitBody) -> ManualSplitOutcome:
+    from lib.infra.json_io import load_json
+    from lib.novel_workflow.routing import enabled
+
+    if enabled(load_json(project_dir / "project.json")):
+        raise HTTPException(
+            status_code=409,
+            detail="Note 组合只用于资料管理；请在场镜素材库选择场镜，由导演组集，不再按原文切分或合并成片集。",
+        )
     options = {"confirm_episodes": req.confirm_episodes, "dry_run": req.dry_run}
     if isinstance(req, CutRequest):
         return cut_unsplit_source(project_dir, source_file=req.source_file, end=req.end, title=req.title, **options)
@@ -503,6 +511,8 @@ async def novel_understanding_status(name: str):
         manager = get_project_manager()
         project = manager.load_project(name)
         path = manager.get_project_path(name)
+        if project.get("novel_workflow_enabled") is True:
+            return {"enabled": False, "phase": "disabled", "reports": [], "workflow": "notes"}
         return {**novel_store.status(path, project), "reports": novel_editorial.reports(path, project)}
 
     return await asyncio.to_thread(read)
@@ -520,6 +530,12 @@ async def adopt_editorial(name: str, req: AdoptEditorialRequest, _t: Translator)
     def prepare():
         manager = get_project_manager()
         path = manager.get_project_path(name)
+        from lib.novel_workflow.routing import enabled
+
+        if enabled(manager.load_project(name)):
+            raise HTTPException(
+                status_code=409, detail="旧分集评估建议已停用，请在 Note 工作台查看改编建议并人工管理 Notes。"
+            )
         return path, novel_editorial.adoption(path, req.report_id)
 
     try:

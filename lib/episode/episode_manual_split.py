@@ -501,6 +501,12 @@ def _run(
 
     # 锁外预演只为确认与快速失败：拒绝或需要确认时零写入返回
     project = pm.load_project(project_name)
+    from lib.novel_workflow.routing import enabled
+
+    if enabled(project):
+        raise ManualSplitError(
+            "episode_planning_refused", "Note 组合用于资料管理，请在场镜素材库由导演组集，不能按原文切分成片集。"
+        )
     if validate_project is not None:
         validate_project(project)
     layout = _layout(project_dir, project)
@@ -518,6 +524,8 @@ def _run(
     committed: dict[str, Any] = {}
 
     def _commit(p: dict[str, Any]) -> None:
+        if enabled(p):
+            raise ManualSplitError("episode_planning_refused", "Note 工作流已开启，请从场镜素材库由导演组集。")
         # 锁内按最新账本重新推演：确认清单与落位都是锁外读取时刻的快照
         if validate_project is not None:
             validate_project(p)

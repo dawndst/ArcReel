@@ -1268,6 +1268,13 @@ class WorkflowStateService:
         self, project: dict[str, Any], shared: _SharedWorkflowFacts, reason: str
     ) -> WorkflowNextAction:
         """继续分集规划的动作：规划器会拒绝接续时（切出集缺位置记录、源文已改动）改为从头重置。"""
+        from lib.novel_workflow.routing import enabled
+
+        if enabled(project):
+            return _action(
+                WorkflowActionType.FIX_INPUT,
+                "请在小说工作台选择章节、精读 Notes、生成 SVT 和场镜，再由导演勾选场镜组集。",
+            )
         if legacy_cut_episode_ids(project):
             return _action(
                 WorkflowActionType.RESET_EPISODE_PLANNING,
@@ -1882,6 +1889,21 @@ class WorkflowStateService:
         next_alternatives: list[WorkflowNextAction] | None = None,
         issues: list[WorkflowBlocker] | None = None,
     ) -> WorkflowStatus:
+        from lib.novel_workflow.routing import enabled
+        from lib.workflow.operation_admission import NOT_APPLICABLE
+
+        if enabled(project):
+            operations = {**operations, WorkflowActionType.PLAN_EPISODES: NOT_APPLICABLE}
+            old_actions = {
+                WorkflowActionType.PLAN_EPISODES,
+                WorkflowActionType.RESET_EPISODE_PLANNING,
+                WorkflowActionType.CREATE_EPISODE,
+            }
+            if next_action.type in old_actions:
+                next_action = _action(
+                    WorkflowActionType.FIX_INPUT, "请在小说工作台处理 Notes，由导演从场镜素材库组集。"
+                )
+            next_alternatives = [a for a in (next_alternatives or []) if a.type not in old_actions]
         source = shared.source
         return WorkflowStatus(
             project_revision=_project_revision(project),

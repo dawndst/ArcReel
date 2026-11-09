@@ -222,3 +222,14 @@ projects/{项目名}/      # ← session cwd 已在此，下面均为 cwd 内的
 - 角色/场景/道具的完整定义**只存储在 project.json**，剧本中仅引用名称
 - 项目摘要 `episodes[]` 的 `item_count`（分镜数 / 视频单元数）、`status`、产物计数等派生字段由项目摘要**读时计算**，不存储
 - 剧集元数据（episode 集 ID / title / script_file）在剧本保存时**写时同步**
+
+
+## 小说 Note 工作流优先路由
+
+先读取 project.json。novel_workflow_enabled=true 时，遵循 Note → SVT → 场镜素材库 → 导演组集：
+- 每个逻辑章节一 Note，每 Note 唯一主归属 SVT，可列多个备选；多 Note 可共享 SVT。
+- 精读、跨章理解、SVT、改编建议都通过 novel-workflow 接口处理指定范围；不得调用旧 novel-understanding 全书阅读或旧分集评估。
+- 故事设定从当前可用范围已精读 Notes 归纳。未精读先告知用户完成阅读，不得自动扫描全书。
+- 不得运行 plan_episodes、重规划、按原文切分或合并集。人工合并 Notes 仅为资料管理，导演选择场镜才生成一集。
+- 只有带 note_source 的导演编排集才能进入脚本生产；不能用缺失绑定的旧集绕过原文依据与防剧透校验。
+- novel_workflow_enabled=false 时才使用原生分集流程。广告和解说模式沿用各自流程。

@@ -1103,6 +1103,9 @@ class EpisodePlanner:
         续接规划只会与它重叠或遗漏。消费链路（剧本 / 媒体 / 状态 / 导出）不受影响；
         自带原文与无原文的集不占用整本源文，不在此列。
         """
+        from lib.novel_workflow.routing import reject_legacy
+
+        reject_legacy(project)
         missing = legacy_cut_episode_ids(project)
         if missing:
             raise _missing_source_range_error(missing)

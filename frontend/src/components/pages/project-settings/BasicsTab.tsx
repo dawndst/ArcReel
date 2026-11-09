@@ -44,7 +44,7 @@ export function BasicsTab({ value, savedValue, onChange, facts }: BasicsTabProps
           </label>
         </SettingsBlock>
       )}
-      {facts.contentMode === "drama" && (
+      {facts.contentMode === "drama" && !value.novelWorkflow && (
         <SettingsBlock title={t("novel_understanding_title")}>
           <label className="flex items-center justify-between gap-4 text-sm">
             <span>{t("novel_understanding_description")}</span>

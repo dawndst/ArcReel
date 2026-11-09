@@ -33,6 +33,7 @@ function hasStorySetting(overview: ProjectOverview | undefined): boolean {
  */
 export function OverviewCanvas({ projectName, projectData, readOnly = false }: OverviewCanvasProps) {
   const isAd = projectData?.content_mode === "ad";
+  const noteWorkflow = projectData?.content_mode === "drama" && projectData.novel_workflow_enabled === true;
   const debouncedFetch = useCostStore((s) => s.debouncedFetch);
 
   useEffect(() => {
@@ -57,9 +58,9 @@ export function OverviewCanvas({ projectName, projectData, readOnly = false }: O
   const handleUploaded = useCallback(
     (result: SourceUploadResult) => {
       // 第一次放进整本源文时就地读取原文；只登记了逐集原文时不生成
-      if (result.wholeSourceFiles.length > 0) runGenerate();
+      if (result.wholeSourceFiles.length > 0 && !noteWorkflow) runGenerate();
     },
-    [runGenerate],
+    [runGenerate, noteWorkflow],
   );
 
   // 交接提示：本次会话内故事设定由空变为有内容时触发一次；只读态与广告项目不触发。
@@ -115,6 +116,7 @@ export function OverviewCanvas({ projectName, projectData, readOnly = false }: O
             </>
           ) : (
             <StorySetting
+              noteWorkflow={noteWorkflow}
               key={projectName}
               projectName={projectName}
               overview={projectData.overview}
@@ -125,7 +127,7 @@ export function OverviewCanvas({ projectName, projectData, readOnly = false }: O
               onGenerate={runGenerate}
             />
           )}
-          {!isAd && !readOnly ? <HandoffTip projectName={projectName} /> : null}
+          {!isAd && !noteWorkflow && !readOnly ? <HandoffTip projectName={projectName} /> : null}
         </div>
       )}
       {uploadFiles !== null ? (

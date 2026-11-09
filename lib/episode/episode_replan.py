@@ -661,6 +661,10 @@ def adopt_replan_candidate(
     pm = ProjectManager.for_project_dir(project_dir)
     project_name = project_dir.name
     project = pm.load_project(project_name)
+    from lib.novel_workflow.routing import enabled
+
+    if enabled(project):
+        raise ReplanError("episode_planning_refused", "Note 工作流请使用场镜素材库由导演组集，不能采用旧分集候选。")
     candidate = _require_candidate(project, candidate_id)
     adoption, impact = _adoption_impact(project_dir, project, candidate)
     if revision != impact.revision:
@@ -673,6 +677,8 @@ def adopt_replan_candidate(
     committed: dict[str, Any] = {}
 
     def _commit(p: dict[str, Any]) -> None:
+        if enabled(p):
+            raise ReplanError("episode_planning_refused", "Note 工作流已开启，不能采用旧分集候选。")
         locked_candidate = _require_candidate(p, candidate_id)
         locked_adoption, locked_impact = _adoption_impact(project_dir, p, locked_candidate)
         if locked_impact.revision != revision:

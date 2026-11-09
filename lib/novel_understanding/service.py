@@ -99,6 +99,7 @@ def applicable(project: dict[str, Any]) -> bool:
 
     return (
         store.enabled(project)
+        and project.get("novel_workflow_enabled") is not True
         and bool(project.get("whole_source_files"))
         and project_overview_source_kind(project) == "novel"
     )
@@ -249,6 +250,9 @@ async def read_chunk(
 
 
 async def ensure(path: Path, project: dict[str, Any], generator: TextGenerator) -> Memory | None:
+    from lib.novel_workflow.routing import reject_legacy
+
+    reject_legacy(project)
     if not applicable(project):
         return None
     from lib.project.project_manager import ProjectManager
@@ -500,7 +504,11 @@ async def prepare(
     generator: TextGenerator | None = None,
 ) -> tuple[dict[str, Any], ProductionGuard | NoteProductionGuard | None]:
     entry = next((e for e in project.get("episodes", []) if e.get("episode") == episode), {})
-    if project.get("novel_workflow_enabled") is True and entry.get("note_source"):
+    if project.get("content_mode") == "drama" and project.get("novel_workflow_enabled") is True:
+        if not entry.get("note_source"):
+            from lib.novel_workflow.routing import WorkflowError
+
+            raise WorkflowError("本集缺少 Note 来源绑定。请从场镜素材库选择场和镜头，由导演组集后再生成脚本。")
         from lib.backends.providers import CallPurpose
         from lib.backends.text_backends.base import TextTaskType
         from lib.novel_workflow.production import prepare as prepare_notes
@@ -537,6 +545,12 @@ async def prepare(
 
 async def generate_project_overview(manager: Any, name: str) -> dict:
     project = await asyncio.to_thread(manager.load_project, name)
+    from lib.novel_workflow.routing import enabled
+
+    if enabled(project):
+        from lib.novel_workflow.overview import generate
+
+        return await generate(manager, name)
     if not applicable(project):
         return await manager.generate_overview(name)
     from lib.backends.providers import CallPurpose

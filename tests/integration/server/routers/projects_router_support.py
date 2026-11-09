@@ -76,6 +76,9 @@ class _FakePM:
                 "episodes": [{"episode": 1, "title": "", "script_file": "scripts/episode_1.json"}],
             },
         }
+        # Overview routing now reads project metadata before invoking the generator.
+        for name in ("bad", "no-provider", "corrupted", "bad-schema", "truncated", "retired-model"):
+            self.project_data[name] = {"title": name, "content_mode": "drama", "episodes": []}
         self.scripts = {
             ("ready", "episode_1.json"): {
                 "content_mode": "drama",

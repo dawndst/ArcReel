@@ -20,3 +20,16 @@ def test_catalog_reads_effective_project_rules_and_templates_without_mutation(tm
     assert "agent/CLAUDE.drama.md" in entries
     assert file.read_bytes() == before
     assert not any(".env" in v["location"] for v in entries.values())
+
+
+def test_catalog_reads_projected_current_mode_skill(tmp_path):
+    data, _ = project(tmp_path)
+    data["content_mode"] = "drama"
+    skill = tmp_path / ".claude/skills/video-workflow/SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("当前项目的 Note 工作流技能")
+    entries = {e["id"]: e for e in catalog(tmp_path, data)["entries"]}
+    current = entries["agent/.claude/skills/video-workflow/SKILL.drama.md"]
+    assert current["content"] == "当前项目的 Note 工作流技能"
+    assert current["source"] == "project"
+    assert entries["agent/.claude/skills/video-workflow/SKILL.narration.md"]["category"] == "other"

@@ -289,6 +289,13 @@ describe("OverviewCanvas", () => {
     expect(location.history.at(-1)).toBe("/");
   });
 
+  it("uses scoped Note settings and explains the reading prerequisite", () => {
+    renderOverview({ projectData: makeProjectData({ novel_workflow_enabled: true, whole_source_files: [{ source_file: "source/novel.txt" }] }) });
+    expect(screen.getByRole("button", { name: "从精读 Notes 生成故事设定" })).toBeInTheDocument();
+    expect(screen.getByText(/先在小说工作台选择可用章节并完成精读/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "从原文重新生成" })).not.toBeInTheDocument();
+  });
+
   it("asks before regenerating and names the unsaved changes that will be discarded", async () => {
     const user = userEvent.setup();
     const generate = vi.spyOn(API, "generateOverview").mockReturnValue(new Promise(() => {}));

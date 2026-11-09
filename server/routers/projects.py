@@ -70,6 +70,7 @@ from lib.infra.data_root_layout import DataRootLayout
 from lib.infra.json_io import domain_error_on_value_error
 from lib.material.formal_objects import formal_commit_on, release_holder
 from lib.novel_understanding.service import generate_project_overview
+from lib.novel_workflow.routing import WorkflowError
 from lib.project import deleted_projects
 from lib.project.asset_fingerprints import compute_asset_fingerprints
 from lib.project.asset_types import asset_name_comparison_key
@@ -2065,7 +2066,10 @@ async def set_project_source(
 
         result: dict = {"success": True, "filename": safe_filename, "chars": chars}
 
-        if generate_overview:
+        current = await asyncio.to_thread(manager.load_project, name)
+        from lib.novel_workflow.routing import enabled as note_workflow_enabled
+
+        if generate_overview and not note_workflow_enabled(current):
             try:
                 with project_change_source("webui"):
                     overview = await generate_project_overview(manager, name)
@@ -2143,6 +2147,8 @@ async def generate_overview(name: str, _t: Translator):
         # 裸 pydantic 错误串含模型原始输出片段，不透传给用户
         logger.exception("概述生成响应解析失败")
         raise HTTPException(status_code=400, detail=_t("overview_ai_response_invalid")) from exc
+    except WorkflowError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except TextOutputTruncatedError as exc:
         # 输出被最大输出长度截断：与各文本任务同一个问题票形状，前端据此给出登记输出长度或换模型的出路
         logger.warning("概述生成输出被截断: name=%s (%s)", name, exc)

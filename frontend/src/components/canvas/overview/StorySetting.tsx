@@ -40,6 +40,7 @@ function fieldsOf(overview: ProjectOverview | undefined): SettingFields {
 }
 
 interface StorySettingProps {
+  noteWorkflow?: boolean;
   projectName: string;
   overview: ProjectOverview | undefined;
   readOnly: boolean;
@@ -60,6 +61,7 @@ interface StorySettingProps {
  * 「从原文重新生成」整份替换四个字段，用 AlertDialog 确认；有未保存修改时一并放弃。
  */
 export function StorySetting({
+  noteWorkflow = false,
   projectName,
   overview,
   readOnly,
@@ -95,7 +97,7 @@ export function StorySetting({
 
   const hasContent = FIELD_KEYS.some((key) => unit.savedValue[key] !== "");
   const needsConfirm = hasContent || unit.dirty;
-  const generateLabel = unit.dirty
+  const generateLabel = noteWorkflow ? t("nw_overview_generate") : unit.dirty
     ? t("overview_discard_and_regenerate")
     : hasContent
       ? t("overview_regenerate")
@@ -124,7 +126,7 @@ export function StorySetting({
       <div className="flex flex-col gap-3">
         <p role="status" className="flex items-center gap-2 text-sm text-subtle-foreground">
           <span aria-hidden className="size-1.5 shrink-0 animate-breath rounded-full bg-primary" />
-          {t("overview_reading_source")}
+          {t(noteWorkflow ? "nw_overview_reading" : "overview_reading_source")}
         </p>
         <Skeleton className="h-4 w-full" />
         <Skeleton className="h-4 w-11/12" />
@@ -212,6 +214,7 @@ export function StorySetting({
           </Button>
         ) : null}
       </div>
+      {noteWorkflow ? <p className="max-w-[40em] text-sm text-muted-foreground">{t("nw_overview_hint")}</p> : null}
       {description ? <p className="max-w-[40em] text-sm text-muted-foreground">{description}</p> : null}
 
       {generateError && !generating && !readOnly ? (
@@ -234,7 +237,7 @@ export function StorySetting({
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("overview_regenerate_confirm_title")}</AlertDialogTitle>
+            <AlertDialogTitle>{t(noteWorkflow ? "nw_overview_confirm_title" : "overview_regenerate_confirm_title")}</AlertDialogTitle>
             <AlertDialogDescription>
               {unit.dirty ? t("overview_regenerate_confirm_desc_dirty") : t("overview_regenerate_confirm_desc")}
             </AlertDialogDescription>
