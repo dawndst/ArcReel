@@ -51,7 +51,7 @@ function NoteDetails({ projectName, note }: { projectName: string; note: Chapter
     </> : <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{t("nw_unread_hint")}</p>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     <Button variant="outline" size="sm" disabled={loading} onClick={() => source ? setSource(null) : void readSource()}>{loading && <Loader2 className="animate-spin" data-icon="inline-start" />}{t(source ? "nw_hide_source" : "nw_show_source")}</Button>
-    {source && <pre className="font-editorial text-sm leading-loose whitespace-pre-wrap wrap-break-word">{source}</pre>}
+    {source && <pre className="relative max-h-72 overflow-y-auto rounded-lg border bg-muted/20 p-4 font-editorial text-sm leading-relaxed whitespace-pre-wrap wrap-break-word [scrollbar-gutter:stable]">{source}</pre>}
   </article>;
 }
 

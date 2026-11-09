@@ -82,7 +82,7 @@ describe("EpisodeSourceReview", () => {
 
     render(<EpisodeSourceReview projectName="demo" episode={1} episodes={[spanning]} />);
 
-    expect(screen.getAllByText("part_1.txt – part_2.txt")).toHaveLength(2);
+    expect(screen.getByText("part_1.txt – part_2.txt")).toBeInTheDocument();
     expect(screen.queryByText("900–120")).not.toBeInTheDocument();
     expect(screen.queryByText(/约 .* 字/)).not.toBeInTheDocument();
   });
@@ -311,13 +311,13 @@ describe("EpisodeSourceReview", () => {
 
     const { rerender } = render(<EpisodeSourceReview projectName="demo" episode={1} episodes={[makeEpisode()]} />);
 
-    const rail = screen.getByRole("complementary", { name: "本集导览" });
+    const rail = screen.getByRole("region", { name: "本集导览" });
     expect(within(rail).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["1主角登场", "2遭遇冲突"]);
     expect(within(rail).getByText("反派现身")).toBeInTheDocument();
 
     const bare = makeEpisode({ episode: 3, source_origin: "none", source_range: undefined, outline: undefined, hook: undefined });
     rerender(<EpisodeSourceReview projectName="demo" episode={3} episodes={[bare]} />);
-    expect(screen.queryByRole("complementary", { name: "本集导览" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "本集导览" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /本集导览/ })).not.toBeInTheDocument();
   });
 

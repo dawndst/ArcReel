@@ -21,8 +21,8 @@ import type { SourceKind } from "@/types/episodes-view";
 import { episodeDisplayName, episodePosition } from "@/utils/episode-display";
 
 /**
- * 「脚本规划」tab 的起步态：本集既没有脚本规划也没有正式脚本。自上而下是起步区（首次规划的唯一入口）
- * 与本集原文；本集导览在视图宽 860px 以上放右侧栏，更窄时排在起步区与原文前。
+ * 「脚本规划」tab 的起步态：本集既没有脚本规划也没有正式脚本。主栏先展示导览，再展示首次规划入口。
+ * 原文位于较窄的辅助核对栏，独立滚动；窄屏时排在主栏之后。
  * 适用 narration、drama 与参考生视频；广告项目恒单集、没有源文切片，由集页排除。
  *
  * 本集原文按来源区分：切自整本源文的集只读（集文件由分集规划派生，去「分集」视图修改）；自带原文的集
@@ -112,7 +112,7 @@ function SourceRangeNote({ meta }: { meta: EpisodeMeta | undefined }) {
   );
 }
 
-const READING_CLS = "max-w-[40em] font-editorial text-base leading-loose whitespace-pre-wrap text-subtle-foreground";
+const READING_CLS = "max-w-[40em] font-editorial text-sm leading-relaxed whitespace-pre-wrap wrap-break-word text-subtle-foreground";
 
 interface SourceValue {
   text: string;
@@ -388,35 +388,38 @@ export function EpisodeSourceReview({
       <div
         className={
           guide
-            ? "mx-auto grid w-full max-w-280 gap-x-10 gap-y-6 px-6 pt-6 pb-16 @min-[860px]/plan-start:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]"
+            ? "mx-auto grid w-full max-w-320 items-start gap-6 px-6 pt-6 pb-16 @min-[760px]/plan-start:grid-cols-[minmax(0,2.4fr)_minmax(220px,1fr)]"
             : "mx-auto grid w-full max-w-190 gap-y-6 px-6 pt-6 pb-16"
         }
       >
         <div className="flex min-w-0 flex-col gap-6">
+          {guide && (
+            <section aria-label={t("episode_workspace_guide_title")} className="min-w-0 rounded-xl border bg-card p-5">
+              <GuideHeading />
+              {sourceOriginOf(meta) !== "none" ? (
+                <EpisodeGuideDetails
+                  key={`${projectName}:${episode}`}
+                  projectName={projectName}
+                  episode={episode}
+                  initial={meta?.outline?.guide}
+                  revision={revision}
+                  prepare={saveSource}
+                  fallback={<GuideContent meta={meta} />}
+                />
+              ) : <GuideContent meta={meta} />}
+            </section>
+          )}
           <ScriptPlanStart
             projectName={projectName}
             episode={episode}
             savedInstructions={meta?.script_plan_instructions ?? ""}
             prepare={saveSource}
           />
-
-          <EpisodeSource projectName={projectName} episode={episode} episodes={episodes} meta={meta} editRef={sourceRef} />
+          {!guide && <EpisodeSource projectName={projectName} episode={episode} episodes={episodes} meta={meta} editRef={sourceRef} />}
         </div>
         {guide && (
-          <aside aria-label={t("episode_workspace_guide_title")} className="order-first min-w-0 self-start @min-[860px]/plan-start:order-last">
-            <GuideHeading />
-            {sourceOriginOf(meta) !== "none" ? (
-              <EpisodeGuideDetails
-                key={`${projectName}:${episode}`}
-                projectName={projectName}
-                episode={episode}
-                initial={meta?.outline?.guide}
-                revision={revision}
-                prepare={saveSource}
-                fallback={<GuideContent meta={meta} />}
-              />
-            ) : <GuideContent meta={meta} />}
-            <div className="mt-4"><SourceRangeNote meta={meta} /></div>
+          <aside aria-label={t("episode_workspace_source_title")} className="relative min-w-0 max-h-80 overflow-y-auto rounded-xl border bg-muted/20 p-4 [scrollbar-gutter:stable] @min-[760px]/plan-start:sticky @min-[760px]/plan-start:top-6 @min-[760px]/plan-start:max-h-[calc(100dvh-12rem)]">
+            <EpisodeSource projectName={projectName} episode={episode} episodes={episodes} meta={meta} editRef={sourceRef} />
           </aside>
         )}
       </div>
