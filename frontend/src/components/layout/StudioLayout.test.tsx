@@ -87,20 +87,13 @@ describe("StudioLayout", () => {
     expect(agentToggle()).toHaveAccessibleDescription("");
   });
 
-  it("collapses the sidebar on episode pages and restores the user's choice after leaving", () => {
-    const { navigate } = renderShell("/characters");
-    expect(screen.getByRole("button", { name: "折叠侧栏" })).toHaveAttribute("aria-expanded", "true");
-
-    act(() => navigate("/episodes/1"));
-    fireEvent.click(screen.getByRole("button", { name: "展开侧栏" }));
-    expect(screen.getByRole("button", { name: "折叠侧栏" })).toHaveAttribute("aria-expanded", "true");
-
-    // 临时展开只在当前页面有效
-    act(() => navigate("/episodes/2"));
-    expect(screen.getByRole("button", { name: "展开侧栏" })).toHaveAttribute("aria-expanded", "false");
-
-    act(() => navigate("/characters"));
-    expect(screen.getByRole("button", { name: "折叠侧栏" })).toHaveAttribute("aria-expanded", "true");
+  it("starts expanded despite legacy storage and stays expanded across episode routes", () => {
+    localStorage.setItem("arcreel_workspace_sidebar_collapsed", "true");
+    const { navigate } = renderShell("/episodes");
+    for (const route of ["/episodes/1", "/episodes/2", "/characters", "/rules"]) {
+      act(() => navigate(route));
+      expect(screen.getByRole("button", { name: "折叠侧栏" })).toHaveAttribute("aria-expanded", "true");
+    }
   });
 
   it("lists every episode on the icon rail even when the hidden search box still holds a query", () => {
@@ -123,7 +116,8 @@ describe("StudioLayout", () => {
     const { navigate } = renderShell("/characters");
     fireEvent.change(screen.getByRole("searchbox", { name: "搜索集名或编号…" }), { target: { value: "转折" } });
 
-    // 进入单集页自动收为图标栏：搜索框随之隐藏，图标栏不能按看不见的搜索词过滤
+    // 手动收起后搜索框隐藏，图标栏不能按看不见的搜索词过滤
+    fireEvent.click(screen.getByRole("button", { name: "折叠侧栏" }));
     act(() => navigate("/episodes/2"));
 
     expect(screen.getByRole("link", { name: "1 · 开端" })).toBeInTheDocument();
@@ -140,11 +134,11 @@ describe("StudioLayout", () => {
     expect(screen.getByRole("button", { name: "展开侧栏" })).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("collapses the sidebar to the icon rail on compact viewports", () => {
+  it("starts expanded on compact viewports", () => {
     useCompactViewport();
     renderShell("/characters");
 
-    expect(screen.getByRole("button", { name: "展开侧栏" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("button", { name: "折叠侧栏" })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("closes the overlay agent panel with Escape and returns focus to the toggle on compact viewports", () => {

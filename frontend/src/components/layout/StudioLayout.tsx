@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { usePanelRef, type LayoutChangedMeta, type PanelSize } from "react-resizable-panels";
 import { cn } from "cn";
@@ -30,11 +29,8 @@ import {
   SIDEBAR_MAX_WIDTH,
   SIDEBAR_MIN_WIDTH,
   SIDEBAR_RAIL_WIDTH,
-  persistSidebarCollapsed,
   persistSidebarWidth,
-  readSidebarCollapsed,
   readSidebarWidth,
-  sidebarAutoCollapseReason,
   useCompactTier,
 } from "./workspace-layout";
 
@@ -49,15 +45,14 @@ interface StudioLayoutProps {
  * 项目工作区外壳：顶栏横跨全宽，下方是「侧栏 | 画布 | Agent 面板」三栏，三栏之间用调宽手柄分隔。
  *
  * - 外壳是唯一按视口切换档位的地方（1280）。标准档的 Agent 面板挤压画布，画布至少保留 480px；
- *   紧凑档的 Agent 面板是覆盖在画布右侧的非模态层，焦点在面板内时 Esc 收起，侧栏收为图标栏。
- * - 侧栏在单集页与分集视图自动收为图标栏，可临时展开，换页后恢复；离开这些页面后回到用户自己的选择。
+ *   紧凑档的 Agent 面板是覆盖在画布右侧的非模态层，焦点在面板内时 Esc 收起，侧栏默认展开。
+ * - 侧栏默认展开，不因路由或视口变化自动折叠；用户可手动收起。
  * - Agent 面板的开合与宽度在 `app-store`；收起时内容保持挂载，输入中的文字与会话连接不受影响。
  * - 尺寸容器：侧栏 `@container/sidebar`，画布 `@container/canvas`（宽度查询），Agent 面板
  *   `@container-size/agent`（宽高都可查询，输入框的 `40cqh` 按面板高度计算）。
  */
 export function StudioLayout({ children }: StudioLayoutProps) {
   const { t } = useTranslation("dashboard");
-  const [location] = useLocation();
   const currentProjectName = useProjectsStore((s) => s.currentProjectName);
   // 演示项目在后端不存在：任务 / 项目事件流和 Agent 都是真实写路径，演示态下整条都不接
   const demoMode = useDemoWorkbench();
@@ -79,28 +74,8 @@ export function StudioLayout({ children }: StudioLayoutProps) {
   const agentOpen = demoMode || storeOpen;
   const overlay = compact && !demoMode;
 
-  // ---- 侧栏折叠：有自动折叠的原因时默认折叠、可临时展开，原因或页面变化后复位 ----
-  const collapseReason = sidebarAutoCollapseReason(location, compact);
-  const [userCollapsed, setUserCollapsed] = useState(readSidebarCollapsed);
-  const [tempExpanded, setTempExpanded] = useState(false);
-  const resetKey = `${collapseReason}|${location}`;
-  const [lastResetKey, setLastResetKey] = useState(resetKey);
-  if (resetKey !== lastResetKey) {
-    setLastResetKey(resetKey);
-    setTempExpanded(false);
-  }
-  const sidebarCollapsed = collapseReason ? !tempExpanded : userCollapsed;
-  const setSidebarCollapsed = useCallback(
-    (collapsed: boolean) => {
-      if (collapseReason) {
-        setTempExpanded(!collapsed);
-        return;
-      }
-      setUserCollapsed(collapsed);
-      persistSidebarCollapsed(collapsed);
-    },
-    [collapseReason],
-  );
+  // 每次进入或刷新工作台默认展开；手动折叠仅保留在当前工作区会话。
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // ---- 面板尺寸：开合与折叠由状态驱动面板库，拖动等用户操作的结果再写回状态 ----
   const shellRef = useRef<HTMLDivElement>(null);
