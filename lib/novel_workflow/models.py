@@ -15,6 +15,10 @@ class Mention(StrictModel):
     kind: Literal["character", "scene", "prop"]
     name: str = Field(min_length=1)
     identity_scope: str = Field(default="", description="Distinguish same-name entities; unknown stays unknown")
+    variant: str = Field(
+        default="",
+        description="Character appearance variant explicitly supported by this quote (age/form/injury/costume); stable short label, empty if not established. Never infer from later plot.",
+    )
     description: str
     quote: str = Field(min_length=2)
 

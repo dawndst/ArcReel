@@ -190,7 +190,7 @@ export const AssetBrowseCard = memo(function AssetBrowseCard({
               aria-label={name}
               className="block w-full text-left outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
             >
-              <TruncatedText text={name} focusable={false} />
+              {asset.assetCode && <span className="mr-2 font-mono text-xs text-muted-foreground">{asset.assetCode}</span>}<TruncatedText text={name} focusable={false} />
             </button>
           </h3>
           <DropdownMenu>

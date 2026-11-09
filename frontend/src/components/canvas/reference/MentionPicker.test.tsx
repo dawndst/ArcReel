@@ -466,3 +466,17 @@ describe("MentionPicker", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 });
+
+it("finds a numbered derivative and inserts its native reference name", () => {
+  const select = vi.fn();
+  useProjectsStore.setState({ currentProjectName: "demo", currentProjectData: {
+    title: "demo", content_mode: "drama", style: "", episodes: [],
+    characters: { "景麒": { description: "", asset_code: "CHR-001", derivatives: { "兽形": { description: "", asset_code: "CHR-002" } } } },
+  } });
+  render(<MentionPicker open query="CHR-002" projectName="demo" candidates={{ character: [{ name: "景麒/兽形", imagePath: null }, { name: "景麒", imagePath: null }] }} onSelect={select} onClose={vi.fn()} />);
+  expect(screen.getAllByRole("option")).toHaveLength(1);
+  expect(screen.getByText("CHR-002")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("option"));
+  expect(select).toHaveBeenCalledWith({ type: "character", name: "景麒/兽形" });
+  useProjectsStore.setState({ currentProjectName: null, currentProjectData: null });
+});

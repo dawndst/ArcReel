@@ -323,7 +323,9 @@ class TestMergeAsDerivative:
         assert report.aliases_added == ()
         kept = stranger.load_project(PROJECT)["characters"]["王建国"]
         assert kept["aliases"] == ["王老板"]
-        assert kept["derivatives"] == {"黑衣人": {"description": "一身黑衣，斗笠遮面", "character_sheet": ""}}
+        assert {n: _visual_fields(a) for n, a in kept["derivatives"].items()} == {
+            "黑衣人": {"description": "一身黑衣，斗笠遮面", "character_sheet": ""}
+        }
         scene = _script(stranger, 1)["scenes"][0]
         assert scene["characters_in_scene"] == ["王建国/黑衣人"]
         assert scene["utterances"][0]["speaker"] == "王建国"
@@ -377,7 +379,7 @@ class TestMergeFoldsCaseOnlyDerivatives:
         assert (report.derivatives_moved, report.derivatives_folded) == (("Hat",), ("Coat",))
         derivatives = cast.load_project(PROJECT)["characters"]["Alice"]["derivatives"]
         assert list(derivatives) == ["coat", "Hat"]
-        assert derivatives["coat"] == _ALICE_COAT
+        assert _visual_fields(derivatives["coat"]) == _ALICE_COAT
         segment = _script(cast, 1)["segments"][0]
         assert segment["characters_in_segment"] == ["Alice/coat", "Alice/Hat"]
         assert segment["image_prompt"]["scene"] == "@[Alice/coat] 与 @[Alice/Hat] 同框"
@@ -389,7 +391,9 @@ class TestMergeFoldsCaseOnlyDerivatives:
         report = cast.merge_asset(PROJECT, "characters", "Coat", "Alice", as_derivative=True)
 
         assert report.derivative_created is None
-        assert cast.load_project(PROJECT)["characters"]["Alice"]["derivatives"] == {"coat": _ALICE_COAT}
+        assert {
+            n: _visual_fields(a) for n, a in cast.load_project(PROJECT)["characters"]["Alice"]["derivatives"].items()
+        } == {"coat": _ALICE_COAT}
         segment = _script(cast, 1)["segments"][0]
         assert segment["characters_in_segment"] == ["Alice/coat"]
         assert segment["image_prompt"]["scene"] == "@[Alice/coat] 走来"
@@ -830,7 +834,7 @@ class TestMergeWithProducedArtifacts:
 
         assert (report.derivatives_moved, report.derivatives_folded) == (("战损",), ("便装",))
         derivatives = produced.load_project(PROJECT)["characters"]["王建国"]["derivatives"]
-        assert derivatives == {
+        assert {n: _visual_fields(a) for n, a in derivatives.items()} == {
             "便装": {"description": "旧衬衫", "character_sheet": "characters/derivatives/王建国/便装.png"},
             "战损": {"description": "衣服破损", "character_sheet": "characters/derivatives/王建国/战损.png"},
         }
@@ -860,3 +864,11 @@ class TestMergeWithProducedArtifacts:
         for relative_path in ("characters/老王.png", "characters/refs/老王.png", "characters/refs_audio/老王.wav"):
             assert not (project_dir / relative_path).exists()
         assert self._current(produced, ArtifactKey.asset_sheet("character", "王建国"), "characters/王建国.png")
+
+
+def _visual_fields(asset):
+    # Stable identity metadata is now part of every production asset.
+    assert asset["asset_code"].startswith("CHR-")
+    assert asset["asset_id"]
+    assert asset["entity_id"]
+    return {key: value for key, value in asset.items() if key not in {"asset_code", "asset_id", "entity_id"}}

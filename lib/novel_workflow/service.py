@@ -191,6 +191,12 @@ async def read_notes(path: Path, generator, note_ids: list[str], expected: str) 
                     store.write, store.root(path) / "history" / f"note-{uuid4().hex}.json", previous
                 )
             await run_noninterruptible_sync(store.write, target, result)
+            from lib.novel_workflow.assets import synchronize
+
+            await run_noninterruptible_sync(synchronize, path)
+        from lib.novel_workflow.assets import synchronize
+
+        await run_noninterruptible_sync(synchronize, path)
         book = await asyncio.to_thread(memory.ledger, path, notebook)
         await run_noninterruptible_sync(store.write, store.root(path) / "ledger.json", book)
         if (await asyncio.to_thread(settings.get, path))["understanding_enabled"]:

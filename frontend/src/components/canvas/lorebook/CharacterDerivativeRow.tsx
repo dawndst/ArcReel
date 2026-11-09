@@ -392,7 +392,7 @@ export function CharacterDerivativeRow({
           ) : (
             <div className="flex min-h-7 min-w-0 items-center gap-1">
               <h4 className="min-w-0 flex-1 text-sm font-medium">
-                <TruncatedText text={name} />
+                {derivative.asset_code && <span className="mr-2 font-mono text-xs text-muted-foreground">{derivative.asset_code}</span>}<TruncatedText text={name} />
               </h4>
               {readOnly ? null : (
                 <DropdownMenu>

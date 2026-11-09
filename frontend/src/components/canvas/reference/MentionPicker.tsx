@@ -67,6 +67,20 @@ export function MentionPicker({
 }: MentionPickerProps) {
   const { t } = useTranslation("dashboard");
   // 缩略图地址带资产指纹：重新生成后换地址，未变化时命中浏览器的长缓存
+  const project = useProjectsStore((s) => s.currentProjectName === projectName ? s.currentProjectData : null);
+  const codes = useMemo(() => {
+    const result: Record<string, string> = {};
+    for (const kind of GROUP_ORDER) {
+      const bucket = { character: project?.characters, scene: project?.scenes, prop: project?.props, product: project?.products }[kind];
+      for (const [name, asset] of Object.entries(bucket ?? {})) {
+        if (asset.asset_code) result[`${kind}:${name}`] = asset.asset_code;
+        if (kind === "character") for (const [variant, value] of Object.entries(project?.characters[name]?.derivatives ?? {})) {
+          if (value.asset_code) result[`${kind}:${name}/${variant}`] = value.asset_code;
+        }
+      }
+    }
+    return result;
+  }, [project]);
   const fingerprints = useProjectsStore((s) => s.assetFingerprints);
   const [activeIndex, setActiveIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<TabKey>("all");
@@ -89,10 +103,10 @@ export function MentionPicker({
     const result: Record<AssetKind, MentionCandidate[]> = { product: [], character: [], scene: [], prop: [] };
     for (const kind of GROUP_ORDER) {
       const arr = candidates[kind] ?? [];
-      result[kind] = q.length === 0 ? arr : arr.filter((c) => normalizeAssetName(c.name).toLowerCase().includes(q));
+      result[kind] = q.length === 0 ? arr : arr.filter((c) => (normalizeAssetName(c.name).toLowerCase().includes(q) || codes[`${kind}:${c.name}`]?.toLowerCase().includes(q)));
     }
     return result;
-  }, [candidates, query]);
+  }, [candidates, query, codes]);
 
   const filtered = useMemo(() => {
     if (activeTab === "all") return filteredByQuery;
@@ -305,7 +319,7 @@ export function MentionPicker({
                             <span className={`size-2 rounded-full ${palette.dotClass}`} />
                           </span>
                         )}
-                        <span className="truncate">{formatReferenceName(item.name)}</span>
+                        <span className="truncate">{codes[`${kind}:${item.name}`] && <span className="mr-2 font-mono text-xs text-muted-foreground">{codes[`${kind}:${item.name}`]}</span>}{formatReferenceName(item.name)}</span>
                         {splitDerivativeReference(item.name)[1] && (
                           <span className="shrink-0 rounded-sm bg-primary/15 px-1 py-0.5 text-xs font-medium text-primary">
                             {t("reference_picker_derivative_tag")}

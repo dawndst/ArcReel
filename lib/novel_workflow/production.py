@@ -122,6 +122,8 @@ class NoteProductionGuard:
 
 async def prepare(path, episode, binding, inputs, generator, *, dry_run=False):
     _project, readings = await asyncio.to_thread(validate_binding, path, episode, binding)
+    from lib.novel_workflow.assets import reference
+
     scoped = dict(inputs)
     scoped["project_overview"] = {}
     scoped["next_episode_outline"] = None
@@ -131,7 +133,18 @@ async def prepare(path, episode, binding, inputs, generator, *, dry_run=False):
         for result in readings:
             for asset in result["assets"]:
                 if asset["kind"] == kind:
-                    scoped[bucket].setdefault(asset["name"], {"description": ""})
+                    ref = reference(_project, asset)
+                    if ref.get("asset_missing"):
+                        raise ValueError("Note asset was removed; restore or resolve it before production")
+                    name = ref.get("asset_name", asset["name"])
+                    entry = scoped[bucket].setdefault(
+                        name, {"description": "", "asset_code": ref.get("asset_code", "")}
+                    )
+                    if ref.get("variant"):
+                        entry.setdefault("derivatives", {})[ref["variant"]] = {
+                            "description": asset["description"],
+                            "asset_code": ref["asset_code"],
+                        }
                     quotes.append(asset["evidence"]["quote"])
     context = "\n本集由创作者选择 Note 组合形成，原文是素材范围，不要求逐段拍摄。只依据本集原文和已列出的事件改编，不读取或推测后文。不使用作品外部知识。人物年龄、形态、伤势、关系按当前场景原文保持一致；原文未明确的造型不得自行推断。全局资产设定不得覆盖本集证据。"
     # Original episode text already includes every selected Note; this is only a bounded reminder.

@@ -144,6 +144,8 @@ def view(path: Path, project: dict) -> dict:
         }
     preview = chapters.index(path, project)
     stale = preview["source_basis"] != current["source_basis"]
+    from lib.novel_workflow.assets import annotate
+
     notes = []
     readings = valid_readings(path, current) if not stale else {}
     for note in current["notes"]:
@@ -152,7 +154,7 @@ def view(path: Path, project: dict) -> dict:
         notes.append(
             {
                 **note,
-                "reading": result,
+                "reading": annotate(project, result),
                 "status": "stale" if stale else "read" if result else "outdated" if older else "unread",
             }
         )

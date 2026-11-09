@@ -2313,6 +2313,9 @@ class ProjectManager:
         if self._requires_unique_asset_namespace(project):
             ensure_project_asset_namespace(project)
         # 变更可能把条目移出账本：先让历史最高号记下变更前的集 ID
+        from lib.project.asset_codes import ensure_asset_codes
+
+        ensure_asset_codes(project)
         raise_episode_id_high_water(project)
         planning_inputs = source_planning_inputs(project)
         mutate_fn(project)
@@ -2444,6 +2447,9 @@ class ProjectManager:
     @staticmethod
     def _touch_metadata(project: dict) -> None:
         """每次写 project.json 前的收尾：刷新更新时间，并让历史最高号覆盖账本里的集 ID。"""
+        from lib.project.asset_codes import ensure_asset_codes
+
+        ensure_asset_codes(project)
         raise_episode_id_high_water(project)
         now = datetime.now(UTC).isoformat()
         if "metadata" not in project:
@@ -3652,6 +3658,9 @@ class ProjectManager:
                 for name in derivative_plan.moved:
                     derivatives[name] = copy.deepcopy(source_derivatives[name])
                 rewrite_derivative_sheet_paths(kept, old_owner=source, new_owner=target, renames=moved_pairs)
+            from lib.project.asset_codes import merge_note_links
+
+            merge_note_links(mutated, discarded, kept, derivative_plan)
             if self._requires_unique_asset_namespace(mutated):
                 ensure_project_asset_namespace(mutated)
             after_errors = _rename_agnostic_errors(validator.validate_project_payload(mutated), target, target)

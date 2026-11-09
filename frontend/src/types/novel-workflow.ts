@@ -1,5 +1,5 @@
 export interface NoteEvidence { source_file: string; start: number; end: number; quote: string; note_id: string }
-export interface NoteAsset { id: string; kind: "character" | "scene" | "prop"; name: string; identity_scope: string; description: string; evidence: NoteEvidence }
+export interface NoteAsset { asset_code?: string; asset_id?: string; asset_name?: string; asset_missing?: boolean; variant?: string; id: string; kind: "character" | "scene" | "prop"; name: string; identity_scope: string; description: string; evidence: NoteEvidence }
 export interface NoteChange { id: string; character: string; dimension: string; before: string; after: string; story_time: string; evidence: NoteEvidence }
 export interface NoteDialogue { id: string; speaker: string; quote: string; value: string; evidence: NoteEvidence }
 export interface NoteEvent { id: string; title: string; cause: string; conflict: string; action: string; outcome: string; open_thread: string; dialogues: NoteDialogue[]; evidence: NoteEvidence }

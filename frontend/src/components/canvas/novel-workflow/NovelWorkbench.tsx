@@ -1,3 +1,4 @@
+import { useAppStore } from "@/stores/app-store";
 import { CrossChapterPanel, ReadingSettings } from "./CrossChapterPanel";
 import { ReadingEnrichment, LedgerPanel, ReviewPanel } from "./UnderstandingPanels";
 import { useLocation } from "wouter";
@@ -25,6 +26,7 @@ function Evidence({ value }: { value: NoteEvidence }) {
 
 function NoteDetails({ projectName, note }: { projectName: string; note: ChapterNote }) {
   const { t } = useTranslation("dashboard");
+  const [, navigate] = useLocation();
   const [source, setSource] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -43,7 +45,13 @@ function NoteDetails({ projectName, note }: { projectName: string; note: Chapter
       {reading.overview && <Section title={t("nw_chapter_causality")}><dl className="space-y-2">{(["cause", "conflict", "action", "outcome"] as const).map((key) => <div key={key}><dt className="inline font-semibold">{t(`nw_${key}`)}：</dt><dd className="inline">{reading.overview![key]}</dd></div>)}</dl><p className="mt-2">{reading.overview.hook}</p>{reading.overview.questions.map((q) => <p key={q} className="mt-2 text-muted-foreground">{t("nw_questions")}：{q}</p>)}</Section>}
       <ReadingEnrichment note={note} />
       {(["character", "scene", "prop"] as const).map((kind) => <Section key={kind} title={t(`nw_${kind}`)}>
-        <div className="grid gap-2">{reading.assets.filter((a) => a.kind === kind).map((a) => <div key={a.id} className="rounded-lg border p-3"><strong>{a.name}</strong>{a.identity_scope && <span className="ml-2 text-xs text-muted-foreground">{a.identity_scope}</span>}<p className="mt-1 leading-relaxed">{a.description}</p><Evidence value={a.evidence} /></div>)}</div>
+        <div className="grid gap-2">{reading.assets.filter((a) => a.kind === kind).map((a) => <div key={a.id} className="rounded-lg border p-3"><button type="button" disabled={!a.asset_name || a.asset_missing} title={`${a.description}
+${a.evidence.source_file}
+${a.evidence.quote}`} className="font-semibold text-primary underline decoration-dotted underline-offset-4 disabled:text-muted-foreground disabled:no-underline" onClick={() => {
+          const route = `/${{ character: "characters", scene: "scenes", prop: "props" }[a.kind]}`;
+          useAppStore.getState().triggerScrollTo({ type: a.kind, id: a.asset_name!, route });
+          navigate(`/app/projects/${encodeURIComponent(projectName)}${route}`);
+        }}>{a.asset_code && <span className="mr-2 font-mono text-xs">{a.asset_code}</span>}{a.name}{a.variant && ` / ${a.variant}`}</button>{a.identity_scope && <span className="ml-2 text-xs text-muted-foreground">{a.identity_scope}</span>}<p className="mt-1 leading-relaxed">{a.description}</p><Evidence value={a.evidence} /></div>)}</div>
       </Section>)}
       <Section title={t("guide_changes")}>{reading.changes.map((c) => <div key={c.id} className="mb-3 rounded-lg bg-muted/40 p-3"><strong>{c.character}</strong><p className="mt-1">{c.before} → {c.after}</p><p className="text-xs text-muted-foreground">{c.story_time}</p><Evidence value={c.evidence} /></div>)}</Section>
       <Section title={t("nw_events")}>{reading.events.map((event) => <div key={event.id} className="mb-3 rounded-lg border p-3"><strong>{event.title}</strong><dl className="mt-2 space-y-2">{(["cause", "conflict", "action", "outcome", "open_thread"] as const).map((key) => event[key] && <div key={key}><dt className="inline font-semibold">{t(`nw_${key}`)}：</dt><dd className="inline">{event[key]}</dd></div>)}</dl><Evidence value={event.evidence} />{event.dialogues.map((d) => <blockquote key={d.id} className="mt-2 border-l-2 border-primary/40 pl-3"><strong>{d.speaker}：</strong>{d.quote}</blockquote>)}</div>)}</Section>

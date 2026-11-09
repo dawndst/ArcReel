@@ -25,6 +25,9 @@ export interface ProjectOverview {
  * 与身份，只持有相对本体的变化描述与资产图，没有原图。资产图由本体资产图编辑生成，也可以上传成品替换。
  */
 export interface CharacterDerivative {
+  asset_code?: string;
+  asset_id?: string;
+  entity_id?: string;
   /** 相对本体的外观变化，采用图像编辑指令的口吻。 */
   description: string;
   /** 衍生资产图相对路径；尚未生成时为空。 */
@@ -42,6 +45,9 @@ export interface CharacterDerivativeStatus extends CharacterDerivative {
 }
 
 export interface Character {
+  asset_code?: string;
+  asset_id?: string;
+  entity_id?: string;
   description: string;
   character_sheet?: string;
   voice_style?: string;
@@ -59,6 +65,9 @@ export interface Character {
 }
 
 export interface Scene {
+  asset_code?: string;
+  asset_id?: string;
+  entity_id?: string;
   description: string;
   scene_sheet?: string;
   /** 别名：只供 AI 规划时认人参考，不参与引用。 */
@@ -66,6 +75,9 @@ export interface Scene {
 }
 
 export interface Prop {
+  asset_code?: string;
+  asset_id?: string;
+  entity_id?: string;
   description: string;
   prop_sheet?: string;
   /** 别名：只供 AI 规划时认人参考，不参与引用。 */
@@ -73,6 +85,9 @@ export interface Prop {
 }
 
 export interface Product {
+  asset_code?: string;
+  asset_id?: string;
+  entity_id?: string;
   description: string;
   /** 标准商品资产图（可选，生成/上传后回写）。 */
   product_sheet?: string;
