@@ -29,7 +29,7 @@ class WorkflowRule:
 _STEP_IDS: tuple[str, ...] = (
     "project_input",
     "selling_points",
-    "episode_plan",
+    "novel_reading",
     "script_plan_content",
     "script_plan_review",
     "final_script",
@@ -43,7 +43,7 @@ _STEP_IDS: tuple[str, ...] = (
 _EPISODIC_STEPS = frozenset(
     {
         "project_input",
-        "episode_plan",
+        "novel_reading",
         "script_plan_content",
         "script_plan_review",
         "final_script",

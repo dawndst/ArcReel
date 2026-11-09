@@ -11,7 +11,6 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from lib.episode.episode_reset import EpisodeResetResult
 from lib.project.asset_rename import AssetRenameReport
 from lib.project.project_manager import ProjectManager
 from lib.project.project_migration_failure import MIGRATION_FAILURE_CODE, record_migration_failure
@@ -24,7 +23,6 @@ from server.tool_runtime import (
     NoArguments,
     ProjectScope,
     RenameAssetRequest,
-    ResetEpisodePlanningRequest,
     Services,
     SourceTextRequest,
     ToolRequest,
@@ -34,7 +32,6 @@ from server.tool_runtime import (
     list_projects,
     list_source_files,
     rename_asset,
-    reset_episode_planning,
     retry_project_migration,
     upload_source,
 )
@@ -402,42 +399,6 @@ async def test_upload_source_cleans_temporary_file_when_write_fails(tmp_path: Pa
     assert not tracked["path"].exists()
 
 
-async def test_reset_episode_planning_settles_write_before_propagating_cancellation(tmp_path: Path) -> None:
-    services = _services(tmp_path)
-    services.projects.create_project("demo")
-    services.projects.create_project_metadata("demo", "Demo")
-    scope = ProjectScope(project_name="demo", data_root=services.projects.data_root)
-    caller = CallerContext(user_id="test", source="mcp")
-    started = threading.Event()
-    release = threading.Event()
-    finished = threading.Event()
-
-    def resetter(_project_path: Path, *, episode_id: int | None, confirm_consumed: bool) -> EpisodeResetResult:
-        started.set()
-        release.wait()
-        finished.set()
-        return EpisodeResetResult([], [], [], [])
-
-    task = asyncio.create_task(
-        reset_episode_planning(
-            ToolRequest(ResetEpisodePlanningRequest()),
-            scope,
-            caller,
-            services,
-            resetter=resetter,
-        )
-    )
-    try:
-        assert await asyncio.to_thread(started.wait, 1)
-        task.cancel()
-        await asyncio.sleep(0)
-        assert not task.done()
-    finally:
-        release.set()
-        task_results = await asyncio.wait_for(asyncio.gather(task, return_exceptions=True), timeout=1)
-
-    assert isinstance(task_results[0], asyncio.CancelledError)
-    assert finished.is_set()
 
 
 async def test_rename_asset_settles_write_before_propagating_cancellation(tmp_path: Path, monkeypatch) -> None:

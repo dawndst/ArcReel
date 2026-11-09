@@ -5,7 +5,7 @@ import { useLocation } from "wouter";
 import { AlertTriangle, Bot, ChevronDown, Loader2 } from "lucide-react";
 
 import { API } from "@/api";
-import { EPISODE_PLANNING_SLOTS, enqueueEpisodePlanning } from "@/actions/generation";
+import { NOVEL_WORKFLOW_SLOTS } from "@/actions/generation";
 import { ApiRequestError } from "@/api/errors";
 import { episodesViewPath } from "@/components/canvas/episodes/episodes-view-model";
 import { prefillAssistant } from "@/components/shared/prefill-assistant";
@@ -19,10 +19,9 @@ import { useDemoWorkbench } from "@/onboarding/use-demo-workbench";
 import { useAppStore } from "@/stores/app-store";
 import { useProjectsStore } from "@/stores/projects-store";
 import { refreshAfterWrite } from "@/components/canvas/shared/refreshAfterWrite";
-import { isResourceBusy, useActiveResourceIds, useTasksStore } from "@/stores/tasks-store";
+import { useActiveResourceIds, useTasksStore } from "@/stores/tasks-store";
 import type { EpisodeMeta } from "@/types";
 import type { EpisodeNextStep, WorkflowStatus } from "@/types/workflow";
-import { errMsg } from "@/utils/async";
 import { cn } from "cn";
 import { episodeDisplayName } from "@/utils/episode-display";
 import { lastInstruction, rememberInstruction } from "@/utils/last-instruction";
@@ -122,7 +121,6 @@ function GuideButtonView({
   button,
   primary,
   instruction,
-  projectName,
   onNavigate,
 }: {
   button: GuideButton;
@@ -133,35 +131,17 @@ function GuideButtonView({
 }) {
   const agentReady = useConfigStatusStore((s) => s.initialized && s.isEmbeddedAgentConfigured);
   const { t } = useTranslation();
-  const [submitting, setSubmitting] = useState(false);
   const act: StepAct =
     button.kind === "nav"
       ? { key: button.label, label: button.label, kind: "nav", intent: { type: "route", path: button.to } }
-      : button.kind === "agent"
-        ? { key: button.label, label: button.label, kind: "agent", intent: { type: "agent", text: button.prefill } }
-        : { key: button.label, label: button.label, kind: "ai", intent: { type: "route", path: episodesViewPath() } };
-  const planEpisodes = async () => {
-    if (EPISODE_PLANNING_SLOTS.some((slot) => isResourceBusy("text_episode_plan", projectName, slot))) {
-      useAppStore.getState().pushToast(t("dashboard:episode_planning_busy"), "error");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await enqueueEpisodePlanning(projectName, instruction.trim() || null);
-      onNavigate(episodesViewPath());
-    } catch (err) {
-      useAppStore.getState().pushToast(errMsg(err), "error");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+      : { key: button.label, label: button.label, kind: "agent", intent: { type: "agent", text: button.prefill } };
   const onRun = () => {
     if (button.kind === "nav") onNavigate(button.to);
     else if (button.kind === "agent") prefillAssistant(withInstruction(t, button.prefill, instruction));
-    else void planEpisodes();
+    else onNavigate(episodesViewPath());
   };
   if (button.kind === "agent" && !agentReady) return null;
-  return <StepActButton act={act} onRun={onRun} asLink={!primary} busy={submitting} />;
+  return <StepActButton act={act} onRun={onRun} asLink={!primary} busy={false} />;
 }
 
 function NextPanel({
@@ -371,7 +351,7 @@ export function ProjectStatusBar({ projectName }: { projectName: string }) {
   const [, setLocation] = useLocation();
   const demoMode = useDemoWorkbench();
   const project = useProjectsStore((s) => s.currentProjectData);
-  const readingTaskActive = useTasksStore((s) => s.tasks.some((task) => task.project_name === projectName && task.task_type.startsWith("text_") && (task.status === "running" || task.status === "queued")));
+  const readingTaskActive = useTasksStore((s) => s.tasks.some((task) => task.project_name === projectName && task.task_type === "text_novel_workflow" && (task.status === "running" || task.status === "queued")));
   const currentEpisode = useCurrentEpisodeId();
   const [open, setOpen] = useState<Open>(null);
 
@@ -379,17 +359,17 @@ export function ProjectStatusBar({ projectName }: { projectName: string }) {
   const needsRepair = summary?.needs_repair === true;
   const workflowStatus = useProjectWorkflowStatus(projectName, !demoMode && !needsRepair && Boolean(summary));
   const episodes = useMemo(() => project?.episodes ?? [], [project?.episodes]);
-  const activePlanning = useActiveResourceIds("text_episode_plan", projectName);
-  const planningActive = EPISODE_PLANNING_SLOTS.some((slot) => activePlanning.has(slot));
+  const activePlanning = useActiveResourceIds("text_novel_workflow", projectName);
+  const planningActive = NOVEL_WORKFLOW_SLOTS.some((slot) => activePlanning.has(slot));
   const guide = useMemo(
     () => {
-      if (project?.novel_workflow_enabled && workflowStatus && ["plan_episodes", "create_episode", "replan_episodes"].includes(workflowStatus.next_action.type)) {
+      if (project?.content_mode === "drama" && workflowStatus && ["fix_input", "create_episode", "collect_project_input"].includes(workflowStatus.next_action.type)) {
         return { title: t("nw_director_assembly"), detail: t("nw_scene_library_hint"), instruction: false,
           primary: [{ kind: "nav" as const, label: t("nw_title"), to: episodesViewPath() }], alternatives: [], episodeId: null };
       }
       return workflowStatus ? projectNextGuide(t, workflowStatus, episodes, { planningActive }) : null;
     },
-    [t, workflowStatus, episodes, planningActive, project?.novel_workflow_enabled],
+    [t, workflowStatus, episodes, planningActive, project?.content_mode],
   );
 
   if (!project || !summary) return null;
@@ -473,7 +453,7 @@ export function ProjectStatusBar({ projectName }: { projectName: string }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
       {bar}
-      <NovelReadingProgress key={projectName} projectName={projectName} notebook={project.novel_workflow_enabled === true} active={readingTaskActive && (project.novel_workflow_enabled === true || project.novel_understanding_enabled !== false)} />
+      <NovelReadingProgress key={projectName} projectName={projectName} notebook={project.novel_workflow_enabled === true} active={readingTaskActive} />
       {migrationReport && <MigrationReportNotice projectName={projectName} report={migrationReport} episodes={episodes} />}
     </div>
   );

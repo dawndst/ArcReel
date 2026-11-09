@@ -903,13 +903,13 @@ describe("WorkflowPanel 过期产物、任务与准入", () => {
         next: nextAction("wait_for_task", { args: {} }),
         steps: [
           makeStep({
-            id: "episode_plan",
+            id: "novel_reading",
             state: "active",
             tasks: [
               {
                 unit_id: "episode-planning-next",
                 task_id: "t1",
-                task_type: "text_episode_plan",
+                task_type: "text_novel_workflow",
                 status: "queued",
               },
             ],

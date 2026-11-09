@@ -24,7 +24,6 @@ import type {
   AssetSheetBatchSubmitted,
   AuthorPromptsRequest,
   DraftDocType,
-  PlanningGap,
   PlanScriptRequest,
   GenerateAdScriptRequest,
   ReferenceBatchAdmission,
@@ -573,61 +572,7 @@ export async function enqueueAdScript(
   return { taskIds, deduped };
 }
 
-/** 分集规划的两个占用槽，与服务端一致：首窗占前一个，之后逐窗在两槽间交替。 */
-export const EPISODE_PLANNING_SLOTS = ["episode-planning", "episode-planning-next"] as const;
-
-/**
- * 提交 AI 规划分集：从规划起点逐窗规划到整本源文结尾。已有进行中的分集规划或准入不成立时，
- * 服务端的错误原样抛出。附加指令只随本次提交，不写进项目。
- */
-export async function enqueueEpisodePlanning(
-  projectName: string,
-  instructions: string | null,
-  gap: PlanningGap | null = null,
-): Promise<EnqueueResult> {
-  const res = await submit(
-    [markResource(projectName, "text_episode_plan", EPISODE_PLANNING_SLOTS[0], "text_episode_plan")],
-    () => API.planEpisodes(projectName, instructions, gap),
-    (response) => memberTaskIds(response.batch),
-  );
-  const taskIds = memberTaskIds(res.batch);
-  const deduped = res.batch.members.some((member) => member.deduped === true);
-  notifyEnqueued(deduped, null);
-  return { taskIds, deduped };
-}
-
-/**
- * 发起重新规划：从这一集开始逐窗生成「新的分集方案」，与分集规划占同一对槽。已有方案或分集规划在进行时，
- * 服务端的错误原样抛出。附加指令随方案保存。
- */
-export async function enqueueEpisodeReplan(
-  projectName: string,
-  episode: number,
-  instructions: string | null,
-): Promise<EnqueueResult> {
-  const res = await submit(
-    [markResource(projectName, "text_episode_plan", EPISODE_PLANNING_SLOTS[0], "text_episode_plan")],
-    () => API.startEpisodeReplan(projectName, episode, instructions),
-    (response) => memberTaskIds(response.batch),
-  );
-  const taskIds = memberTaskIds(res.batch);
-  const deduped = res.batch.members.some((member) => member.deduped === true);
-  notifyEnqueued(deduped, null);
-  return { taskIds, deduped };
-}
-
-/** 接着生成中途停止的新的分集方案，与分集规划占同一对槽。服务端的拒绝原样抛出。 */
-export async function enqueueEpisodeReplanContinue(projectName: string, candidateId: string): Promise<EnqueueResult> {
-  const res = await submit(
-    [markResource(projectName, "text_episode_plan", EPISODE_PLANNING_SLOTS[0], "text_episode_plan")],
-    () => API.continueEpisodeReplan(projectName, candidateId),
-    (response) => memberTaskIds(response.batch),
-  );
-  const taskIds = memberTaskIds(res.batch);
-  const deduped = res.batch.members.some((member) => member.deduped === true);
-  notifyEnqueued(deduped, null);
-  return { taskIds, deduped };
-}
+export const NOVEL_WORKFLOW_SLOTS = ["novel-workflow"] as const;
 
 /** 草稿 AI 修复任务的占用槽：一份草稿一个，resource_id 与服务端 `episode-{N}-{doc_type}` 一致。 */
 export function draftRepairResourceId(episode: number, docType: DraftDocType): string {

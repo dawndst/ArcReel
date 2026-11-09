@@ -101,7 +101,7 @@ def test_plan_reference_names_only_registered_mcp_tools() -> None:
     content = _reference(WORKFLOW_PLAN_REFERENCE)
 
     assert "mcp__arcreel__get_workflow_plan" in content
-    for tool_id in ("plan_episodes", "reset_episode_planning", "patch_episode_script"):
+    for tool_id in ("patch_episode_script",):
         assert tool_id in ARCREEL_MCP_TOOL_IDS
         assert f"mcp__arcreel__{tool_id}" in content
 
@@ -218,7 +218,6 @@ def test_episodic_variants_name_the_registered_recovery_tools(filename: str) -> 
 
     for tool_id in (
         "generate_videos",
-        "reset_episode_planning",
         "complete_script_plan_rebuild",
         "get_episode_script",
         "patch_episode_script",

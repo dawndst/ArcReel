@@ -99,7 +99,7 @@ def applicable(project: dict[str, Any]) -> bool:
 
     return (
         store.enabled(project)
-        and project.get("novel_workflow_enabled") is not True
+        and project.get("content_mode") != "drama"
         and bool(project.get("whole_source_files"))
         and project_overview_source_kind(project) == "novel"
     )
@@ -504,7 +504,7 @@ async def prepare(
     generator: TextGenerator | None = None,
 ) -> tuple[dict[str, Any], ProductionGuard | NoteProductionGuard | None]:
     entry = next((e for e in project.get("episodes", []) if e.get("episode") == episode), {})
-    if project.get("content_mode") == "drama" and project.get("novel_workflow_enabled") is True:
+    if project.get("content_mode") == "drama":
         if not entry.get("note_source"):
             from lib.novel_workflow.routing import WorkflowError
 

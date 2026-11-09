@@ -13,7 +13,6 @@ from pydantic import BaseModel
 
 def response_schema_models() -> list[type[BaseModel]]:
     """各调用点实际传入的 response_schema；动态模型按多值与单值时长枚举各取一份。"""
-    from lib.episode.episode_planner import DramaPlanDraft, NarrationPlanDraft
     from lib.project.project_manager import ProjectOverview
     from lib.script.script_models import (
         AdReferenceFlatScript,
@@ -30,8 +29,6 @@ def response_schema_models() -> list[type[BaseModel]]:
 
     models: list[type[BaseModel]] = [
         # 分集规划
-        NarrationPlanDraft,
-        DramaPlanDraft,
         # 分镜拆分（旁白）与提示词编写（参考生视频）
         NarrationScriptPlanDraft,
         ReferencePromptAuthoringFlatScript,

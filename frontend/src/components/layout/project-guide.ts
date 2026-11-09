@@ -15,7 +15,7 @@ import { episodeDisplayName, episodePosition, type EpisodeLedger } from "@/utils
 export type GuideButton =
   | { kind: "nav"; label: string; to: string }
   | { kind: "agent"; label: string; prefill: string }
-  | { kind: "ai"; label: string; action: "plan_episodes" };
+;
 
 export interface ProjectNextGuide {
   /** 状态条右段「下一步」后面的短语。 */
@@ -139,33 +139,7 @@ export function projectNextGuide(
     };
   }
 
-  const planned = (status.content?.episode_count ?? 0) > 0;
   switch (action.type) {
-    case "plan_episodes":
-      return {
-        title: planned ? t("dashboard:guide_plan_continue_title") : t("dashboard:guide_plan_title"),
-        detail: planned ? t("dashboard:guide_plan_continue_detail") : t("dashboard:guide_plan_detail"),
-        instruction: true,
-        primary: [
-          agent(planned ? t("dashboard:guide_prefill_plan_continue") : t("dashboard:guide_prefill_plan")),
-          {
-            kind: "ai",
-            label: planned ? t("dashboard:episode_planning_continue") : t("dashboard:episode_planning_start"),
-            action: "plan_episodes",
-          },
-        ],
-        alternatives,
-        episodeId: null,
-      };
-    case "reset_episode_planning":
-      return {
-        title: t("dashboard:guide_replan_title"),
-        detail: t("dashboard:guide_replan_detail"),
-        instruction: false,
-        primary: [agent(t("dashboard:guide_prefill_replan"))],
-        alternatives,
-        episodeId: null,
-      };
     case "collect_project_input":
       return {
         title: t("dashboard:guide_upload_title"),

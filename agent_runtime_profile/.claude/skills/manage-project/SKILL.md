@@ -1,6 +1,5 @@
 ---
 name: manage-project
-description: 项目管理工具集。使用场景：新增/修改角色/场景/道具到 project.json（经 patch_project 工具，按 table+name upsert）、级联重命名资产（rename_asset 工具）、合并同一身份被重复登记的资产（merge_asset 工具）、写顶层 settings 字段、编辑项目概述 overview，以及查询视频模型能力（get_video_capabilities）。分集规划不在本 skill：走 mcp__arcreel__plan_episodes / reset_episode_planning 服务端工具。
 user-invocable: false
 ---
 
@@ -17,7 +16,6 @@ user-invocable: false
 | `mcp__arcreel__merge_asset`（SDK tool） | 把同一身份被登记成的两个同表资产并成一个：引用一次改指保留方，被并方的名字记为别名，或并为保留角色的衍生 | 主 Agent |
 | `mcp__arcreel__get_video_capabilities`（SDK tool） | 查视频模型能力（model 粒度，按项目唯一 generation_mode 解析，全项目同一口径，无需指定剧集） | **子智能体**（执行任务时自行查询） |
 
-> 分集规划（拆集/调整）由服务端工具 `mcp__arcreel__plan_episodes` / `mcp__arcreel__reset_episode_planning` 完成，调整已规划内容走「重置 + 重新规划」，流程见 video-workflow 阶段 2。
 
 ## 角色/场景/道具写入
 

@@ -176,11 +176,9 @@ _ARTIFACT_BY_STEP: dict[str, str] = {
 #: 草稿 AI 修复的任务类型；资源 ID 见 :func:`draft_repair_resource_id`。
 TEXT_DRAFT_REPAIR_TASK_TYPE = "text_draft_repair"
 _PROMPT_AUTHORING_DRAFT_DOC_TYPE = "reference_prompt_authoring"
-#: 分集规划的两个占用槽。Agent 的单批规划与 Web 逐窗串联的首窗占前一个；串联时，执行中的窗口
-#: 在请求模型前把下一窗排进另一个槽，两槽交替，停止规划即取消排队中的那一窗。
-EPISODE_PLANNING_SLOT = "episode-planning"
-EPISODE_PLANNING_NEXT_SLOT = "episode-planning-next"
-EPISODE_PLANNING_SLOTS = (EPISODE_PLANNING_SLOT, EPISODE_PLANNING_NEXT_SLOT)
+# Novel reading jobs have a single project-scoped slot.
+NOVEL_WORKFLOW_SLOT = "novel-workflow"
+NOVEL_WORKFLOW_SLOTS = (NOVEL_WORKFLOW_SLOT,)
 
 
 def draft_repair_resource_id(episode: int, doc_type: str) -> str:
@@ -189,7 +187,7 @@ def draft_repair_resource_id(episode: int, doc_type: str) -> str:
 
 
 _TASK_STEP: dict[str, str] = {
-    "text_episode_plan": "episode_plan",
+    "text_novel_workflow": "novel_reading",
     "text_drama_script_plan": "script_plan_content",
     "text_narration_script_plan": "script_plan_content",
     "text_reference_script_plan": "script_plan_content",
@@ -215,9 +213,7 @@ _ACTION_STEP: dict[WorkflowActionType, str] = {
     WorkflowActionType.COLLECT_PROJECT_INPUT: "project_input",
     WorkflowActionType.RETRY_PROJECT_MIGRATION: "project_input",
     WorkflowActionType.DRAFT_SELLING_POINTS: "selling_points",
-    WorkflowActionType.CREATE_EPISODE: "episode_plan",
-    WorkflowActionType.PLAN_EPISODES: "episode_plan",
-    WorkflowActionType.RESET_EPISODE_PLANNING: "episode_plan",
+    WorkflowActionType.CREATE_EPISODE: "novel_reading",
     WorkflowActionType.PREPARE_SCRIPT_PLAN: "script_plan_content",
     WorkflowActionType.START_BLANK_SCRIPT: "script_plan_content",
     WorkflowActionType.PROVIDE_EPISODE_SOURCE: "script_plan_content",
@@ -276,8 +272,8 @@ def _step_done(step_id: str, status: WorkflowStatus) -> bool:
         return content.whole_source == "present" or content.episode_count > 0
     if step_id == "selling_points":
         return not content.products_without_selling_points
-    if step_id == "episode_plan":
-        return content.episode_count > 0 and not content.source_remaining
+    if step_id == "novel_reading":
+        return content.episode_count > 0
     if step_id == "script_plan_content":
         return formal or artifacts.get("script_plan", {}).get("state") in {"current", "stale"}
     if step_id == "script_plan_review":

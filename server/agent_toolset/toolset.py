@@ -6,7 +6,6 @@ from server.agent_toolset.asset_library import ASSET_LIBRARY_TOOLS
 from server.agent_toolset.content_read import CONTENT_READ_TOOLS
 from server.agent_toolset.declaration import AgentToolDeclaration, Blocked, ToolDeclaration
 from server.agent_toolset.edit_timelines import EDIT_TIMELINE_TOOLS
-from server.agent_toolset.episode_planning import EPISODE_PLANNING_TOOLS
 from server.agent_toolset.final_cuts import FINAL_CUT_TOOLS
 from server.agent_toolset.generation_batches import GENERATION_BATCH_TOOLS
 from server.agent_toolset.grid_storyboards import GRID_STORYBOARD_TOOLS
@@ -40,7 +39,6 @@ AGENT_TOOLSET: tuple[AgentToolDeclaration, ...] = (
     *SCRIPT_AUTHORING_TOOLS,
     *REPAIR_CHANNEL_TOOLS,
     *SCRIPT_EDITING_TOOLS,
-    *EPISODE_PLANNING_TOOLS,
     *WORKFLOW_COMPLETION_TOOLS,
     *PROJECT_TRASH_TOOLS,
 )

@@ -3,7 +3,7 @@
 只写 schema_version，episodes 内容逐字不动。v2 项目的分集条目没有位置记录
 （source_range），账本坐标绑定的是具体源文内容，机械反推出的坐标不足以承担
 「切法调整」的重造职责——升级后这些集照常消费（剧本 / 媒体 / 状态 / 导出不看
-位置记录），要重新规划则走一次全量重置（``reset_episode_planning``）进入新机制。
+位置记录）。旧分集重置功能已删除；新制作通过 Note 与导演组集建立来源绑定。
 """
 
 from __future__ import annotations

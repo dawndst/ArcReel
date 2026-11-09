@@ -36,7 +36,6 @@ TemplateAxis = Literal["content_mode", "generation_mode", "source_kind", "asset_
 #: 模版所属的制作步骤；设置页按取值显示步骤名，未列出的取值在加载期 fail loud。
 TemplateStage = Literal[
     "source_overview",
-    "episode_plan",
     "script_plan",
     "prompt_authoring",
     "asset_sheet",
@@ -59,7 +58,6 @@ class AgentToolTrigger(_Trigger):
 
     kind: Literal["agent_tool"]
     name: Literal[
-        "plan_episodes",
         "generate_script_plan",
         "generate_episode_script",
     ]

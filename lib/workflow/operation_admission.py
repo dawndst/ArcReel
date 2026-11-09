@@ -128,15 +128,6 @@ def pending_authoring_entry_ids(items: Sequence[Any], kind: str | None) -> list[
 # ---------------------------------------------------------------------------
 
 
-def admit_plan_episodes(
-    content_mode: object, *, whole_source: bool, replan_pending: bool = False
-) -> OperationAdmission:
-    """AI 分集规划：有整本源文，且没有悬而未决的重新规划候选。"""
-    if content_mode == "ad":
-        return NOT_APPLICABLE
-    if not whole_source:
-        return _refused(AdmissionReason.WHOLE_SOURCE_MISSING)
-    return _refused(AdmissionReason.REPLAN_CANDIDATE_PENDING) if replan_pending else ADMITTED
 
 
 def admit_script_plan(content_mode: object, *, episode_source: bool) -> OperationAdmission:
@@ -197,7 +188,6 @@ __all__ = [
     "admit_ad_script",
     "admit_author_prompts",
     "admit_edit_timeline",
-    "admit_plan_episodes",
     "admit_script_plan",
     "episode_source_present",
     "pending_authoring_entry_ids",

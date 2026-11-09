@@ -26,7 +26,7 @@ export type ResourceKind =
   | "reference_video"
   | "grid"
   | "text_episode_script"
-  | "text_episode_plan"
+  | "text_novel_workflow"
   | "text_script_plan"
   | "text_draft_repair";
 

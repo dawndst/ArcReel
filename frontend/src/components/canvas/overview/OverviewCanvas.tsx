@@ -33,7 +33,7 @@ function hasStorySetting(overview: ProjectOverview | undefined): boolean {
  */
 export function OverviewCanvas({ projectName, projectData, readOnly = false }: OverviewCanvasProps) {
   const isAd = projectData?.content_mode === "ad";
-  const noteWorkflow = projectData?.content_mode === "drama" && projectData.novel_workflow_enabled === true;
+  const noteWorkflow = projectData?.content_mode === "drama";
   const debouncedFetch = useCostStore((s) => s.debouncedFetch);
 
   useEffect(() => {

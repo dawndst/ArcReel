@@ -544,7 +544,7 @@ def load_novel_source(project_path: Path, source: str | None, *, episode: int) -
         if source is not None:
             raise ValueError(f"未找到源文件: {source_path}")
         raise ValueError(
-            f"未找到本集派生源文: {source_path}；请先运行分集规划工具（plan_episodes）按账本派生该文件，再重试"
+            f"未找到本集派生源文: {source_path}；请在场镜素材库重新核对导演组集的原文绑定，再重试"
         )
     novel_text = source_path.read_text(encoding="utf-8")
     if not novel_text.strip():

@@ -24,7 +24,6 @@
   - 分镜图生视频（含 `grid_storyboard=true`）：取值必须在所选视频模型的 `supported_durations` 内，项目 `default_duration` 非 null 时作默认偏好
   - 参考生视频：视频单元时长必须取该视频单元**引用状态对应**的生效档位（`reference_unit_durations.with_references` / `.without_references`）
   - 两者的真值均由子智能体运行时通过 `mcp__arcreel__get_video_capabilities` 工具自查；`supported_durations` 是主桶型号声明的全集，`reference_unit_durations.with_references` 是带图生效档位，`.without_references` 是 i2v 桶视频请求事实给出的无图生效档位。各桶的 `*_endpoint_fixed` 与 `*_endpoint_fixed_reason` 说明时长由端点固定，此时空档位合法，规划秒数只作内部基准。`.without_references` 为 `null` 时查看同对象的 `problem`（问题码、参数、修复指引），先修复图生视频模型配置，不借用主桶档位。`reference_unit_durations.units` 按 `unit_id` 给出每个已有正式视频单元由服务端按**可用参考图**判定的桶（`hydrated_capability`）、该桶生效档位（`allowed_durations`）与事实失败（`problem`）；声明引用与可用参考图分裂时 `problems` 带阻断问题、`unavailable_references` 点名缺图引用——已有单元一律以它为准，「含 `@` 引用即带图」只是规划新正文时的估计
-- **单集目标时长**：项目 `episode_target_duration` 非 null 时，脚本规划据它决定本集拆多少个分镜 / 视频单元，真值同经 `mcp__arcreel__get_video_capabilities` 自查；未显式设 `episode_target_units` 时，分集规划另按它折算每集塞多少原文，该折算值只由 `plan_episodes` 返回的核对材料给出（含来源标注），`get_video_capabilities` 不做这项折算。两处均为软目标，内容不足宁少拆、内容确实需要可超出，超出只提示不阻断
 - **图片分辨率**：1K
 - **视频分辨率**：1080p
 - **生成方式**：按 `generation_mode` 分两路——分镜图生视频每个分镜独立生成、以分镜图作起始帧（`grid_storyboard=true` 时起始帧来自宫格切块）；参考生视频按 video_unit 直出、以资产图作 `reference_images`，无分镜图
@@ -169,7 +168,6 @@ Agent session 的当前工作目录（cwd）已绑定到当前项目根，**所�
   由用户在设置页开关，Agent 无写入权限。该开关只影响后续生成，已生成的分镜图不会自动失效，
   须显式重新生成对应分镜才会按新装配方式出图
 - 分集规划的附加指令（如按章节对齐切分）**只对本批生效**；用户反复提出的同一要求记入项目记忆，
-  之后每批由你自行经 `plan_episodes` 的 `instructions` 带上；每集目标体量等全局性偏好经
   `patch_project` 显式写入 `episode_target_units`
 - 内容确认后正式脚本是该集内容的唯一真相源、脚本规划只读：改旁白正文 / 单元正文 / 对应原文一律在正式脚本上 `patch_episode_script`（对应原文须为本集源文逐字子串）；
   重跑脚本规划只用于整集重做，其确认会整份覆盖现有正式脚本，确认工具回执给出丢失清单，须先转述给用户并取得同意

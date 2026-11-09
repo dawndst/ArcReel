@@ -1,2 +1,0 @@
-- 每一集另给出 story_beats（本集故事节点列表，按顺序）与 next_episode_teaser（下集预告语；最后一集若后续未知可为 null）。
-- 每集另输出 guide 对象：summary（200–400 字连贯概况，依次写起因/动机、冲突、应对、结果与未决事项）、story_beats（关键剧情）、character_changes（人物与关系的前后变化，没有则如实说明）、adaptation_value（主线、人物、伏笔或画面价值）、recommendation（keep/compress/merge）、recommendation_reason（取舍理由和应保留的因果线索）、ending_hook（本集结尾未解悬念）。只使用该集 end_anchor 之前且属于本集的原文，不使用窗口里后续内容或外部作品知识，不虚构爽点。合并仅为建议，不自动执行。 未读后文不得将细节认定为已验证的后续伏笔或预言后续发展；只说明本集价值，未验证线索标注待确认。

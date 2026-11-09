@@ -202,7 +202,7 @@ export default {
   'task_type_tts': 'Narration audio',
   'task_type_video': 'Video',
   'task_type_reference_video': 'Video',
-  'task_type_text_episode_plan': 'Episode planning',
+  'task_type_text_novel_workflow': 'Novel reading and adaptation',
   'task_type_text_episode_script': 'Final script',
   'task_type_text_drama_script_plan': 'Script plan',
   'task_type_text_narration_script_plan': 'Script plan',

@@ -1380,7 +1380,7 @@ async def test_normalize_drama_script_refuses_when_the_episode_derived_source_is
     assert out.problem is not None
     detail = problem_of(out).detail
     assert "source/episode_1.txt" in detail
-    assert "plan_episodes" in detail
+    assert "导演组集" in detail
 
 
 async def test_normalize_drama_script_injects_instructions(fake_ctx: ToolHarness, video_request_facts) -> None:

@@ -21,7 +21,7 @@ it("opens chapter Notes without starting reading or merging and shows unread sta
   render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
   expect(await screen.findByRole("heading", { name: "卷一 · 第1章" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "从所选 Note 提炼 SVT" })).toBeDisabled();
-  expect(screen.getByText(/尚未完成精读/)).toBeInTheDocument();
+  expect(screen.getByText(/尚未生成本章 Note/)).toBeInTheDocument();
   expect(run).not.toHaveBeenCalled();
   expect(merge).not.toHaveBeenCalled();
 });
@@ -88,4 +88,17 @@ it("shows one primary SVT and several alternatives and replaces only on explicit
   expect(adopt).not.toHaveBeenCalled();
   fireEvent.click(screen.getAllByRole("button", { name: "替换为主归属 SVT" })[1]!);
   await waitFor(() => expect(adopt).toHaveBeenCalledWith("demo", "note-1", "c2", "source-version"));
+});
+
+it("selects a chapter range and generates only those Notes on explicit click", async () => {
+  const run = vi.spyOn(API, "runNoteWorkflow").mockResolvedValue({});
+  render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  await screen.findByRole("heading", { name: "01 · 指定章节，AI 泛读生成 Notes" });
+  expect(screen.getByText(/目录共 2 章 · 已生成 0 条 Notes/)).toBeInTheDocument();
+  fireEvent.change(screen.getByRole("spinbutton", { name: "起始章节序号" }), { target: { value: "2" } });
+  fireEvent.change(screen.getByRole("spinbutton", { name: "结束章节序号" }), { target: { value: "2" } });
+  fireEvent.click(screen.getByRole("button", { name: "选择此范围" }));
+  expect(run).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: /AI 泛读并生成 Notes · 已选 1 章/ }));
+  await waitFor(() => expect(run).toHaveBeenCalledWith("demo", "read", ["note-2"], "source-version"));
 });

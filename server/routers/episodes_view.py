@@ -7,25 +7,12 @@ import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import asdict
-from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from lib.episode.episode_layout import build_episode_layout
-from lib.episode.episode_manual_split import (
-    ManualSplitError,
-    ManualSplitOutcome,
-    ManualSplitResult,
-    clear_cuts_after,
-    cut_unsplit_source,
-    merge_with_next_episode,
-    move_episode_boundary,
-    render_manual_split_impact_text,
-    split_episode,
-)
-from lib.episode.episode_replan import replan_candidate_summary
 from lib.episode.episode_source_commands import (
     EpisodeSourceError,
     adopt_source_file_as_episode,
@@ -45,8 +32,6 @@ from lib.episode.source_file_changes import (
 from lib.episode.source_kinds import SourceKind
 from lib.infra.api_errors import ApiError, NotFoundError
 from lib.infra.async_thread import run_sync_transaction
-from lib.novel_understanding import editorial as novel_editorial
-from lib.novel_understanding import store as novel_store
 from lib.project.project_change_hints import project_change_source
 from lib.project.project_manager import ProjectManager, get_project_manager
 from server.dependencies import require_project_migration_ok
@@ -58,7 +43,6 @@ from server.routers._source_file_changes import (
     source_file_change_payload,
 )
 from server.routers._source_uploads import extract_uploaded_source_text
-from server.routers.episode_management import episode_has_active_tasks
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +87,7 @@ async def get_episodes_view(name: str, _t: Translator) -> dict[str, Any]:
         layout = build_episode_layout(project_dir, project)
         return {
             **asdict(layout),
-            "replan": replan_candidate_summary(project_dir, project),
+            "replan": None,
             "external_changes": [
                 _external_change(manager, project, file.name) for file in layout.files if file.changed_outside
             ],
@@ -147,144 +131,6 @@ async def adopt_source_file(name: str, filename: str, req: AdoptSourceFileReques
         return await run_sync_transaction(_sync)
     except EpisodeSourceError as exc:
         raise episode_source_http_error(exc, _t, episode=req.episode, filename=filename) from exc
-    except (HTTPException, ApiError):
-        raise
-    except Exception as exc:
-        logger.exception("请求处理失败")
-        raise HTTPException(status_code=500, detail=_t("internal_server_error")) from exc
-
-
-class _ManualSplitBase(BaseModel):
-    #: 创作者在确认清单里看过的有产物的集；锁内复核出清单之外的有产物集时退回确认。
-    confirm_episodes: list[int] = Field(default_factory=list)
-    #: 只返回波及清单，不写入。
-    dry_run: bool = False
-
-
-class CutRequest(_ManualSplitBase):
-    action: Literal["cut"]
-    source_file: str
-    end: int
-    title: str = ""
-
-
-class SplitRequest(_ManualSplitBase):
-    action: Literal["split"]
-    episode: int
-    at: int
-    #: ``at`` 所在的整本源文文件；缺省时按这一集起点所在的文件算。
-    source_file: str | None = None
-
-
-class MoveBoundaryRequest(_ManualSplitBase):
-    action: Literal["move_boundary"]
-    episode: int
-    at: int
-    #: ``at`` 所在的整本源文文件；缺省时按这一集终点所在的文件算。
-    source_file: str | None = None
-
-
-class MergeNextRequest(_ManualSplitBase):
-    novel_review_id: str | None = None
-    action: Literal["merge_next"]
-    episode: int
-    #: 创作者在确认清单里看过的并入体量；与锁内复核出的体量不一致时退回确认。
-    confirm_merged_units: int = 0
-
-
-class ClearAfterRequest(_ManualSplitBase):
-    action: Literal["clear_after"]
-    episode: int
-
-
-_ManualSplitBody = CutRequest | SplitRequest | MoveBoundaryRequest | MergeNextRequest | ClearAfterRequest
-ManualSplitRequest = Annotated[_ManualSplitBody, Field(discriminator="action")]
-
-_MANUAL_SPLIT_STATUS: dict[str, int] = {
-    "episode_not_found": 404,
-    "source_file_not_found": 404,
-    "position_invalid": 422,
-    "empty_range": 422,
-}
-
-
-def _run_manual_split(project_dir: Path, req: _ManualSplitBody) -> ManualSplitOutcome:
-    from lib.infra.json_io import load_json
-    from lib.novel_workflow.routing import enabled
-
-    if enabled(load_json(project_dir / "project.json")):
-        raise HTTPException(
-            status_code=409,
-            detail="Note 组合只用于资料管理；请在场镜素材库选择场镜，由导演组集，不再按原文切分或合并成片集。",
-        )
-    options = {"confirm_episodes": req.confirm_episodes, "dry_run": req.dry_run}
-    if isinstance(req, CutRequest):
-        return cut_unsplit_source(project_dir, source_file=req.source_file, end=req.end, title=req.title, **options)
-    if isinstance(req, SplitRequest):
-        return split_episode(project_dir, req.episode, at=req.at, source_file=req.source_file, **options)
-    if isinstance(req, MoveBoundaryRequest):
-        return move_episode_boundary(project_dir, req.episode, at=req.at, source_file=req.source_file, **options)
-    if isinstance(req, MergeNextRequest):
-        validate = amend = None
-        if req.novel_review_id:
-            report, validate, amend = novel_editorial.adoption(project_dir, req.novel_review_id)
-            if report["episode"] != req.episode or report["decision"]["action"] != "merge_next":
-                raise novel_store.NovelUnderstandingError("Editorial proposal does not match this merge")
-        return merge_with_next_episode(
-            project_dir,
-            req.episode,
-            confirm_merged_units=req.confirm_merged_units,
-            validate_project=validate,
-            amend_project=amend,
-            **options,
-        )
-    return clear_cuts_after(project_dir, req.episode, **options)
-
-
-@router.post(
-    "/projects/{name}/episodes-view/manual-split",
-    dependencies=[Depends(require_project_migration_ok)],
-)
-async def manual_split(name: str, req: ManualSplitRequest, _t: Translator) -> dict[str, Any]:
-    """手工切分：切分、拆分、移动分界、与下一集合并、清除之后的切分，直接写入分集账本。
-
-    波及有产物的集、合并会并入两集之间未切分的原文（或 ``dry_run``）时返回 ``status=confirmation_required`` 与
-    服务端成文的确认清单 ``impact.text``，不写入；创作者确认后带上 ``confirm_episodes`` 与 ``confirm_merged_units``
-    重新提交。要移除或转为无原文的集有排队或执行中的任务时返回 409，不写入。
-    """
-
-    def _displaced_episodes() -> list[int]:
-        manager = get_project_manager()
-        if not manager.project_exists(name):
-            raise NotFoundError("project_not_found", name=name)
-        preview = _run_manual_split(manager.get_project_path(name), req.model_copy(update={"dry_run": True}))
-        return [*preview.impact.retired, *preview.impact.removed]
-
-    def _sync() -> dict[str, Any]:
-        manager = get_project_manager()
-        if not manager.project_exists(name):
-            raise NotFoundError("project_not_found", name=name)
-        with project_change_source("webui"):
-            outcome = _run_manual_split(manager.get_project_path(name), req)
-        impact = outcome.impact.to_dict()
-        if isinstance(outcome, ManualSplitResult):
-            return {"status": "applied", "episode": outcome.episode, "impact": impact}
-        project = manager.load_project(name)
-        text = render_manual_split_impact_text(impact, project, _t)
-        return {"status": "confirmation_required", "impact": {**impact, "text": text}}
-
-    try:
-        if not req.dry_run:
-            for episode in await asyncio.to_thread(_displaced_episodes):
-                if await episode_has_active_tasks(name, episode):
-                    raise HTTPException(status_code=409, detail=_t("manual_split_tasks_active"))
-        return await run_sync_transaction(_sync)
-    except novel_store.NovelUnderstandingError as exc:
-        raise HTTPException(status_code=409, detail=_t("novel_review_stale")) from exc
-    except ManualSplitError as exc:
-        raise HTTPException(
-            status_code=_MANUAL_SPLIT_STATUS.get(exc.code, 409), detail=_t(f"manual_split_{exc.code}")
-        ) from exc
     except (HTTPException, ApiError):
         raise
     except Exception as exc:
@@ -503,93 +349,6 @@ async def delete_whole_source(name: str, filename: str, req: DeleteSourceFileReq
         req.revision,
         lambda pm, dry_run: delete_whole_source_file(pm, name, filename, revision=req.revision, dry_run=dry_run),
     )
-
-
-@router.get("/projects/{name}/novel-understanding")
-async def novel_understanding_status(name: str):
-    def read():
-        manager = get_project_manager()
-        project = manager.load_project(name)
-        path = manager.get_project_path(name)
-        if project.get("novel_workflow_enabled") is True:
-            return {"enabled": False, "phase": "disabled", "reports": [], "workflow": "notes"}
-        return {**novel_store.status(path, project), "reports": novel_editorial.reports(path, project)}
-
-    return await asyncio.to_thread(read)
-
-
-class AdoptEditorialRequest(BaseModel):
-    report_id: str
-    confirm_episodes: list[int] = Field(default_factory=list)
-    confirm_merged_units: int = 0
-    dry_run: bool = False
-
-
-@router.post("/projects/{name}/novel-understanding/adopt", dependencies=[Depends(require_project_migration_ok)])
-async def adopt_editorial(name: str, req: AdoptEditorialRequest, _t: Translator):
-    def prepare():
-        manager = get_project_manager()
-        path = manager.get_project_path(name)
-        from lib.novel_workflow.routing import enabled
-
-        if enabled(manager.load_project(name)):
-            raise HTTPException(
-                status_code=409, detail="旧分集评估建议已停用，请在 Note 工作台查看改编建议并人工管理 Notes。"
-            )
-        return path, novel_editorial.adoption(path, req.report_id)
-
-    try:
-        path, (report, validate, amend) = await asyncio.to_thread(prepare)
-        episode = report["episode"]
-        if await episode_has_active_tasks(name, episode):
-            raise HTTPException(status_code=409, detail=_t("manual_split_tasks_active"))
-        if report["decision"]["action"] == "merge_next":
-            return await manual_split(
-                name,
-                MergeNextRequest(
-                    action="merge_next",
-                    episode=episode,
-                    novel_review_id=req.report_id,
-                    confirm_episodes=req.confirm_episodes,
-                    confirm_merged_units=req.confirm_merged_units,
-                    dry_run=req.dry_run,
-                ),
-                _t,
-            )
-
-        def commit():
-            from lib.episode.episode_ledger import has_downstream_products
-
-            manager = get_project_manager()
-            project = manager.load_project(name)
-            validate(project)
-            entry = next(e for e in project["episodes"] if e["episode"] == episode)
-            impacted = [episode] if has_downstream_products(path, episode, entry) else []
-            if req.dry_run or any(e not in req.confirm_episodes for e in impacted):
-                return {
-                    "status": "confirmation_required",
-                    "impact": {
-                        "restaled": impacted,
-                        "retired": [],
-                        "removed": [],
-                        "merged_units": 0,
-                        "text": _t("novel_adoption_confirm"),
-                    },
-                }
-
-            def mutate(current):
-                validate(current)
-                live = next(e for e in current["episodes"] if e["episode"] == episode)
-                if has_downstream_products(path, episode, live) and episode not in req.confirm_episodes:
-                    raise novel_store.NovelUnderstandingError("Episode products changed; preview the impact again")
-                amend(current)
-
-            manager.update_project(name, mutate)
-            return {"status": "applied", "episode": episode}
-
-        return await run_sync_transaction(commit)
-    except novel_store.NovelUnderstandingError as exc:
-        raise HTTPException(status_code=409, detail=_t("novel_review_stale")) from exc
 
 
 _guide_running: set[tuple[str, int]] = set()

@@ -48,7 +48,6 @@ class CallPurpose(StrEnum):
     """
 
     SCRIPT_GENERATION = "script_generation"
-    EPISODE_PLANNING = "episode_planning"
     PROJECT_OVERVIEW = "project_overview"
     STYLE_ANALYSIS = "style_analysis"
     ASSISTANT_SESSION = "assistant_session"

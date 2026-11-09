@@ -204,7 +204,7 @@ export default {
   'task_type_tts': 'Âm thanh thuyết minh',
   'task_type_video': 'Video',
   'task_type_reference_video': 'Video',
-  'task_type_text_episode_plan': 'Lập kế hoạch tập',
+  'task_type_text_novel_workflow': 'Novel reading and adaptation',
   'task_type_text_episode_script': 'Kịch bản chính thức',
   'task_type_text_drama_script_plan': 'Kế hoạch kịch bản',
   'task_type_text_narration_script_plan': 'Kế hoạch kịch bản',

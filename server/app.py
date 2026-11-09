@@ -87,7 +87,6 @@ from server.routers import (
     end_frames,
     episode_drafts,
     episode_management,
-    episode_planning,
     episodes_view,
     file_view,
     files,
@@ -739,12 +738,6 @@ app.include_router(
     prefix="/api/v1",
     dependencies=[Depends(get_current_user), Depends(require_project_migration_ok)],
     tags=["提示词编写"],
-)
-app.include_router(
-    episode_planning.router,
-    prefix="/api/v1",
-    dependencies=[Depends(get_current_user), Depends(require_project_migration_ok)],
-    tags=["分集规划"],
 )
 app.include_router(
     script_plan.router,

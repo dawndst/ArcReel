@@ -319,7 +319,7 @@ function buildRows(facts: Facts, ctx: StepListContext): StepRowView[] {
       nextType !== "provide_episode_source"
         ? [provideSourceAct(t)]
         : [];
-    const planningSteps = stepsFor(facts, ["episode_plan"]);
+    const planningSteps = stepsFor(facts, ["novel_reading"]);
     const planning = planningSteps.some((step) => step.state === "active");
     rows.push({
       key: "source",

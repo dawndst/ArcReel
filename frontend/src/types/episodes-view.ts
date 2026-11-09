@@ -240,7 +240,7 @@ export interface EpisodePlanningResponse {
 }
 
 /** 停止分集规划：`cancelled` 是取消掉的排队窗口，`running` 是正在执行、会照常完成的窗口。 */
-export interface StopEpisodePlanningResponse {
+export interface StopNoteWorkflowResponse {
   cancelled: string[];
   running: string[];
 }

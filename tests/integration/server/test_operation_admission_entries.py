@@ -21,14 +21,12 @@ from server.tool_runtime import (
     CallerContext,
     GenerateEpisodeScriptRequest,
     GenerateScriptPlanRequest,
-    PlanEpisodesRequest,
     ProjectScope,
     Services,
     ToolOutcome,
     ToolRequest,
     generate_episode_script,
     generate_script_plan,
-    plan_episodes,
 )
 
 _CALLER = CallerContext(user_id="u1", source="mcp")
@@ -71,15 +69,6 @@ def _manual_episode(projects: ProjectManager) -> None:
     )
 
 
-async def test_plan_episodes_without_whole_source_is_refused_with_the_status_reason(tmp_path: Path, db_factory) -> None:
-    projects = _project(tmp_path, "narration")
-
-    outcome = await plan_episodes(
-        ToolRequest(PlanEpisodesRequest()), _scope(projects), _CALLER, _services(projects, db_factory)
-    )
-
-    status = WorkflowStateService(projects).get_status("demo")
-    assert _refusal_reason(outcome) == status.operations["plan_episodes"].reason == "whole_source_missing"
 
 
 async def test_script_plan_without_episode_source_is_refused_with_the_status_reason(tmp_path: Path, db_factory) -> None:

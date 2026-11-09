@@ -30,7 +30,7 @@ from lib.script.script_batch_edit import script_revision
 from lib.script.script_skeleton import ensure_route_skeleton, resolve_kind_items
 from lib.speech.speech_composition import admit_script_unit
 from lib.workflow.workflow_plan import (
-    EPISODE_PLANNING_SLOTS,
+    NOVEL_WORKFLOW_SLOTS,
     TEXT_DRAFT_REPAIR_TASK_TYPE,
     WorkflowPlan,
     WorkflowPlanRequest,
@@ -186,7 +186,7 @@ class WorkflowPlanner:
     ) -> list[WorkflowTaskObservation]:
         rows: list[dict[str, Any]] = []
         text_queries: list[tuple[str, list[str]]] = (
-            [("text_episode_plan", list(EPISODE_PLANNING_SLOTS))] if status.project.content_mode != "ad" else []
+            [("text_novel_workflow", list(NOVEL_WORKFLOW_SLOTS))] if status.project.content_mode != "ad" else []
         )
         if status.target is not None:
             episode_ids = [f"episode-{status.target.episode}"]

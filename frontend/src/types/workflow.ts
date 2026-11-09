@@ -33,8 +33,6 @@ export const WORKFLOW_ACTION_TYPES = [
   "collect_project_input",
   "create_episode",
   "draft_selling_points",
-  "plan_episodes",
-  "reset_episode_planning",
   "resolve_draft",
   "prepare_script_plan",
   "start_blank_script",

@@ -264,7 +264,7 @@ export default {
   'task_type_tts': 'Озвучка закадрового текста',
   'task_type_video': 'Видео',
   'task_type_reference_video': 'Видео',
-  'task_type_text_episode_plan': 'Планирование серий',
+  'task_type_text_novel_workflow': 'Novel reading and adaptation',
   'task_type_text_episode_script': 'Готовый сценарий',
   'task_type_text_drama_script_plan': 'План сценария',
   'task_type_text_narration_script_plan': 'План сценария',

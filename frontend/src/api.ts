@@ -1,6 +1,5 @@
 import type { NovelWorkflow, ChapterPreview } from "@/types/novel-workflow";
 import type { EpisodeGuideResponse } from "@/types/episode-guide";
-import type { NovelStatus, NovelAdoption } from "@/types/novel-understanding";
 /**
  * API 调用封装 (TypeScript)
  *
@@ -188,15 +187,9 @@ import type {
   AdoptSourceFileTarget,
   CreateEpisodeBody,
   EpisodeDeletionResponse,
-  EpisodePlanningResponse,
-  PlanningGap,
   EpisodeSourceWriteResult,
   EpisodesView,
-  ManualSplitAction,
-  ManualSplitResponse,
-  ReplanAdoptionResponse,
-  ReplanPreview,
-  StopEpisodePlanningResponse,
+  StopNoteWorkflowResponse,
   SourceFileChangeResponse,
   SourceKind,
   SourceKindChangeResult,
@@ -2194,121 +2187,12 @@ class API {
   static async getChapterNoteSource(name: string, id: string): Promise<{ text: string }> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/notes/${encodeURIComponent(id)}/source`);
   }
-  static async getNovelUnderstanding(name: string, options: { signal?: AbortSignal } = {}): Promise<NovelStatus> {
-    return this.request(`/projects/${encodeURIComponent(name)}/novel-understanding`, options);
-  }
-  static async reviewNovelUnderstanding(name: string): Promise<unknown> {
-    return this.request(`/projects/${encodeURIComponent(name)}/novel-understanding/review`, { method: "POST" });
-  }
-  static async adoptNovelDecision(name: string, body: { report_id: string; dry_run: boolean; confirm_episodes: number[]; confirm_merged_units: number }): Promise<NovelAdoption> {
-    return this.request(`/projects/${encodeURIComponent(name)}/novel-understanding/adopt`, { method: "POST", body: JSON.stringify(body) });
-  }
-
   static async getEpisodesView(
     projectName: string,
     options: { signal?: AbortSignal } = {}
   ): Promise<EpisodesView> {
     return this.request(`/projects/${encodeURIComponent(projectName)}/episodes-view`, {
       signal: options.signal,
-    });
-  }
-
-  /**
-   * 手工切分，直接写入分集账本。波及有产物的集、合并会并入未切分的原文（或 `dryRun`）时返回确认清单、不写入；
-   * 确认后把清单里的集 ID 放进 `confirmEpisodes`、并入体量放进 `confirmMergedUnits` 重新提交。
-   */
-  static async manualSplit(
-    projectName: string,
-    action: ManualSplitAction,
-    options: { confirmEpisodes?: number[]; confirmMergedUnits?: number; dryRun?: boolean } = {}
-  ): Promise<ManualSplitResponse> {
-    return this.request(`/projects/${encodeURIComponent(projectName)}/episodes-view/manual-split`, {
-      method: "POST",
-      body: JSON.stringify({
-        ...action,
-        confirm_episodes: options.confirmEpisodes ?? [],
-        ...(options.confirmMergedUnits ? { confirm_merged_units: options.confirmMergedUnits } : {}),
-        dry_run: options.dryRun ?? false,
-      }),
-    });
-  }
-
-  /**
-   * AI 规划分集：从规划起点逐窗规划到整本源文结尾，每一窗是一个排队的文本任务；提交即返首窗的生成批次。
-   * 已有进行中的分集规划时 409，没有整本源文等准入不成立时 422。附加指令不写进项目。
-   * @enqueue
-   */
-  static async planEpisodes(
-    projectName: string,
-    instructions: string | null,
-    gap: PlanningGap | null = null
-  ): Promise<EpisodePlanningResponse> {
-    return this.request(`/projects/${encodeURIComponent(projectName)}/episode-planning`, {
-      method: "POST",
-      body: JSON.stringify(gap === null ? { instructions } : { instructions, gap }),
-    });
-  }
-
-  /** 从这一集开始重新规划的范围：会被替换的切出集与其中已开始制作的集。不发起，不写入。 */
-  static async previewEpisodeReplan(projectName: string, episode: number): Promise<ReplanPreview> {
-    return this.request(`/projects/${encodeURIComponent(projectName)}/episode-replan`, {
-      method: "POST",
-      body: JSON.stringify({ episode, dry_run: true }),
-    });
-  }
-
-  /**
-   * 从这一集开始重新规划：逐窗生成一份「新的分集方案」，分集账本在采纳前不变；提交即返首窗的生成批次。
-   * 已有方案或分集规划在进行时 409。附加指令随方案保存。
-   * @enqueue
-   */
-  static async startEpisodeReplan(
-    projectName: string,
-    episode: number,
-    instructions: string | null
-  ): Promise<EpisodePlanningResponse> {
-    return this.request(`/projects/${encodeURIComponent(projectName)}/episode-replan`, {
-      method: "POST",
-      body: JSON.stringify({ episode, instructions }),
-    });
-  }
-
-  /**
-   * 接着生成中途停止的新的分集方案：从方案的结尾逐窗生成到整本源文结尾，沿用发起时的附加指令；提交即返首窗的
-   * 生成批次。方案已覆盖到结尾或已过时时 409，分集规划在进行时 409。
-   * @enqueue
-   */
-  static async continueEpisodeReplan(projectName: string, candidateId: string): Promise<EpisodePlanningResponse> {
-    return this.request(`/projects/${encodeURIComponent(projectName)}/episode-replan/continue`, {
-      method: "POST",
-      body: JSON.stringify({ candidate_id: candidateId }),
-    });
-  }
-
-  /**
-   * 采纳新的分集方案。不带 `revision` 时只返回服务端成文的后果；带上 `revision` 才采纳，
-   * 后果在两次调用之间变了时再次返回确认。`deleteRetired` 把保留为无原文的集连同产物一起删除。
-   */
-  static async adoptEpisodeReplan(
-    projectName: string,
-    candidateId: string,
-    options: { revision?: string | null; deleteRetired?: boolean } = {}
-  ): Promise<ReplanAdoptionResponse> {
-    return this.request(`/projects/${encodeURIComponent(projectName)}/episode-replan/adopt`, {
-      method: "POST",
-      body: JSON.stringify({
-        candidate_id: candidateId,
-        revision: options.revision ?? null,
-        delete_retired: options.deleteRetired ?? false,
-      }),
-    });
-  }
-
-  /** 放弃新的分集方案，分集账本不变。 */
-  static async discardEpisodeReplan(projectName: string, candidateId: string): Promise<void> {
-    await this.request(`/projects/${encodeURIComponent(projectName)}/episode-replan/discard`, {
-      method: "POST",
-      body: JSON.stringify({ candidate_id: candidateId }),
     });
   }
 
@@ -2344,8 +2228,8 @@ class API {
   }
 
   /** 停止分集规划：取消排队中的窗口，执行中的那一窗照常完成，已切出的集保留。 */
-  static async stopEpisodePlanning(projectName: string): Promise<StopEpisodePlanningResponse> {
-    return this.request(`/projects/${encodeURIComponent(projectName)}/episode-planning/stop`, { method: "POST" });
+  static async stopNoteWorkflow(projectName: string): Promise<StopNoteWorkflowResponse> {
+    return this.request(`/projects/${encodeURIComponent(projectName)}/novel-workflow/stop`, { method: "POST" });
   }
 
   /** 处置 source/ 里没有登记的文件：加入整本源文，或用作一集的原文（原文件随即删除）。 */

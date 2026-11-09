@@ -13,10 +13,26 @@ from lib.project.project_manager import get_project_manager
 from server.agent_toolset.envelope import json_value
 from server.auth import CurrentUser
 from server.dependencies import require_project_migration_ok
-from server.routers.episode_planning import _context
-from server.tool_runtime import submit_note_workflow
+from server.tool_runtime import CallerContext, ProjectScope, Services, stop_note_workflow, submit_note_workflow
 
 router = APIRouter()
+
+
+def _context(project_name, user_id):
+    pm = get_project_manager()
+    return (
+        ProjectScope(project_name=project_name, data_root=pm.data_root),
+        CallerContext(user_id=user_id, source="webui"),
+        Services.defaults(pm),
+    )
+
+
+@router.post("/projects/{name}/novel-workflow/stop")
+async def stop_workflow(name: str, user: CurrentUser):
+    from dataclasses import asdict
+
+    scope, caller, services = _context(name, user.id)
+    return asdict(await stop_note_workflow(scope, caller, services))
 
 
 class SourceRequest(BaseModel):
@@ -64,7 +80,7 @@ async def initialize(name: str, req: SourceRequest):
 @router.post("/projects/{name}/novel-workflow/run", dependencies=[Depends(require_project_migration_ok)])
 async def run_workflow(name: str, req: ReadingRequest, user: CurrentUser):
     def validate(path, project):
-        if project.get("novel_workflow_enabled") is not True:
+        if project.get("content_mode") != "drama":
             raise ValueError("Enable chapter Note workflow in project settings first")
         return store.require_current(path, project, req.source_basis)
 

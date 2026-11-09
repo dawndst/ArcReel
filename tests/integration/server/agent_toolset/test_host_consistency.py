@@ -144,8 +144,6 @@ SAMPLE_ARGUMENTS: dict[str, dict[str, Any]] = {
     },
     "generate_grid": {"script": "episode_1.json", "list_only": True},
     "split_grids": {"grid_ids": ["grid_000000000000"]},
-    "plan_episodes": {"instructions": "按章节对齐切分"},
-    "reset_episode_planning": {},
     "complete_script_plan_rebuild": {"episode_id": 1, "expected_stale_script_plan_revision": None},
     "generate_videos": {"script": "episode_1.json", "target": {"scope": "all"}},
     "select_video_version": {"unit_id": "E1S01", "version": 1},

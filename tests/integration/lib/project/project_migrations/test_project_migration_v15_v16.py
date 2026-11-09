@@ -22,7 +22,6 @@ from lib.config.resolver import ConfigResolver
 from lib.config.service import ConfigService
 from lib.episode.episode_ids import EPISODE_ID_HIGH_WATER_KEY, allocate_episode_ids
 from lib.episode.episode_layout import build_episode_layout
-from lib.episode.episode_reset import EpisodeResetError, reset_episode_planning
 from lib.episode.episode_sources import discover_sources, planning_start, source_snapshot_path
 from lib.project.project_manager import ProjectManager
 from lib.project.project_migration_failure import ProjectMigrationError
@@ -847,31 +846,6 @@ def test_unregistered_file_added_after_migration_changes_no_episode_source(tmp_p
     assert status_after.content == status_before.content
 
 
-def test_legacy_split_episodes_stay_cut_episodes_and_only_a_full_reset_releases_them(tmp_path: Path) -> None:
-    project_dir, project = _migrated_episode_sources(tmp_path, legacy_split=True)
-
-    assert [(entry["episode"], entry["source_origin"]) for entry in project["episodes"]] == [
-        (1, "whole_source"),
-        (2, "whole_source"),
-        (3, "none"),
-        (7, "own"),
-    ]
-    assert not (project_dir / "source" / "snapshots").exists()
-    pm = ProjectManager(project_dir.parent.parent)
-    status = WorkflowStateService(pm).get_status(project_dir.name, 1)
-    assert status.content is not None
-    assert status.content.episode_source == "present"
-    assert status.operations["prepare_script_plan"].state == "admitted"
-
-    with pytest.raises(EpisodeResetError, match="source_range"):
-        reset_episode_planning(project_dir, episode_id=2)
-    assert _read_json(project_dir / "project.json")["episodes"] == project["episodes"]
-
-    reset_episode_planning(project_dir)
-    after = _read_json(project_dir / "project.json")
-    assert [(entry["episode"], entry["source_origin"]) for entry in after["episodes"]] == [(3, "none"), (7, "own")]
-    assert (project_dir / "source" / "_episode_1.txt.bak").is_file()
-    assert (project_dir / "source" / "episode_7.txt").read_text(encoding="utf-8") == "另放进来的一集。"
 
 
 def test_source_edited_outside_the_service_gets_no_snapshot(tmp_path: Path) -> None:

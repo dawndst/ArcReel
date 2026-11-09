@@ -26,10 +26,7 @@ from lib.episode.episode_ledger import (
     parse_positive_episode_num,
 )
 from lib.episode.episode_paths import episode_source_relpath
-from lib.episode.episode_replan import replan_candidate
 from lib.episode.episode_sources import (
-    legacy_cut_episode_ids,
-    source_fingerprints_diverged,
     source_remaining,
     stored_source_remaining,
     whole_source_files,
@@ -69,7 +66,6 @@ from lib.workflow.operation_admission import (
     admit_ad_script,
     admit_author_prompts,
     admit_edit_timeline,
-    admit_plan_episodes,
     admit_script_plan,
     episode_source_present,
     pending_authoring_entry_ids,
@@ -128,8 +124,6 @@ class WorkflowActionType(StrEnum):
     COLLECT_PROJECT_INPUT = "collect_project_input"
     CREATE_EPISODE = "create_episode"
     DRAFT_SELLING_POINTS = "draft_selling_points"
-    PLAN_EPISODES = "plan_episodes"
-    RESET_EPISODE_PLANNING = "reset_episode_planning"
     RESOLVE_DRAFT = "resolve_draft"
     PREPARE_SCRIPT_PLAN = "prepare_script_plan"
     START_BLANK_SCRIPT = "start_blank_script"
@@ -1264,28 +1258,10 @@ class WorkflowStateService:
             )
         return first.model_copy(update={"next_action": next_action, "next_alternatives": []})
 
-    def _planning_action(
-        self, project: dict[str, Any], shared: _SharedWorkflowFacts, reason: str
-    ) -> WorkflowNextAction:
-        """继续分集规划的动作：规划器会拒绝接续时（切出集缺位置记录、源文已改动）改为从头重置。"""
-        from lib.novel_workflow.routing import enabled
-
-        if enabled(project):
-            return _action(
-                WorkflowActionType.FIX_INPUT,
-                "请在小说工作台选择章节、精读 Notes、生成 SVT 和场镜，再由导演勾选场镜组集。",
-            )
-        if legacy_cut_episode_ids(project):
-            return _action(
-                WorkflowActionType.RESET_EPISODE_PLANNING,
-                "episode ledger lacks source range records",
-            )
-        if source_fingerprints_diverged(project, list(shared.planning_sources)):
-            return _action(
-                WorkflowActionType.RESET_EPISODE_PLANNING,
-                "source files changed after episode planning",
-            )
-        return _action(WorkflowActionType.PLAN_EPISODES, reason)
+    def _planning_action(self, project, shared, reason):
+        return _action(
+            WorkflowActionType.FIX_INPUT, "请在小说工作台指定章节泛读生成 Notes、生成 SVT 和场镜，再由导演组集。"
+        )
 
     @staticmethod
     def _project_content(project: Mapping[str, Any], shared: _SharedWorkflowFacts) -> WorkflowContent:
@@ -1330,13 +1306,7 @@ class WorkflowStateService:
             shared,
             target=None,
             content=self._project_content(project, shared),
-            operations={
-                WorkflowActionType.PLAN_EPISODES: admit_plan_episodes(
-                    project.get("content_mode"),
-                    whole_source=shared.whole_source,
-                    replan_pending=replan_candidate(project) is not None,
-                )
-            },
+            operations={},
             gates={},
             artifacts=self._base_artifacts(project, shared),
             next_action=next_action,
@@ -1565,11 +1535,7 @@ class WorkflowStateService:
             "script_plan_review": {"state": "not_applicable" if is_ad else "pending", "revision": None}
         }
         content = self._project_content(project, shared)
-        operations: dict[str, OperationAdmission] = {
-            WorkflowActionType.PLAN_EPISODES: admit_plan_episodes(
-                mode, whole_source=shared.whole_source, replan_pending=replan_candidate(project) is not None
-            ),
-        }
+        operations: dict[str, OperationAdmission] = {}
 
         def respond(
             target: WorkflowTarget | None,
@@ -1889,21 +1855,8 @@ class WorkflowStateService:
         next_alternatives: list[WorkflowNextAction] | None = None,
         issues: list[WorkflowBlocker] | None = None,
     ) -> WorkflowStatus:
-        from lib.novel_workflow.routing import enabled
-        from lib.workflow.operation_admission import NOT_APPLICABLE
-
-        if enabled(project):
-            operations = {**operations, WorkflowActionType.PLAN_EPISODES: NOT_APPLICABLE}
-            old_actions = {
-                WorkflowActionType.PLAN_EPISODES,
-                WorkflowActionType.RESET_EPISODE_PLANNING,
-                WorkflowActionType.CREATE_EPISODE,
-            }
-            if next_action.type in old_actions:
-                next_action = _action(
-                    WorkflowActionType.FIX_INPUT, "请在小说工作台处理 Notes，由导演从场镜素材库组集。"
-                )
-            next_alternatives = [a for a in (next_alternatives or []) if a.type not in old_actions]
+        if project.get("content_mode") == "drama":
+            next_alternatives = [a for a in (next_alternatives or []) if a.type != WorkflowActionType.CREATE_EPISODE]
         source = shared.source
         return WorkflowStatus(
             project_revision=_project_revision(project),

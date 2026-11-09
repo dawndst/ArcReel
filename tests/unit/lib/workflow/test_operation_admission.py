@@ -15,7 +15,6 @@ from lib.workflow.operation_admission import (
     admit_ad_script,
     admit_author_prompts,
     admit_edit_timeline,
-    admit_plan_episodes,
     admit_script_plan,
     episode_source_present,
     pending_authoring_entry_ids,
@@ -87,16 +86,6 @@ def test_pending_authoring_ids_follow_script_order_and_the_skeleton_id_field() -
     assert pending_authoring_entry_ids(items, None) == []
 
 
-@pytest.mark.parametrize(
-    ("content_mode", "whole_source", "expected"),
-    [
-        ("narration", True, ("admitted", None)),
-        ("drama", False, ("refused", "whole_source_missing")),
-        ("ad", True, ("not_applicable", "operation_not_applicable")),
-    ],
-)
-def test_plan_episodes_needs_the_whole_source(content_mode: str, whole_source: bool, expected: tuple) -> None:
-    assert _conclusion(admit_plan_episodes(content_mode, whole_source=whole_source)) == expected
 
 
 @pytest.mark.parametrize(

@@ -1,3 +1,4 @@
+import { NoteReadingStart } from "./NoteReadingStart";
 import { NoteGroupsPanel } from "./NoteGroupsPanel";
 import { SceneLibraryPanel } from "./SceneLibraryPanel";
 import { ReadingScopePanel } from "./ReadingScopePanel";
@@ -15,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { SourceUploadDialog } from "@/components/canvas/episodes/SourceUploadDialog";
 import { useActiveResourceIds, useTasksStore } from "@/stores/tasks-store";
-import { EPISODE_PLANNING_SLOTS } from "@/actions/generation";
+import { NOVEL_WORKFLOW_SLOTS } from "@/actions/generation";
 import { errMsg } from "@/utils/async";
 import type { ChapterNote, ChapterPreview, NoteEvidence, NovelWorkflow } from "@/types/novel-workflow";
 
@@ -94,8 +95,8 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
 
   const [merging, setMerging] = useState(false);
   const [title, setTitle] = useState("");
-  const active = useActiveResourceIds("text_episode_plan", projectName);
-  const working = EPISODE_PLANNING_SLOTS.some((slot) => active.has(slot));
+  const active = useActiveResourceIds("text_novel_workflow", projectName);
+  const working = NOVEL_WORKFLOW_SLOTS.some((slot) => active.has(slot));
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
@@ -129,18 +130,18 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
       <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={working || busy} onClick={() => setReadingSettings(true)}>{t("dashboard:nw_read_settings")}</Button><Button variant="ghost" size="sm" onClick={() => setUpload(true)}><Upload data-icon="inline-start" />{t("dashboard:nw_upload")}</Button><Button variant="outline" size="sm" onClick={onProduction}>{t("dashboard:nw_production")}</Button></div>
     </header>
     {error && <p role="alert" className="border-b px-5 py-3 text-sm text-destructive">{error}</p>}
-    {working && <div role="status" className="flex shrink-0 flex-wrap items-center gap-3 border-b bg-primary/10 px-5 py-3 text-sm"><Loader2 className="size-4 animate-spin" />{t(progress?.phase === "scenes" ? "dashboard:nw_phase_scenes" : progress?.phase === "group_summary" ? "dashboard:nw_group_summarize" : progress?.phase === "understanding" ? "dashboard:nw_understanding_running" : progress?.phase === "review" ? "dashboard:nw_review_running" : progress?.phase === "svt" ? "dashboard:nw_svt_running" : "dashboard:nw_reading_running")} · {progress?.done ?? 0}/{progress?.total ?? selected.length}{progress?.parts ? ` · ${progress.part}/${progress.parts}` : ""}<Button variant="outline" size="sm" disabled={busy} onClick={() => void act(() => API.stopEpisodePlanning(projectName))}>{t("dashboard:nw_stop")}</Button></div>}
+    {working && <div role="status" className="flex shrink-0 flex-wrap items-center gap-3 border-b bg-primary/10 px-5 py-3 text-sm"><Loader2 className="size-4 animate-spin" />{t(progress?.phase === "scenes" ? "dashboard:nw_phase_scenes" : progress?.phase === "group_summary" ? "dashboard:nw_group_summarize" : progress?.phase === "understanding" ? "dashboard:nw_understanding_running" : progress?.phase === "review" ? "dashboard:nw_review_running" : progress?.phase === "svt" ? "dashboard:nw_svt_running" : "dashboard:nw_reading_running")} · {progress?.done ?? 0}/{progress?.total ?? selected.length}{progress?.parts ? ` · ${progress.part}/${progress.parts}` : ""}<Button variant="outline" size="sm" disabled={busy} onClick={() => void act(() => API.stopNoteWorkflow(projectName))}>{t("dashboard:nw_stop")}</Button></div>}
     {!working && progress?.error && <details className="border-b px-5 py-2 text-sm text-destructive"><summary>{t("dashboard:nw_last_error")}</summary>{progress.error}</details>}
     {data?.stale && <p className="border-b bg-muted px-5 py-3 text-sm">{t("dashboard:nw_stale")}</p>}
     {!data?.initialized ? <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center"><BookOpen className="size-8 text-primary" /><h2 className="font-semibold">{t("dashboard:nw_start")}</h2><p className="max-w-xl text-sm text-muted-foreground">{t("dashboard:nw_start_hint")}</p><Button disabled={busy || !data} onClick={() => void act(async () => setPreview(await API.previewChapterNotes(projectName)))}>{t("dashboard:nw_preview")}</Button></div> : <>
       <nav aria-label={t("dashboard:nw_title")} className="flex shrink-0 flex-wrap gap-2 border-b px-5 py-2">{(["notes", "groups", "ledger", "understanding", "svt", "review", "scenes"] as const).map((key) => <Button key={key} size="sm" variant={tab === key ? "default" : "ghost"} onClick={() => setTab(key)}>{t(`dashboard:nw_tab_${key}`)} ({key === "scenes" ? (data.scene_batches ?? []).reduce((n, b) => n + b.scenes.length, 0) : key === "notes" ? data.notes.length : key === "svt" ? data.svts.length : key === "understanding" ? data.understanding?.links.length ?? 0 : key === "ledger" ? data.ledger?.characters.length ?? 0 : key === "review" ? data.reviews?.length ?? 0 : data.groups.length})</Button>)}<Button size="sm" variant="ghost" disabled={busy || working} onClick={() => void act(async () => setPreview(await API.previewChapterNotes(projectName)))}>{t("dashboard:nw_preview")}</Button></nav>
       {tab === "notes" && <>
-      <ReadingScopePanel notes={data.notes} scope={data.scope} selected={selected} disabled={busy || working || data.stale} select={setSelected} save={() => void act(() => API.setNoteScope(projectName, selected, data.source_basis!))} />
+      <NoteReadingStart notes={data.notes} selected={selected} disabled={busy || working || data.stale || !data.source_basis} select={setSelected} read={() => void act(() => API.runNoteWorkflow(projectName, "read", selected, data.source_basis!))} />
+      <ReadingScopePanel scope={data.scope} selected={selected} disabled={busy || working || data.stale} save={() => void act(() => API.setNoteScope(projectName, selected, data.source_basis!))} />
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-5 py-2">
         <span className="mr-2 text-xs text-muted-foreground">{t("dashboard:nw_selected", { count: selectedNotes.length })}</span>
         <Button size="sm" variant="outline" onClick={() => setSelected(data.notes.map((n) => n.id))}>{t("dashboard:nw_select_all")}</Button>
         <Button size="sm" variant="ghost" onClick={() => setSelected([])}>{t("dashboard:nw_clear")}</Button>
-        <Button size="sm" disabled={!canRun} onClick={() => void act(() => API.runNoteWorkflow(projectName, "read", selected, data.source_basis!))}>{t("dashboard:nw_read")}</Button>
         <Button size="sm" variant="outline" disabled={!canRun || data.settings?.understanding_enabled === false || selectedNotes.some((n) => n.status !== "read")} onClick={() => void act(async () => { await API.runNoteWorkflow(projectName, "understand", selected, data.source_basis!); setTab("understanding"); })}>{t("dashboard:nw_understand")}</Button>
         <Button size="sm" variant="outline" disabled={!canRun || needsUnderstanding || selectedNotes.some((n) => n.status !== "read")} onClick={() => void act(() => API.runNoteWorkflow(projectName, "svt", selected, data.source_basis!))}>{t("dashboard:nw_generate_svt")}</Button>
         <Button size="sm" variant="outline" disabled={!canRun || needsUnderstanding || selectedNotes.some((n) => n.status !== "read")} onClick={() => void act(async () => { await API.runNoteWorkflow(projectName, "review", selected, data.source_basis!); setTab("review"); })}>{t("dashboard:nw_review")}</Button>

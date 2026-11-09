@@ -63,7 +63,7 @@ async def test_legacy_memory_and_unbound_scripts_fail_before_model_calls(tmp_pat
     with pytest.raises(WorkflowError, match="Note 来源绑定"):
         await legacy.prepare(tmp_path, data, 1, "", {}, generator=generator)
     generator.generate.assert_not_called()
-    assert legacy.applicable({**data, "novel_workflow_enabled": False})
+    assert not legacy.applicable({**data, "novel_workflow_enabled": False})
 
 
 async def test_large_overview_is_reduced_in_bounded_cached_batches(tmp_path, monkeypatch):
@@ -104,45 +104,8 @@ async def test_large_overview_is_reduced_in_bounded_cached_batches(tmp_path, mon
     assert {i for n in material for i in n["note_ids"]} == {str(i) for i in range(20)}
 
 
-def test_legacy_planner_and_manual_split_rejected(tmp_path):
-    data, _ = setup_project(tmp_path)
-    from lib.episode.episode_manual_split import ManualSplitError, cut_unsplit_source
-    from lib.episode.episode_planner import EpisodePlanner
-
-    with pytest.raises(WorkflowError):
-        EpisodePlanner._check_source_ranges(data)
-    # The manual transaction guard rejects before source boundary or episode mutations.
-    from unittest.mock import patch
-
-    from lib.project.project_manager import ProjectManager
-
-    manager = SimpleNamespace(load_project=lambda name: data)
-    with (
-        patch.object(ProjectManager, "for_project_dir", return_value=manager),
-        pytest.raises(ManualSplitError, match="导演组集"),
-    ):
-        cut_unsplit_source(tmp_path, source_file="source/book.txt", end=10, title="旧分集")
 
 
-async def test_queued_legacy_work_rejected_before_creating_planner(tmp_path, monkeypatch):
-    from server import tool_runtime
-
-    data = {"content_mode": "drama", "novel_workflow_enabled": True}
-    services = SimpleNamespace(projects=SimpleNamespace(load_project=lambda name: data))
-    create = AsyncMock(side_effect=AssertionError("legacy planner created"))
-    monkeypatch.setattr(tool_runtime.EpisodePlanner, "create", create)
-    for payload in [{}, {"novel_action": "review"}, {"replan": "old"}]:
-        with pytest.raises(WorkflowError):
-            await tool_runtime._execute_queued_text_task(
-                {
-                    "task_id": "routing-test",
-                    "task_type": "text_episode_plan",
-                    "project_name": "demo",
-                    "payload": payload,
-                },
-                services=services,
-            )
-    create.assert_not_called()
 
 
 async def test_status_does_not_recommend_legacy_planning(tmp_path):
@@ -155,5 +118,5 @@ async def test_status_does_not_recommend_legacy_planning(tmp_path):
     status = await asyncio.to_thread(WorkflowStateService(pm).get_status, "demo")
     assert status.next_action.type == "fix_input"
     assert "小说工作台" in status.next_action.reason
-    assert status.operations["plan_episodes"].state == "not_applicable"
+    assert "plan_episodes" not in status.operations
     assert not status.next_alternatives

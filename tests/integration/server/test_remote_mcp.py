@@ -378,8 +378,6 @@ async def test_remote_mcp_returns_typed_workflow_plan_and_rejects_bad_project(
 
     assert not result.isError
     migrated = {
-        "plan_episodes",
-        "reset_episode_planning",
         "patch_project",
         "patch_episode_meta",
         "rename_asset",
