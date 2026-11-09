@@ -27,7 +27,8 @@ def svt_event_tags(path, note_id, reading):
         return []
     value = load_json(file)
     if (
-        value.get("rule_basis") != digest(store.rule(path, "svt"))
+        value.get("schema_version") != 2
+        or value.get("rule_basis") != digest(store.rule(path, "svt"))
         or value.get("note_bases", {}).get(note_id) != reading["basis"]
     ):
         return []
@@ -35,7 +36,9 @@ def svt_event_tags(path, note_id, reading):
     return [
         {"svt_id": svt["id"], "event_ids": [i for i in svt["event_ids"] if i in local_ids]}
         for svt in value.get("svts", [])
-        if not svt.get("stale") and local_ids & set(svt["event_ids"])
+        if not svt.get("stale")
+        and note_id in svt["note_ids"]
+        and value.get("note_assignments", {}).get(note_id) == svt["id"]
     ]
 
 
@@ -45,6 +48,8 @@ def valid_batch(path, batch, notebook, readings):
     if batch["source_basis"] != notebook["source_basis"] or batch["rule_basis"] != digest(store.rule(path, "scenes")):
         return False
     if any(readings.get(i, {}).get("basis") != b for i, b in batch["note_bases"].items()):
+        return False
+    if "svt_basis" in batch and len(svt_event_tags(path, batch["note_id"], readings[batch["note_id"]])) != 1:
         return False
     if "svt_basis" in batch and batch["svt_basis"] != digest(
         svt_event_tags(path, batch["note_id"], readings[batch["note_id"]])
@@ -126,6 +131,13 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
         raise ValueError("请先精读所选章节")
     if any(g.get("usage") == "reference" and set(g["note_ids"]) & set(note_ids) for g in notebook["groups"]):
         raise ValueError("所选章节包含仅留档资料，请先改为改编候选再生成场镜")
+    from lib.novel_workflow.svt_contract import assignments, valid_svts
+
+    svt_file = store.root(path) / "svts.json"
+    svt_data = await asyncio.to_thread(load_json, svt_file) if await asyncio.to_thread(svt_file.exists) else None
+    primary = await asyncio.to_thread(lambda: assignments(valid_svts(path, svt_data, readings)))
+    if any(n["id"] not in primary for n in notes):
+        raise ValueError("请先为每个 Note 完成唯一主归属 SVT 的拆分，再生成场镜")
     await asyncio.to_thread(understanding.require_understood, path, note_ids)
     project = await asyncio.to_thread(load_json, path / "project.json")
     if project.get("content_mode") != "drama" or project.get("generation_mode") == "reference_video":

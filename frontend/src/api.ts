@@ -2170,6 +2170,12 @@ class API {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/settings`, { method: "PATCH", body: JSON.stringify(values) });
   }
 
+  static async getWorkbenchRules(name: string, signal?: AbortSignal): Promise<{ entries: import("@/types/novel-workflow").PromptRule[]; read_only: boolean }> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/rules`, { signal });
+  }
+  static async adoptNoteSVT(name: string, note_id: string, candidate_id: string, source_basis: string): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/notes/${encodeURIComponent(note_id)}/svt`, { method: "POST", body: JSON.stringify({ candidate_id, source_basis }) });
+  }
   static async runNoteWorkflow(name: string, action: "read" | "svt" | "review" | "understand" | "scenes" | "group_summary", note_ids: string[], source_basis: string, group_id?: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action, note_ids, source_basis, group_id }) });
   }

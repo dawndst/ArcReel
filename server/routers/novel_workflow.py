@@ -156,3 +156,23 @@ async def set_scope(name: str, req: ScopeRequest):
     from lib.novel_workflow import scope
 
     return await invoke(name, lambda path, project: scope.configure(path, project, req.note_ids, req.source_basis))
+
+
+class AdoptSVTRequest(SourceRequest):
+    candidate_id: str = Field(min_length=1, max_length=100)
+
+
+@router.post(
+    "/projects/{name}/novel-workflow/notes/{note_id}/svt", dependencies=[Depends(require_project_migration_ok)]
+)
+async def adopt_svt(name: str, note_id: str, req: AdoptSVTRequest):
+    from lib.novel_workflow.svt_contract import adopt
+
+    return await invoke(name, lambda path, project: adopt(path, project, note_id, req.candidate_id, req.source_basis))
+
+
+@router.get("/projects/{name}/novel-workflow/rules")
+async def get_rules(name: str):
+    from lib.novel_workflow.rule_catalog import catalog
+
+    return await invoke(name, catalog)

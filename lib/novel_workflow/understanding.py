@@ -82,6 +82,8 @@ def view(path: Path, notebook=None):
             or not set(report.get("selected_note_ids", [])) <= allowed
             or not set(report.get("inspected_note_ids", [])) <= allowed
             or any(not set(link["note_ids"]) <= allowed for link in report.get("links", []))
+            or report.get("scope_rule_basis", digest((store.RULES / "scope.md").read_text()))
+            != digest(store.rule(path, "scope"))
             or report["rule_basis"] != rule_basis
             or any(readings.get(i, {}).get("basis") != b for i, b in report["note_bases"].items())
         )
@@ -140,7 +142,9 @@ async def understand_notes(path, generator, note_ids, expected):
     allowed = await asyncio.to_thread(scope.available_ids, path, notebook)
     bases = {n["id"]: readings[n["id"]]["basis"] for n in notes}
     rules = await asyncio.to_thread(store.rule, path, "understand")
-    key = digest([expected, bases, rules, scope_basis, 2])
+    scope_rule = await asyncio.to_thread(store.rule, path, "scope")
+    scope_hint = "\n" + scope_rule.strip()
+    key = digest([expected, bases, rules, scope_basis, scope_hint, 2])
     target = store.root(path) / "understanding" / "reports" / f"{key}.json"
     if await asyncio.to_thread(target.exists):
         return {"report_id": key, "cached": True}
@@ -153,7 +157,6 @@ async def understand_notes(path, generator, note_ids, expected):
             {"note_id": note["id"], "title": note["title"], "questions": reading["questions"], "records": batch}
             for batch in synthesis.packs(memory.records(reading), 7000)
         )
-    scope_hint = "\n按未完结小说处理：仅以当前可用章节为事实范围。未解线索可以保留待续，不得假设已有结局，不因范围外章节未读要求停止制作。"
     checkpoint = store.root(path) / "understanding" / "runs" / f"{key}.json"
     run = (
         await asyncio.to_thread(load_json, checkpoint)
@@ -249,6 +252,7 @@ async def understand_notes(path, generator, note_ids, expected):
             await asyncio.to_thread(scope.basis, path, notebook) != scope_basis
             or any(latest.get(i, {}).get("basis") != b for i, b in bases.items())
             or await asyncio.to_thread(store.rule, path, "understand") != rules
+            or await asyncio.to_thread(store.rule, path, "scope") != scope_rule
         ):
             raise ValueError("Understanding sources or rules changed; completed reread caches retained")
         report = {
@@ -261,6 +265,7 @@ async def understand_notes(path, generator, note_ids, expected):
             "created_at": now(),
             "selected_note_ids": [n["id"] for n in notes],
             "scope_note_ids": sorted(allowed),
+            "scope_rule_basis": digest(scope_rule),
             "searched_note_count": len(allowed),
             "inspected_note_ids": list(dict.fromkeys(i for r in run["inspections"] for i in r["note_ids"])),
             "unread_inspected_note_ids": list(

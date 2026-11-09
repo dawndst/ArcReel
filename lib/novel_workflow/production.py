@@ -111,7 +111,7 @@ async def prepare(path, episode, binding, inputs, generator, *, dry_run=False):
                             "asset_code": ref["asset_code"],
                         }
                     quotes.append(asset["evidence"]["quote"])
-    context = "\n本集由导演勾选场和镜头并排序形成；只制作已选镜头，不得根据整个 Note 重新分集或加入未选剧情。只依据本集原文和已列出的事件改编，不读取或推测后文。不使用作品外部知识。人物年龄、形态、伤势、关系按当前场景原文保持一致；原文未明确的造型不得自行推断。全局资产设定不得覆盖本集证据。"
+    context = "\n" + (await asyncio.to_thread(store.rule, path, "production")).strip()
     # Original episode text already includes every selected Note; this is only a bounded reminder.
     selected = []
     used = 0

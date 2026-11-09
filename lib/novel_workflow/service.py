@@ -226,13 +226,26 @@ def validate_svt(
     existing: set[str],
     dialogue_events: dict[str, str] | None = None,
     event_owners: dict[str, set[str]] | None = None,
+    event_notes: dict[str, str] | None = None,
+    note_owners: dict[str, str] | None = None,
 ):
-    assigned = set(batch.supporting_event_ids)
+    assigned = set()
+    primary = dict(note_owners or {})
+    primary_titles = {}
     continued = set()
-    if not assigned <= new_ids:
+    if not set(batch.supporting_event_ids) <= new_ids:
         raise ValueError("Unknown supporting event ID")
-    for svt in batch.svts:
+    for index, svt in enumerate(batch.svts):
         ids = set(svt.event_ids)
+        identity = svt.existing_id or f"new-{index}"
+        if event_notes:
+            for event_id in ids:
+                note_id = event_notes.get(event_id)
+                if note_id and note_id in primary and primary[note_id] != identity:
+                    raise ValueError("每个 Note 只能有一个主归属 SVT；其他方向请放 alternatives")
+                if note_id:
+                    primary[note_id] = identity
+                    primary_titles[note_id] = svt.title.strip().casefold()
         if svt.existing_id:
             if svt.existing_id in continued:
                 raise ValueError("An existing SVT must be updated once per batch")
@@ -247,13 +260,73 @@ def validate_svt(
             raise ValueError("Unknown dialogue ID")
         if dialogue_events is not None and any(dialogue_events.get(i) not in ids for i in svt.dialogue_ids):
             raise ValueError("Dialogue must belong to an event in this SVT")
+        for kind in (svt.climaxes, svt.payoffs):
+            keys = [digest([sorted(m.event_ids), sorted(m.dialogue_ids)]) for m in kind]
+            if len(set(keys)) != len(keys):
+                raise ValueError("同一组场面和台词依据不能重复计作多个爆点")
         for moment in svt.climaxes + svt.payoffs:
+            if len(set(moment.note_ids)) != len(moment.note_ids) or len(set(moment.dialogue_ids)) != len(
+                moment.dialogue_ids
+            ):
+                raise ValueError("爆点来源 Note 和台词不能重复")
             if not set(moment.event_ids) <= ids:
                 raise ValueError("Climax/payoff must cite events in its SVT")
+            if not set(moment.dialogue_ids) <= dialogue_ids:
+                raise ValueError("爆点台词必须引用已提供的原文对白")
+            if dialogue_events and any(dialogue_events.get(i) not in moment.event_ids for i in moment.dialogue_ids):
+                raise ValueError("爆点场面与台词必须属于同一组来源事件")
+            if event_notes and set(moment.note_ids) != {event_notes[i] for i in moment.event_ids}:
+                raise ValueError("爆点必须准确标注其来源 Note")
         assigned |= ids
     if not new_ids <= assigned:
         raise ValueError("Some current events were not classified; preserve them as supporting events if appropriate")
+    candidate_notes = set()
+    for alternatives in batch.alternatives:
+        if alternatives.note_id in candidate_notes or (
+            event_notes and alternatives.note_id not in {event_notes[i] for i in new_ids}
+        ):
+            raise ValueError("备选必须属于当前 Note，不能重复列出")
+        candidate_notes.add(alternatives.note_id)
+        seen = set()
+        for candidate in alternatives.candidates:
+            key = candidate.existing_id or candidate.title.strip().casefold()
+            if not candidate.existing_id and key == primary_titles.get(alternatives.note_id):
+                raise ValueError("不能把主归属本身重复列为备选")
+            if key in seen or (
+                candidate.existing_id
+                and (
+                    candidate.existing_id not in existing or candidate.existing_id == primary.get(alternatives.note_id)
+                )
+            ):
+                raise ValueError("SVT 备选不能重复、越界或与主归属相同")
+            seen.add(key)
     return batch.model_dump()
+
+
+def note_events(note, result):
+    values = [{**e, "note_id": note["id"], "note_title": note["title"]} for e in result["events"]]
+    if values:
+        return values
+    records = memory.records(result)
+    if not records:
+        raise ValueError("Note 缺少可追溯资料，请重新精读后分配 SVT")
+    anchor = records[0]["evidence"]
+    return [
+        {
+            "id": digest([note["id"], "context-event", anchor]),
+            "note_id": note["id"],
+            "note_title": note["title"],
+            "title": note["title"] + " · 背景与铺垫",
+            "cause": "未明确",
+            "conflict": "未明确",
+            "action": anchor["quote"],
+            "outcome": "当前章节提供背景或铺垫",
+            "characters": [],
+            "dialogues": [],
+            "open_thread": "",
+            "evidence": anchor,
+        }
+    ]
 
 
 async def generate_svts(path: Path, generator, note_ids: list[str], expected: str) -> dict:
@@ -272,7 +345,7 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
         if not result:
             raise ValueError("Read all selected Notes before generating SVTs")
         bases[note["id"]] = result["basis"]
-        events.extend({**e, "note_id": note["id"], "note_title": note["title"]} for e in result["events"])
+        events.extend(note_events(note, result))
     # Every event is retained; deduplicate only repeated extraction of the same exact source evidence.
     events = list({e["id"]: e for e in events}.values())
     rules = await asyncio.to_thread(store.rule, path, "svt")
@@ -288,25 +361,28 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
         reading = await asyncio.to_thread(store.note_result, path, note)
         if reading:
             context_bases[note["id"]] = reading["basis"]
-            context_events.extend({**e, "note_id": note["id"], "note_title": note["title"]} for e in reading["events"])
+            context_events.extend(note_events(note, reading))
     valid_ids = {e["id"] for e in context_events}
     prior_svts = [
         s
         for s in previous.get("svts", [])
-        if not s.get("stale")
+        if previous.get("schema_version") == 2
+        and not s.get("stale")
         and previous.get("rule_basis") == digest(rules)
         and set(s["event_ids"]) <= valid_ids
         and all(
             previous.get("note_bases", {}).get(i) == context_bases.get(i) and i in context_bases for i in s["note_ids"]
         )
     ]
-    run_key = digest([bases, rules, prior_svts])
+    run_key = digest([bases, rules, prior_svts, 2])
     run_file = store.root(path) / "svt_runs" / f"{run_key}.json"
     run = (
         await asyncio.to_thread(load_json, run_file)
         if await asyncio.to_thread(run_file.exists)
         else {
+            "schema_version": 2,
             "cursor": 0,
+            "note_candidates": {},
             "svts": prior_svts,
             "suggestions": [],
             "supporting_event_ids": [],
@@ -321,11 +397,15 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
         while run["cursor"] < len(events):
             check_stop()
             await asyncio.to_thread(current, path, expected)
-            batch = events[run["cursor"] : run["cursor"] + 8]
+            # A Note is one primary assignment, even when its events require several bounded requests.
+            current_note = events[run["cursor"]]["note_id"]
+            batch = [e for e in events[run["cursor"] : run["cursor"] + 8] if e["note_id"] == current_note]
+            note_owners = {i: svt["id"] for svt in run["svts"] for i in svt["note_ids"]}
             characters = {c for e in batch for c in e["characters"]}
             candidates = sorted(
                 run["svts"],
                 key=lambda s: (
+                    current_note in s["note_ids"],
                     bool(set(s["event_ids"]) & {e["id"] for e in batch}),
                     s["status"] == "open",
                     sum(c in s["summary"] for c in characters),
@@ -343,11 +423,15 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
                 compact = {
                     "id": candidate["id"],
                     "title": candidate["title"],
+                    "note_ids": candidate["note_ids"],
                     "summary": candidate["summary"][:3000],
                     "status": candidate["status"],
                     "event_ids": refs,
                     "history_event_count": len(candidate["event_ids"]),
-                    "dialogues": candidate["dialogues"][-3:],
+                    "dialogues": [
+                        {"id": d["id"], "speaker": d["speaker"], "quote": d["quote"][:1000]}
+                        for d in candidate["dialogues"][-3:]
+                    ],
                 }
                 if len(json.dumps([*supplied, compact], ensure_ascii=False)) <= 14000:
                     supplied.append(compact)
@@ -374,20 +458,42 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
                     existing={s["id"] for s in supplied},
                     dialogue_events={d["id"]: e["id"] for e in context_events for d in e["dialogues"]},
                     event_owners={i: {s["id"] for s in supplied if i in s["event_ids"]} for i in old_ids},
+                    event_notes={e["id"]: e["note_id"] for e in context_events},
+                    note_owners=note_owners,
                 ),
             )
             await asyncio.to_thread(current, path, expected)
+            for alternative in result["alternatives"]:
+                run["note_candidates"][alternative["note_id"]] = [
+                    {**c, "candidate_id": digest([alternative["note_id"], c]), "basis": bases[alternative["note_id"]]}
+                    for c in alternative["candidates"]
+                ]
             for proposed in result["svts"]:
+                for moment in proposed["climaxes"] + proposed["payoffs"]:
+                    moment["dialogues"] = [dialogues[i] for i in moment["dialogue_ids"]]
+                    moment["evidence"] = [by_event[i]["evidence"] for i in moment["event_ids"]]
                 old = next((s for s in run["svts"] if s["id"] == proposed["existing_id"]), None)
                 if old:
                     ids = list(dict.fromkeys(old["event_ids"] + proposed["event_ids"]))
                     proposed["event_ids"] = ids
-                    proposed["climaxes"] = list({digest(v): v for v in old["climaxes"] + proposed["climaxes"]}.values())
-                    proposed["payoffs"] = list({digest(v): v for v in old["payoffs"] + proposed["payoffs"]}.values())
+                    for kind in ("climaxes", "payoffs"):
+                        proposed[kind] = list(
+                            {
+                                digest([sorted(v["event_ids"]), sorted(v["dialogue_ids"])]): v
+                                for v in old[kind] + proposed[kind]
+                            }.values()
+                        )
                     proposed["dialogue_ids"] = list(dict.fromkeys(old["dialogue_ids"] + proposed["dialogue_ids"]))
                 proposed["id"] = proposed.pop("existing_id") or uuid4().hex
                 proposed["note_ids"] = list(dict.fromkeys(by_event[i]["note_id"] for i in proposed["event_ids"]))
+                proposed["dialogue_ids"] = list(
+                    dict.fromkeys(
+                        proposed["dialogue_ids"]
+                        + [i for m in proposed["climaxes"] + proposed["payoffs"] for i in m["dialogue_ids"]]
+                    )
+                )
                 proposed["dialogues"] = [dialogues[i] for i in proposed["dialogue_ids"]]
+                proposed["breakdown_status"] = "complete" if len(proposed["climaxes"]) >= 2 else "needs_details"
                 proposed["evidence"] = [by_event[i]["evidence"] for i in proposed["event_ids"]]
                 run["svts"] = [s for s in run["svts"] if s["id"] != proposed["id"]] + [proposed]
             run["supporting_event_ids"].extend(result["supporting_event_ids"])
@@ -411,16 +517,42 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
         for svt in old.get("svts", []):
             involved = set(svt["note_ids"])
             if svt["id"] not in {v["id"] for v in run["svts"]} and not involved <= wanted:
-                retained.append({**svt, "stale": bool(involved & wanted)})
+                retained.append(
+                    {
+                        **svt,
+                        "stale": bool(involved & wanted)
+                        or old.get("rule_basis") != digest(rules)
+                        or old.get("schema_version") != 2,
+                    }
+                )
         combined = {
             **run,
             "svts": retained + run["svts"],
+            "note_candidates": {**old.get("note_candidates", {}), **run["note_candidates"]},
             "note_bases": {**old.get("note_bases", {}), **context_bases},
             "completed_at": now(),
         }
-        if old:
-            await run_noninterruptible_sync(store.write, store.root(path) / "history" / f"svt-{uuid4().hex}.json", old)
-        await run_noninterruptible_sync(store.write, target, combined)
+        from lib.novel_workflow.svt_contract import assignments
+
+        combined["note_assignments"] = assignments(combined["svts"])
+        if not wanted <= set(combined["note_assignments"]):
+            raise ValueError("每个 Note 都必须有一个主归属 SVT，当前结果不完整")
+
+        def commit():
+            from lib.artifacts.formal_write import project_metadata_lock
+
+            with project_metadata_lock(path):
+                current(path, expected)
+                live_svt = load_json(target) if target.exists() else {}
+                if digest(live_svt) != digest(previous):
+                    raise ValueError("SVT 主归属在生成期间已变化，请刷新后重新运行")
+                if store.rule(path, "svt") != rules:
+                    raise ValueError("SVT 规则已变化，请使用当前规则重新拆分")
+                if live_svt:
+                    store.write(store.root(path) / "history" / f"svt-{uuid4().hex}.json", live_svt)
+                store.write(target, combined)
+
+        await run_noninterruptible_sync(commit)
         progress.update(phase="complete", done=len(events))
         return {"svts": len(run["svts"])}
     except Exception as exc:

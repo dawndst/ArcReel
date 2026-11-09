@@ -52,7 +52,9 @@ class Event(StrictModel):
 
 class Moment(StrictModel):
     event_ids: list[str] = Field(min_length=1)
-    description: str
+    scene: str = Field(min_length=1, description="爆点场面：触发、人物动作、冲突转折及可见结果")
+    note_ids: list[str] = Field(min_length=1)
+    dialogue_ids: list[str] = Field(min_length=1, description="该爆点所含原文台词ID，不能为空")
     reason: str
 
 
@@ -68,9 +70,22 @@ class SVTDraft(StrictModel):
     dialogue_ids: list[str] = Field(default_factory=list)
 
 
+class SVTCandidate(StrictModel):
+    existing_id: str | None = None
+    title: str = Field(min_length=1, max_length=200)
+    summary: str = Field(min_length=1, max_length=1500)
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+class NoteAlternatives(StrictModel):
+    note_id: str
+    candidates: list[SVTCandidate] = Field(default_factory=list, max_length=5)
+
+
 class SVTBatch(StrictModel):
     svts: list[SVTDraft] = Field(default_factory=list)
     supporting_event_ids: list[str] = Field(default_factory=list)
+    alternatives: list[NoteAlternatives] = Field(default_factory=list)
     merge_suggestions: list[str] = Field(default_factory=list)
 
 

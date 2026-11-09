@@ -41,7 +41,7 @@ def initialize(path: Path, project: dict, expected: str) -> dict:
         result = {**preview, "groups": previous.get("groups", []) if previous else [], "initialized_at": now()}
         if previous:
             write(root(path) / "history" / f"{uuid4().hex}.json", previous)
-        for name in ("read", "chapter", "svt", "review", "understand", "group", "scenes"):
+        for name in ("read", "chapter", "svt", "review", "understand", "group", "scenes", "scope", "production"):
             file = root(path) / "rules" / f"{name}.md"
             if not file.exists():
                 file.parent.mkdir(parents=True, exist_ok=True)
@@ -177,10 +177,26 @@ def view(path: Path, project: dict) -> dict:
         svts
         and (
             stale
+            or svts.get("schema_version") != 2
             or svts.get("rule_basis") != digest(rule(path, "svt"))
             or any(valid_results.get(i) != basis for i, basis in svts.get("note_bases", {}).items())
         )
     )
+    from lib.novel_workflow.svt_contract import assignments, valid_svts
+
+    active_svts = valid_svts(path, svts, readings)
+    primary = assignments(active_svts)
+    by_svt = {s["id"]: s for s in active_svts}
+    for note in notes:
+        assigned = by_svt.get(primary.get(note["id"]))
+        note["svt_id"] = assigned["id"] if assigned else None
+        note["svt_title"] = assigned["title"] if assigned else None
+        note["svt_status"] = assigned.get("breakdown_status", "needs_details") if assigned else "unassigned"
+        note["svt_candidates"] = [
+            c
+            for c in (svts or {}).get("note_candidates", {}).get(note["id"], [])
+            if assigned and c.get("basis") == readings.get(note["id"], {}).get("basis")
+        ]
     from lib.novel_workflow import memory, settings, understanding
 
     book = memory.ledger(path, current, readings=readings) if not stale else None

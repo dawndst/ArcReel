@@ -28,3 +28,7 @@ uv run python scripts/gate.py backend frontend     # 或直接点名域；各域
 - Triage 标签状态机：`docs/agents/triage-labels.md`。
 - 领域文档（`GLOSSARY.md` + `docs/adr/`）的使用方式：`docs/agents/domain.md`。
 - 项目 schema 迁移：新增或修改 `lib/project/project_migrations/` 的迁移步、改动产物补录规划器时读 `docs/agents/project-migrations.md`。
+
+## 小说改编业务定义
+
+Note/SVT 的最新约束以 [docs/novel-workflow/note-svt-contract.md](docs/novel-workflow/note-svt-contract.md) 为准：每章一 Note，每 Note 唯一主归属 SVT并可有多个备选；多个 Note 可共用一个 SVT。爆点须成对保存场面和原文台词，并标注来源 Note。不要恢复为一个 Note 多个同时生效的 SVT，或把 Note 管理组合直接视为成片集。

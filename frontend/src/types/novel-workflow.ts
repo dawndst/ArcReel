@@ -4,6 +4,7 @@ export interface NoteChange { id: string; character: string; dimension: string; 
 export interface NoteDialogue { id: string; speaker: string; quote: string; value: string; evidence: NoteEvidence }
 export interface NoteEvent { id: string; title: string; cause: string; conflict: string; action: string; outcome: string; open_thread: string; dialogues: NoteDialogue[]; evidence: NoteEvidence }
 export interface ChapterNote {
+  svt_id?: string | null; svt_title?: string | null; svt_status?: string; svt_candidates?: SVTCandidate[];
   in_scope?: boolean;
   id: string; order: number; title: string; volume: string; chapter: string; chars: number; basis: string; needs_review?: boolean;
   sections: { source_file: string; start: number; end: number; title: string }[];
@@ -13,7 +14,8 @@ export interface ChapterNote {
 export interface NoteGroup { usage?: "reference" | "candidate"; synopsis?: NoteOverview; summary_stale?: boolean; id: string; title: string; note_ids: string[]; source_basis: string; created_by: string }
 export interface NovelSVT {
   id: string; title: string; summary: string; note_ids: string[]; status: "open" | "closed"; mainline_reason: string; stale?: boolean;
-  climaxes: { description: string; reason: string }[]; payoffs: { description: string; reason: string }[];
+  breakdown_status?: string;
+  climaxes: SVTMoment[]; payoffs: SVTMoment[];
   dialogues: NoteDialogue[]; evidence: NoteEvidence[];
 }
 export interface NovelWorkflow {
@@ -59,3 +61,7 @@ export interface LibrarySegment { duration_seconds: number; scene_description: s
 export interface LibraryShot { id: string; title: string; segments: LibrarySegment[]; evidence: NoteEvidence }
 export interface LibraryScene { id: string; title: string; location: string; time: string; purpose: string; shots: LibraryShot[] }
 export interface SceneLibraryBatch { basis: string; note_id: string; stale: boolean; scenes: LibraryScene[]; skipped_reason: string }
+
+export interface SVTCandidate { candidate_id: string; existing_id: string | null; title: string; summary: string; reason: string }
+export interface SVTMoment { scene: string; reason: string; note_ids: string[]; dialogue_ids: string[]; dialogues: NoteDialogue[]; evidence: NoteEvidence[] }
+export interface PromptRule { id: string; title: string; purpose: string; category: string; content: string; source: "project" | "default"; location: string; version: string }

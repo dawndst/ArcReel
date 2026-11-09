@@ -76,3 +76,16 @@ it("saves independent summary and understanding settings without starting a mode
   expect(save).toHaveBeenCalledWith("demo", { summary_max_chars: 2400, understanding_enabled: false });
   expect(run).not.toHaveBeenCalled();
 });
+
+it("shows one primary SVT and several alternatives and replaces only on explicit selection", async () => {
+  const enriched = { ...data, notes: [{ ...data.notes[0]!, svt_id: "primary", svt_title: "主线目标", svt_status: "needs_details", svt_candidates: [1, 2].map((i) => ({ candidate_id: `c${i}`, existing_id: null, title: `备选${i}`, summary: "当前章节的另一种解读", reason: "强调不同目标" })) }] };
+  vi.mocked(API.getNovelWorkflow).mockResolvedValue(enriched);
+  const adopt = vi.spyOn(API, "adoptNoteSVT").mockResolvedValue({ svt_id: "new" });
+  render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  expect(await screen.findByText("主线目标")).toBeInTheDocument();
+  expect(screen.getByText("备选1")).toBeInTheDocument();
+  expect(screen.getByText("备选2")).toBeInTheDocument();
+  expect(adopt).not.toHaveBeenCalled();
+  fireEvent.click(screen.getAllByRole("button", { name: "替换为主归属 SVT" })[1]!);
+  await waitFor(() => expect(adopt).toHaveBeenCalledWith("demo", "note-1", "c2", "source-version"));
+});

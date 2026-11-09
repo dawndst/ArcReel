@@ -1,3 +1,4 @@
+import { RulesPage } from "./novel-workflow/RulesPage";
 import { useCallback } from "react";
 import { errMsg, voidPromise } from "@/utils/async";
 import { Route, Switch, Redirect } from "wouter";
@@ -8,6 +9,7 @@ import {
   WORKSPACE_ROUTE_PRODUCTS,
   WORKSPACE_ROUTE_EPISODES,
   WORKSPACE_ROUTE_FILES,
+  WORKSPACE_ROUTE_RULES,
 } from "@/app-routes";
 import { useTranslation } from "react-i18next";
 import { useProjectsStore } from "@/stores/projects-store";
@@ -496,6 +498,10 @@ export function StudioCanvasRouter() {
           onRefreshProject={refreshAfterAction}
           generatingProductNames={generatingProductNames}
         />
+      </Route>
+
+      <Route path={`/${WORKSPACE_ROUTE_RULES}`}>
+        {demoMode ? <Redirect to="/" /> : <RulesPage key={currentProjectName} projectName={currentProjectName} />}
       </Route>
 
       <Route path={`/${WORKSPACE_ROUTE_FILES}`}>

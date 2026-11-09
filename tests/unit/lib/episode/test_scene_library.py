@@ -6,8 +6,8 @@ import pytest
 
 from lib.novel_workflow import grouping, scene_library, store
 from lib.novel_workflow.scene_models import SceneBatch
-from lib.novel_workflow.service import read_notes
-from tests.unit.lib.episode.test_novel_workflow import Reader, project
+from lib.novel_workflow.service import generate_svts, read_notes
+from tests.unit.lib.episode.test_novel_workflow import Reader, SVTReader, project
 
 
 def scene_output(quote="甲拿起古剑。"):
@@ -46,6 +46,8 @@ async def test_generation_has_no_episode_side_effect_and_cache_preserves_selecti
     store.write(tmp_path / "project.json", data)
     note_id = notebook["notes"][0]["id"]
     await read_notes(tmp_path, Reader(), [note_id], notebook["source_basis"])
+
+    await generate_svts(tmp_path, SVTReader(), [note_id], notebook["source_basis"])
 
     class Generator:
         calls = 0
