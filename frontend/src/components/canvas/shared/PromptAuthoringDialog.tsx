@@ -1,3 +1,4 @@
+import { useConfigStatusStore } from "@/stores/config-status-store";
 import { useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Bot, Loader2, Sparkles } from "lucide-react";
@@ -105,6 +106,7 @@ export function PromptAuthoringDialog({
   savedInstructions,
   onClose,
 }: DialogProps) {
+  const agentReady = useConfigStatusStore((s) => s.initialized && s.isEmbeddedAgentConfigured);
   const { t } = useTranslation("dashboard");
   const scripts = useProjectsStore((s) => s.currentScripts);
   const episodeLedger = useEpisodeLedger();
@@ -317,10 +319,10 @@ export function PromptAuthoringDialog({
               <Sparkles aria-hidden data-icon="inline-start" />
               {rewrite ? t("prompt_authoring_ai_rewrite") : t("prompt_authoring_ai_write")}
             </Button>
-            <Button onClick={() => void handOff()} disabled={submitting || scopeEmpty}>
+            {agentReady && (<Button variant="outline" onClick={() => void handOff()} disabled={submitting || scopeEmpty}>
               <Bot aria-hidden data-icon="inline-start" />
               {t("prompt_authoring_hand_to_agent")}
-            </Button>
+            </Button>)}
           </DialogFooter>
         </DialogContent>
       </Dialog>

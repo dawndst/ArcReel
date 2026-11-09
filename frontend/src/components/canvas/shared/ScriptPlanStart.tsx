@@ -1,3 +1,4 @@
+import { useConfigStatusStore } from "@/stores/config-status-store";
 import { useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Bot, Sparkles } from "lucide-react";
@@ -23,7 +24,7 @@ interface ScriptPlanStartProps {
 }
 
 /**
- * 首次规划脚本的唯一入口：说明、附加指令、「交给 Agent」「AI 规划」，以及不用 AI 的「从空白开始」。
+ * 首次规划脚本的唯一入口：说明、附加指令、「AI 规划」与已配置时的「交给 Agent」，以及不用 AI 的「从空白开始」。
  * 规划在跑时换成状态说明。制作进度点名「脚本规划」时把焦点交给附加指令。
  */
 export function ScriptPlanStart(props: ScriptPlanStartProps) {
@@ -32,6 +33,7 @@ export function ScriptPlanStart(props: ScriptPlanStartProps) {
 }
 
 function ScriptPlanStartForm({ projectName, episode, savedInstructions, prepare }: ScriptPlanStartProps) {
+  const agentReady = useConfigStatusStore((s) => s.initialized && s.isEmbeddedAgentConfigured);
   const { t } = useTranslation("dashboard");
   const titleId = useId();
   const fieldId = useId();
@@ -94,7 +96,7 @@ function ScriptPlanStartForm({ projectName, episode, savedInstructions, prepare 
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button
+            {agentReady && (<Button variant="outline"
               size="sm"
               disabled={disabled}
               aria-describedby={refusedReason ? reasonId : undefined}
@@ -102,9 +104,9 @@ function ScriptPlanStartForm({ projectName, episode, savedInstructions, prepare 
             >
               <Bot aria-hidden data-icon="inline-start" />
               {t("script_plan_hand_to_agent")}
-            </Button>
+            </Button>)}
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
               disabled={disabled}
               aria-describedby={refusedReason ? reasonId : undefined}

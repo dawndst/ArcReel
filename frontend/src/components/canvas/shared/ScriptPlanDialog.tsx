@@ -1,3 +1,4 @@
+import { useConfigStatusStore } from "@/stores/config-status-store";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Bot, Sparkles } from "lucide-react";
@@ -52,6 +53,7 @@ interface DialogProps {
  * 两处共用 {@link useScriptPlanSubmit} 的提交逻辑。提交中忽略关闭请求。
  */
 function ScriptPlanDialog({ request, savedInstructions, onClose }: DialogProps) {
+  const agentReady = useConfigStatusStore((s) => s.initialized && s.isEmbeddedAgentConfigured);
   const { t } = useTranslation(["dashboard", "common"]);
   const fieldId = useId();
   const { projectName, episode, replaces } = request;
@@ -107,14 +109,14 @@ function ScriptPlanDialog({ request, savedInstructions, onClose }: DialogProps) 
           </div>
         </DialogBody>
         <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={() => void run(submit)}>
+          <Button disabled={submitting} onClick={() => void run(submit)}>
             <Sparkles aria-hidden data-icon="inline-start" />
             {regenerate ? t("script_plan_ai_regenerate") : t("script_plan_ai_plan")}
           </Button>
-          <Button disabled={submitting} onClick={() => void run(handOff)}>
+          {agentReady && (<Button variant="outline" disabled={submitting} onClick={() => void run(handOff)}>
             <Bot aria-hidden data-icon="inline-start" />
             {t("script_plan_hand_to_agent")}
-          </Button>
+          </Button>)}
         </DialogFooter>
       </DialogContent>
     </Dialog>

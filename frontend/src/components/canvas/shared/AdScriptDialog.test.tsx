@@ -1,3 +1,4 @@
+import { useConfigStatusStore } from "@/stores/config-status-store";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Router } from "wouter";
@@ -32,6 +33,7 @@ function renderBlankState() {
 }
 
 beforeEach(() => {
+    useConfigStatusStore.setState({ initialized: true, isEmbeddedAgentConfigured: true });
   useTasksStore.getState().setTasks([]);
   useAdScriptStore.getState().close();
   useAssistantStore.getState().setInput("");

@@ -1,3 +1,4 @@
+import { useConfigStatusStore } from "@/stores/config-status-store";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "@/api";
@@ -8,6 +9,7 @@ import { ScriptPlanHost } from "./ScriptPlanDialog";
 
 describe("ScriptPlanHost", () => {
   beforeEach(() => {
+    useConfigStatusStore.setState({ initialized: true, isEmbeddedAgentConfigured: true });
     vi.restoreAllMocks();
     useTasksStore.getState().setTasks([]);
     useAssistantStore.getState().setInput("");

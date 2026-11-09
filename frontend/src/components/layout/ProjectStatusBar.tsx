@@ -1,3 +1,4 @@
+import { useConfigStatusStore } from "@/stores/config-status-store";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "wouter";
@@ -130,6 +131,7 @@ function GuideButtonView({
   projectName: string;
   onNavigate: (to: string) => void;
 }) {
+  const agentReady = useConfigStatusStore((s) => s.initialized && s.isEmbeddedAgentConfigured);
   const { t } = useTranslation();
   const [submitting, setSubmitting] = useState(false);
   const act: StepAct =
@@ -158,6 +160,7 @@ function GuideButtonView({
     else if (button.kind === "agent") prefillAssistant(withInstruction(t, button.prefill, instruction));
     else void planEpisodes();
   };
+  if (button.kind === "agent" && !agentReady) return null;
   return <StepActButton act={act} onRun={onRun} asLink={!primary} busy={submitting} />;
 }
 

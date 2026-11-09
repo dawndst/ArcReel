@@ -1,3 +1,4 @@
+import { useConfigStatusStore } from "@/stores/config-status-store";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -26,6 +27,7 @@ function openDialog(scope: "pending" | "current" | "custom" = "pending") {
 }
 
 beforeEach(() => {
+    useConfigStatusStore.setState({ initialized: true, isEmbeddedAgentConfigured: true });
   useTasksStore.getState().setTasks([]);
   useProjectsStore.setState({ currentScripts: { "episode_1.json": SCRIPT as unknown as EpisodeScript } });
 });

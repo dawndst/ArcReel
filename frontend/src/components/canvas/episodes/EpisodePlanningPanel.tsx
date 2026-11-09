@@ -1,3 +1,4 @@
+import { useConfigStatusStore } from "@/stores/config-status-store";
 import { useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Bot, CheckCircle2, Loader2, Sparkles } from "lucide-react";
@@ -40,6 +41,7 @@ interface Props {
  * 上一次规划失败时给出原因与出路，整本规划完后给出体量统计。
  */
 export function EpisodePlanningPanel({ projectName, view, active, onStarted }: Props) {
+  const agentReady = useConfigStatusStore((s) => s.initialized && s.isEmbeddedAgentConfigured);
   const { t } = useTranslation(["dashboard", "common"]);
   const [instruction, setInstruction] = useState(() => lastInstruction(projectName));
   const [submitting, setSubmitting] = useState(false);
@@ -193,11 +195,11 @@ export function EpisodePlanningPanel({ projectName, view, active, onStarted }: P
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" onClick={handToAgent}>
+        {agentReady && (<Button variant="outline" size="sm" onClick={handToAgent}>
           <Bot aria-hidden data-icon="inline-start" />
           {t("dashboard:guide_hand_to_agent")}
-        </Button>
-        <Button variant="outline" size="sm" disabled={submitting} onClick={() => void start()}>
+        </Button>)}
+        <Button size="sm" disabled={submitting} onClick={() => void start()}>
           {submitting ? (
             <Loader2 aria-hidden data-icon="inline-start" className="animate-spin" />
           ) : (

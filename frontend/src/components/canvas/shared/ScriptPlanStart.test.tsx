@@ -1,3 +1,4 @@
+import { useConfigStatusStore } from "@/stores/config-status-store";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "@/api";
@@ -13,10 +14,18 @@ function renderStart(savedInstructions = "") {
 
 describe("ScriptPlanStart", () => {
   beforeEach(() => {
+    useConfigStatusStore.setState({ initialized: true, isEmbeddedAgentConfigured: true });
     vi.restoreAllMocks();
     useTasksStore.getState().setTasks([]);
     useAssistantStore.getState().setInput("");
     useWorkflowStore.setState({ plan: null, planKey: null });
+  });
+
+  it("hides Agent handoff when unconfigured while keeping direct planning available", () => {
+    useConfigStatusStore.setState({ initialized: true, isEmbeddedAgentConfigured: false });
+    renderStart();
+    expect(screen.queryByRole("button", { name: "交给 Agent" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "AI 规划" })).toBeEnabled();
   });
 
   it("starts AI planning with the saved instructions", async () => {

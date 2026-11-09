@@ -1,3 +1,4 @@
+import { useConfigStatusStore } from "@/stores/config-status-store";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
@@ -62,6 +63,7 @@ interface DialogProps {
  * 整份重做时服务端先拒绝并交回丢失清单，确认后带上清单版本重新提交。附加指令只随本次提交，不保存。
  */
 export function AdScriptDialog({ request, onClose }: DialogProps) {
+  const agentReady = useConfigStatusStore((s) => s.initialized && s.isEmbeddedAgentConfigured);
   const { t } = useTranslation(["dashboard", "workflow"]);
   const episodeLedger = useEpisodeLedger();
   const fieldId = useId();
@@ -141,10 +143,10 @@ export function AdScriptDialog({ request, onClose }: DialogProps) {
               <Sparkles aria-hidden data-icon="inline-start" />
               {actionLabel}
             </Button>
-            <Button onClick={handOff} disabled={submitting}>
+            {agentReady && (<Button variant="outline" onClick={handOff} disabled={submitting}>
               <Bot aria-hidden data-icon="inline-start" />
               {t("script_plan_hand_to_agent")}
-            </Button>
+            </Button>)}
           </DialogFooter>
         </DialogContent>
       </Dialog>
