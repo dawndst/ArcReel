@@ -4,6 +4,7 @@ export interface NoteChange { id: string; character: string; dimension: string; 
 export interface NoteDialogue { id: string; speaker: string; quote: string; value: string; evidence: NoteEvidence }
 export interface NoteEvent { id: string; title: string; cause: string; conflict: string; action: string; outcome: string; open_thread: string; dialogues: NoteDialogue[]; evidence: NoteEvidence }
 export interface ChapterNote {
+  in_scope?: boolean;
   id: string; order: number; title: string; volume: string; chapter: string; chars: number; basis: string; needs_review?: boolean;
   sections: { source_file: string; start: number; end: number; title: string }[];
   status?: "read" | "unread" | "stale" | "outdated";
@@ -16,6 +17,7 @@ export interface NovelSVT {
   dialogues: NoteDialogue[]; evidence: NoteEvidence[];
 }
 export interface NovelWorkflow {
+  scope?: { configured: boolean; note_ids: string[]; available_count: number; read_count: number; total_count: number; mode: "ongoing" };
   settings?: { summary_max_chars: number; understanding_enabled: boolean };
   understanding?: { links: UnderstandingLink[]; reports: UnderstandingReport[] };
   initialized: boolean; source_basis?: string; notes: ChapterNote[]; groups: NoteGroup[]; stale: boolean;

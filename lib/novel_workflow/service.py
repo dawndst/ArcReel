@@ -132,6 +132,9 @@ def prior_context(path: Path, notebook: dict, note: dict, text: str, extra=()) -
 
 
 async def read_notes(path: Path, generator, note_ids: list[str], expected: str) -> dict:
+    from lib.novel_workflow import scope
+
+    await run_noninterruptible_sync(scope.prepare_read, path, note_ids, expected)
     notebook = await asyncio.to_thread(current, path, expected)
     wanted = set(note_ids)
     notes = [n for n in notebook["notes"] if n["id"] in wanted]
@@ -146,6 +149,7 @@ async def read_notes(path: Path, generator, note_ids: list[str], expected: str) 
         for index, note in enumerate(notes):
             check_stop()
             await asyncio.to_thread(current, path, expected)
+            await asyncio.to_thread(scope.require, path, notebook, [note["id"]])
             progress.update(done=index, note_id=note["id"])
             await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
             if await asyncio.to_thread(store.note_result, path, note):
@@ -190,6 +194,7 @@ async def read_notes(path: Path, generator, note_ids: list[str], expected: str) 
                 await run_noninterruptible_sync(
                     store.write, store.root(path) / "history" / f"note-{uuid4().hex}.json", previous
                 )
+            await asyncio.to_thread(scope.require, path, notebook, [note["id"]])
             await run_noninterruptible_sync(store.write, target, result)
             from lib.novel_workflow.assets import synchronize
 

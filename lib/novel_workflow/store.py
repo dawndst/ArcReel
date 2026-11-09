@@ -63,7 +63,12 @@ def valid_readings(path: Path, notebook=None, *, before=None) -> dict:
     from lib.novel_workflow.settings import chapter_rule as configured_chapter_rule
 
     read_rule, chapter_rule = rule(path, "read"), configured_chapter_rule(path)
+    from lib.novel_workflow import scope
+
+    allowed = scope.available_ids(path, notebook) if notebook else set()
     for note in notebook["notes"] if notebook else []:
+        if note["id"] not in allowed:
+            continue
         if before is not None and note["order"] >= before:
             break
         key = digest([note["basis"], read_rule, chapter_rule, 2])
@@ -144,8 +149,10 @@ def view(path: Path, project: dict) -> dict:
         }
     preview = chapters.index(path, project)
     stale = preview["source_basis"] != current["source_basis"]
+    from lib.novel_workflow import scope
     from lib.novel_workflow.assets import annotate
 
+    allowed = scope.available_ids(path, current)
     notes = []
     readings = valid_readings(path, current) if not stale else {}
     for note in current["notes"]:
@@ -155,6 +162,7 @@ def view(path: Path, project: dict) -> dict:
             {
                 **note,
                 "reading": annotate(project, result),
+                "in_scope": note["id"] in allowed,
                 "status": "stale" if stale else "read" if result else "outdated" if older else "unread",
             }
         )
@@ -185,6 +193,7 @@ def view(path: Path, project: dict) -> dict:
     return {
         **current,
         "settings": settings.get(path),
+        "scope": scope.view(path, current, readings),
         "understanding": understanding.view(path, current) if not stale else {"links": [], "reports": []},
         "ledger": book,
         "reviews": sorted(reviews, key=lambda r: r["created_at"], reverse=True),

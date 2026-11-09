@@ -129,3 +129,14 @@ async def update_settings(name: str, req: UnderstandingSettings):
     from lib.novel_workflow.settings import update
 
     return await invoke(name, lambda path, _project: update(path, req.model_dump()))
+
+
+class ScopeRequest(SourceRequest):
+    note_ids: list[str] = Field(min_length=1, max_length=10000)
+
+
+@router.put("/projects/{name}/novel-workflow/scope", dependencies=[Depends(require_project_migration_ok)])
+async def set_scope(name: str, req: ScopeRequest):
+    from lib.novel_workflow import scope
+
+    return await invoke(name, lambda path, project: scope.configure(path, project, req.note_ids, req.source_basis))

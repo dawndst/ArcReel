@@ -159,6 +159,11 @@ async def test_read_action_automatically_finishes_understanding_for_cached_notes
     from lib.novel_workflow.service import read_notes
 
     _project, notebook = await asyncio.to_thread(setup, tmp_path)
+    from lib.novel_workflow import scope
+
+    await asyncio.to_thread(
+        scope.configure, tmp_path, _project, [n["id"] for n in notebook["notes"]], notebook["source_basis"]
+    )
     first = notebook["notes"][0]
     reader = CrossReader()
     await read_notes(tmp_path, reader, [first["id"]], notebook["source_basis"])

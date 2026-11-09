@@ -28,6 +28,9 @@ def arrange_episode(manager, name: str, group_id: str) -> int:
             (e for e in project.get("episodes", []) if e.get("note_source", {}).get("group_id") == group_id), None
         )
         notes = [n for n in notebook["notes"] if n["id"] in group["note_ids"]]
+        from lib.novel_workflow import scope
+
+        scope.require(path, notebook, group["note_ids"])
         readings = [store.note_result(path, n) for n in notes]
         if any(r is None for r in readings):
             raise ValueError("Read every Note in this group before arranging an episode")
@@ -67,6 +70,9 @@ def validate_binding(path: Path, episode: int, binding: dict) -> tuple[dict, lis
     if digest(source.read_text(encoding="utf-8")) != binding["text_basis"]:
         raise ValueError("Episode source was edited; recheck its Note arrangement")
     notebook = store.require_current(path, project, binding["source_basis"])
+    from lib.novel_workflow import scope
+
+    scope.require(path, notebook, list(binding["note_bases"]))
     notes = {n["id"]: n for n in notebook["notes"]}
     readings = []
     for note_id, basis in binding["note_bases"].items():

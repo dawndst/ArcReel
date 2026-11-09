@@ -81,3 +81,22 @@ async def test_enabled_understanding_is_required_and_bound_to_production(tmp_pat
     await asyncio.to_thread((store.root(path) / "rules/understand.md").write_text, "New understanding rule")
     with pytest.raises(ValueError, match="尚未完成"):
         await asyncio.to_thread(validate_binding, path, episode, binding)
+
+
+async def test_single_available_chapter_can_enter_production(tmp_path):
+    from lib.novel_workflow import scope
+
+    pm, path, _group = await asyncio.to_thread(setup, tmp_path)
+
+    def arrange_one():
+        notebook = store.state(path)
+        project = pm.load_project("demo")
+        first = notebook["notes"][0]["id"]
+        scope.configure(path, project, [first], notebook["source_basis"])
+        group = store.group_notes(path, project, [first], "单章成片", notebook["source_basis"])
+        episode = arrange_episode(pm, "demo", group["id"])
+        binding = pm.load_project("demo")["episodes"][0]["note_source"]
+        assert set(binding["note_bases"]) == {first}
+        validate_binding(path, episode, binding)
+
+    await asyncio.to_thread(arrange_one)

@@ -70,12 +70,18 @@ def view(path: Path, notebook=None):
     if not notebook:
         return {"links": [], "reports": []}
     readings = store.valid_readings(path, notebook)
+    from lib.novel_workflow import scope
+
+    allowed = scope.available_ids(path, notebook)
     rule_basis = digest(store.rule(path, "understand"))
     reports, links = [], {}
     for file in (store.root(path) / "understanding" / "reports").glob("*.json"):
         report = load_json(file)
         stale = (
             report["source_basis"] != notebook["source_basis"]
+            or not set(report.get("selected_note_ids", [])) <= allowed
+            or not set(report.get("inspected_note_ids", [])) <= allowed
+            or any(not set(link["note_ids"]) <= allowed for link in report.get("links", []))
             or report["rule_basis"] != rule_basis
             or any(readings.get(i, {}).get("basis") != b for i, b in report["note_bases"].items())
         )
@@ -127,9 +133,14 @@ async def understand_notes(path, generator, note_ids, expected):
     readings = await asyncio.to_thread(store.valid_readings, path, notebook)
     if any(n["id"] not in readings for n in notes):
         raise ValueError("Read selected Notes before cross-chapter understanding")
+    from lib.novel_workflow import scope
+
+    await asyncio.to_thread(scope.require, path, notebook, note_ids)
+    scope_basis = await asyncio.to_thread(scope.basis, path, notebook)
+    allowed = await asyncio.to_thread(scope.available_ids, path, notebook)
     bases = {n["id"]: readings[n["id"]]["basis"] for n in notes}
     rules = await asyncio.to_thread(store.rule, path, "understand")
-    key = digest([expected, bases, rules, 1])
+    key = digest([expected, bases, rules, scope_basis, 2])
     target = store.root(path) / "understanding" / "reports" / f"{key}.json"
     if await asyncio.to_thread(target.exists):
         return {"report_id": key, "cached": True}
@@ -142,6 +153,7 @@ async def understand_notes(path, generator, note_ids, expected):
             {"note_id": note["id"], "title": note["title"], "questions": reading["questions"], "records": batch}
             for batch in synthesis.packs(memory.records(reading), 7000)
         )
+    scope_hint = "\n按未完结小说处理：仅以当前可用章节为事实范围。未解线索可以保留待续，不得假设已有结局，不因范围外章节未读要求停止制作。"
     checkpoint = store.root(path) / "understanding" / "runs" / f"{key}.json"
     run = (
         await asyncio.to_thread(load_json, checkpoint)
@@ -153,6 +165,8 @@ async def understand_notes(path, generator, note_ids, expected):
         while run["cursor"] < len(units):
             check_stop()
             await asyncio.to_thread(current, path, expected)
+            if await asyncio.to_thread(scope.basis, path, notebook) != scope_basis:
+                raise ValueError("可用章节范围已变化，请重新进行跨章理解")
             unit = units[run["cursor"]]
             unit_key = digest([key, run["cursor"]])
             inquiry_file = store.root(path) / "understanding" / "inquiries" / f"{unit_key}.json"
@@ -161,7 +175,10 @@ async def understand_notes(path, generator, note_ids, expected):
             else:
                 inquiry = (
                     await ask(
-                        path, generator, Inquiry, rules + "\n查询规划材料：" + json.dumps(unit, ensure_ascii=False)
+                        path,
+                        generator,
+                        Inquiry,
+                        rules + scope_hint + "\n查询规划材料：" + json.dumps(unit, ensure_ascii=False),
                     )
                 ).model_dump()
                 await run_noninterruptible_sync(store.write, inquiry_file, inquiry)
@@ -175,6 +192,8 @@ async def understand_notes(path, generator, note_ids, expected):
                 previous_matches = []
                 for round_number in range(3):
                     check_stop()
+                    if await asyncio.to_thread(scope.basis, path, notebook) != scope_basis:
+                        raise ValueError("可用章节范围已变化，请重新进行跨章理解")
                     matches = await asyncio.to_thread(retrieval.search, corpus, queries, exclude=seen, limit=6)
                     supplied = anchor_batch + previous_matches[-2:] + matches
                     previous_matches = matches
@@ -192,6 +211,7 @@ async def understand_notes(path, generator, note_ids, expected):
                             generator,
                             Findings,
                             rules
+                            + scope_hint
                             + "\n回读问题："
                             + json.dumps(inquiry["questions"], ensure_ascii=False)
                             + "\n原文片段："
@@ -226,7 +246,8 @@ async def understand_notes(path, generator, note_ids, expected):
         await asyncio.to_thread(current, path, expected)
         latest = await asyncio.to_thread(store.valid_readings, path, notebook)
         if (
-            any(latest.get(i, {}).get("basis") != b for i, b in bases.items())
+            await asyncio.to_thread(scope.basis, path, notebook) != scope_basis
+            or any(latest.get(i, {}).get("basis") != b for i, b in bases.items())
             or await asyncio.to_thread(store.rule, path, "understand") != rules
         ):
             raise ValueError("Understanding sources or rules changed; completed reread caches retained")
@@ -239,7 +260,8 @@ async def understand_notes(path, generator, note_ids, expected):
             "links": list({v["id"]: v for v in run["links"]}.values()),
             "created_at": now(),
             "selected_note_ids": [n["id"] for n in notes],
-            "searched_note_count": len(notebook["notes"]),
+            "scope_note_ids": sorted(allowed),
+            "searched_note_count": len(allowed),
             "inspected_note_ids": list(dict.fromkeys(i for r in run["inspections"] for i in r["note_ids"])),
             "unread_inspected_note_ids": list(
                 dict.fromkeys(i for r in run["inspections"] for i in r["note_ids"] if i not in readings)

@@ -1,4 +1,4 @@
-"""Local source retrieval over every original chapter, including unread Notes."""
+"""Local retrieval within the currently available chapters, including unread Notes in that range."""
 
 from __future__ import annotations
 
@@ -23,12 +23,18 @@ def tokens(text):
 
 
 def index(path, project, notebook):
-    target = store.root(path) / "source_index" / f"{notebook['source_basis']}-v1.json"
+    from lib.novel_workflow import scope
+
+    allowed = scope.available_ids(path, notebook)
+    key = digest([notebook["source_basis"], sorted(allowed)])
+    target = store.root(path) / "source_index" / f"{key}-v2.json"
     if target.exists():
         return load_json(target)
     sources = {d.rel_path: d.text for d in discover_sources(path, project)}
     fragments = []
     for note in notebook["notes"]:
+        if note["id"] not in allowed:
+            continue
         for section in note["sections"]:
             start = section["start"]
             while start < section["end"]:
