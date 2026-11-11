@@ -13,6 +13,7 @@ from lib.script.script_review import formal_script_plan_lock, write_formal_scrip
 
 def content_from_selection(selected, episode, title):
     from lib.novel_workflow.scene_library import require_attributed
+    from lib.novel_workflow.shot_production import design_text, native_segment
 
     for _batch, _scene, shot in selected:
         require_attributed(shot)
@@ -25,6 +26,7 @@ def content_from_selection(selected, episode, title):
             last_scene = scene["id"]
         shot_number += 1
         for index, segment in enumerate(shot["segments"], 1):
+            segment = native_segment(segment, shot.get("production"), index - 1)
             row_id = f"E{episode}S{len(rows) + 1:03}"
             rows.append(
                 {
@@ -35,6 +37,7 @@ def content_from_selection(selected, episode, title):
                     "segment_number": index if len(shot["segments"]) > 1 else None,
                     "segment_break": shot_number == 1 and index == 1,
                     "source_text": shot["evidence"]["quote"],
+                    "scene_description": segment["scene_description"] + design_text(shot.get("production")),
                 }
             )
             mapping.append(
@@ -43,6 +46,7 @@ def content_from_selection(selected, episode, title):
                     "library_scene_id": scene["id"],
                     "library_shot_id": shot["id"],
                     "evidence": shot["evidence"],
+                    "production": shot.get("production"),
                 }
             )
     return DramaNormalizedScript.model_validate({"title": title, "scenes": rows}).model_dump(), mapping
@@ -63,6 +67,11 @@ def assemble(manager, name, shot_ids, title, expected, request_id):
         selected = scene_library.selected_shots(path, notebook, readings, shot_ids)
         for _batch, _scene, shot in selected:
             scene_library.require_attributed(shot)
+            from lib.novel_workflow.shot_production import require_ready
+
+            if _batch.get("production_stale"):
+                raise ValueError("爆点或镜头设计规则已变化，请先完善制作信息")
+            require_ready(shot, project)
             from lib.novel_workflow.scene_review import require_reviewed
 
             require_reviewed(_batch, shot)

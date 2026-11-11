@@ -67,14 +67,32 @@ def valid_batch(path, batch, notebook, readings):
 
 
 def view(path, notebook, readings):
+    from lib.novel_workflow.shot_production import context, issues, planning_inputs
+
     batches = list(catalog(path)["batches"].values())
+    project = load_json(path / "project.json")
+    chunk_cache = {}
     for batch in batches:
         batch["stale"] = not valid_batch(path, batch, notebook, readings)
+        batch["production_stale"] = False
+        if not batch["stale"] and batch.get("production_context") and batch["note_id"] in readings:
+            note_id = batch["note_id"]
+            if note_id not in chunk_cache:
+                note = next(n for n in notebook["notes"] if n["id"] == note_id)
+                chunk_cache[note_id] = chapters.chunks(path, project, note)
+            chunk = chunk_cache[note_id][batch["part"]]
+            ctx = context(path, readings[note_id], chunk)
+            rules = store.rule(path, "shot_production")
+            shots = {sh["id"]: sh for sc in batch["scenes"] for sh in sc["shots"]}
+            batch["production_stale"] = (
+                batch.get("production_basis") != planning_inputs(ctx, rules, shots, project, readings[note_id])[2]
+            )
         if "review" in batch:
             batch["review_revision"] = digest(batch["review"])
         for scene in batch["scenes"]:
             for shot in scene["shots"]:
                 shot["revision"] = digest(shot)
+                shot["issues"] = issues(shot)
     return sorted(batches, key=lambda b: (b["note_order"], b["part"]))
 
 
@@ -241,7 +259,15 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                 slot = f"{note['id']}:{part}"
                 existing = (await asyncio.to_thread(catalog, path))["batches"].get(slot)
                 if existing and existing["basis"] == key:
+                    from lib.novel_workflow.shot_production import complete_batch
+
+                    await complete_batch(path, generator, existing, reading, project, chunk)
                     completed += 1
+                    await run_noninterruptible_sync(
+                        store.write,
+                        store.root(path) / "progress.json",
+                        {"phase": "scenes", "done": completed, "total": total, "note_id": note["id"]},
+                    )
                     continue
                 # Keep each request bounded: only assets grounded in this fragment and already-revealed context.
                 local_assets = [
@@ -257,6 +283,9 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                     kind: {a["name"] for a in local_assets if a["kind"] == kind}
                     for kind in ("character", "scene", "prop")
                 }
+                from lib.novel_workflow.shot_production import context
+
+                story_context = await asyncio.to_thread(context, path, reading, chunk)
                 payload = {
                     "note_title": note["title"],
                     "original": chunk["text"],
@@ -275,7 +304,7 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                         for tag in tags
                     ],
                     "events": [e for e in reading["events"] if in_chunk(e["evidence"], chunk)],
-                    "highlights": [e for e in reading.get("highlights", []) if in_chunk(e["evidence"], chunk)],
+                    "moments": story_context["moments"],
                 }
                 draft_file = store.root(path) / "scene_drafts" / f"{key}.json"
                 if await asyncio.to_thread(draft_file.exists):
@@ -352,6 +381,10 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                         store.write(store.root(path) / "scene_library.json", library)
 
                 await run_noninterruptible_sync(commit)
+                from lib.novel_workflow.shot_production import complete_batch
+
+                saved = (await asyncio.to_thread(catalog, path))["batches"][slot]
+                await complete_batch(path, generator, saved, reading, project, chunk)
                 completed += 1
                 await run_noninterruptible_sync(
                     store.write,

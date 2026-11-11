@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from lib.infra.async_thread import run_sync_transaction
 from lib.novel_workflow import chapters, store
+from lib.novel_workflow.shot_production import ShotDecisions
 from lib.project.project_manager import get_project_manager
 from server.agent_toolset.envelope import json_value
 from server.auth import CurrentUser
@@ -255,4 +256,20 @@ async def confirm_scene_questions(name: str, req: ConfirmSceneQuestions):
         lambda path, project: confirm_questions(
             path, project, req.batch_basis, req.source_basis, req.review_basis, req.reason
         ),
+    )
+
+
+class ShotProductionRequest(SourceRequest):
+    shot_basis: str
+    decisions: ShotDecisions
+
+
+@router.patch(
+    "/projects/{name}/novel-workflow/shots/{shot_id}/production", dependencies=[Depends(require_project_migration_ok)]
+)
+async def update_shot_production(name: str, shot_id: str, req: ShotProductionRequest):
+    from lib.novel_workflow.shot_production import update
+
+    return await invoke(
+        name, lambda path, project: update(path, project, shot_id, req.source_basis, req.shot_basis, req.decisions)
     )

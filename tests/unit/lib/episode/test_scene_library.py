@@ -55,6 +55,27 @@ async def test_generation_has_no_episode_side_effect_and_cache_preserves_selecti
         max_output_tokens = 48000
 
         async def generate(self, request, **kwargs):
+            if "# 镜头制作设计与来源关联" in request.prompt:
+                payload = json.JSONDecoder().raw_decode(request.prompt[request.prompt.index('{"original":') :])[0]
+                design = dict.fromkeys(
+                    ["purpose", "shot_size", "camera_angle", "camera_movement", "framing", "continuity", "sound"],
+                    "固定机位，原文动作连续",
+                )
+                return SimpleNamespace(
+                    text=json.dumps(
+                        {
+                            "shots": [
+                                {
+                                    "shot_id": key,
+                                    "event_ids": [payload["context"]["events"][0]["id"]],
+                                    "moment_ids": [],
+                                    "design": design,
+                                }
+                                for key in payload["shots"]
+                            ]
+                        }
+                    )
+                )
             if "逐项审核场镜" in request.prompt:
                 return SimpleNamespace(text=json.dumps({"revisions": [], "unresolved": []}))
             self.calls += 1
@@ -74,6 +95,21 @@ async def test_generation_has_no_episode_side_effect_and_cache_preserves_selecti
     assert json.loads((tmp_path / "project.json").read_text())["episodes"] == []
     shot = next(iter(original["batches"].values()))["scenes"][0]["shots"][0]
     assert shot["evidence"]["note_id"] == note_id
+    from lib.novel_understanding.store import digest
+    from lib.novel_workflow.shot_production import ShotDecisions, update
+
+    decisions = ShotDecisions.model_validate(
+        {key: shot["production"][key] for key in ("shot_id", "event_ids", "moment_ids", "design")}
+    )
+    decisions.design.purpose = "核对后保留主角行动"
+    project_data = json.loads((tmp_path / "project.json").read_text())
+    await asyncio.to_thread(
+        update, tmp_path, project_data, shot["id"], notebook["source_basis"], digest(shot), decisions
+    )
+    with pytest.raises(ValueError, match="已变化"):
+        await asyncio.to_thread(
+            update, tmp_path, project_data, shot["id"], notebook["source_basis"], digest(shot), decisions
+        )
     assert (tmp_path / shot["evidence"]["source_file"]).read_text()[
         shot["evidence"]["start"] : shot["evidence"]["end"]
     ] == shot["quote"]

@@ -28,7 +28,7 @@ export interface NovelWorkflow {
   initialized: boolean; source_basis?: string; notes: ChapterNote[]; groups: NoteGroup[]; stale: boolean;
   ledger?: NovelLedger | null; reviews?: NovelScopeReview[];
   svts: NovelSVT[]; svt_stale?: boolean; suggestions?: string[];
-  progress: { phase: string; total: number; done: number; note_id?: string; part?: number; parts?: number; error?: string } | null;
+  progress: { step?: string; phase: string; total: number; done: number; note_id?: string; part?: number; parts?: number; error?: string } | null;
 }
 export interface ChapterPreview { source_basis: string; notes: ChapterNote[]; excluded: { title: string; start: number; end: number }[] }
 export interface NoteFact extends ClaimStatus { id: string; evidence: NoteEvidence }
@@ -59,11 +59,18 @@ export interface UnderstandingReport {
 }
 
 export interface LibrarySegment { duration_seconds: number; scene_description: string; characters_in_scene: string[]; scenes: string[]; props: string[]; utterances: { kind: string; speaker: string | null; text: string }[] }
-export interface LibraryShot { revision?: string; id: string; title: string; segments: LibrarySegment[]; evidence: NoteEvidence }
+export interface LibraryShot { production?: ShotProduction; issues?: { code: string; blocking: boolean; segment?: number }[]; revision?: string; id: string; title: string; segments: LibrarySegment[]; evidence: NoteEvidence }
 export interface LibraryScene { id: string; title: string; location: string; time: string; purpose: string; shots: LibraryShot[] }
 export interface SceneRevision { id: string; scene_index: number; shot_index: number; segment_index: number | null; field: string; before: string; after: string; reason: string; source_quote: string; applied: boolean }
-export interface SceneLibraryBatch { note_order?: number; part?: number; review_revision?: string; review?: { revisions: SceneRevision[]; unresolved: string[] }; basis: string; note_id: string; stale: boolean; scenes: LibraryScene[]; skipped_reason: string }
+export interface SceneLibraryBatch { production_stale?: boolean; production_context?: ShotProductionContext; note_order?: number; part?: number; review_revision?: string; review?: { revisions: SceneRevision[]; unresolved: string[] }; basis: string; note_id: string; stale: boolean; scenes: LibraryScene[]; skipped_reason: string }
 
 export interface SVTCandidate { candidate_id: string; existing_id: string | null; title: string; summary: string; reason: string }
 export interface SVTMoment { scene: string; reason: string; note_ids: string[]; dialogue_ids: string[]; dialogues: NoteDialogue[]; evidence: NoteEvidence[] }
 export interface PromptRule { id: string; title: string; purpose: string; category: string; content: string; source: "project" | "default"; location: string; version: string }
+
+export interface ShotDesign { purpose: string; shot_size: string; camera_angle: string; camera_movement: string; framing: string; continuity: string; sound: string }
+export interface ShotDecisions { shot_id: string; event_ids: string[]; moment_ids: string[]; design: ShotDesign }
+export interface ShotAssetBinding { kind: "character" | "scene" | "prop"; name: string; asset_id: string | null; asset_code: string | null; variant?: string | null; segments: number[]; missing: boolean }
+export interface ShotProduction extends ShotDecisions { svt_id: string; assets: ShotAssetBinding[]; dialogue_sources: { segment: number; utterance: number; dialogue_id: string | null }[] }
+export interface ShotMoment { id: string; kind: "climaxes" | "payoffs"; svt_id: string; note_ids: string[]; event_ids: string[]; dialogues: NoteDialogue[]; partial: boolean; scene: string; reason: string }
+export interface ShotProductionContext { svt_id: string | null; events: NoteEvent[]; moments: ShotMoment[] }
