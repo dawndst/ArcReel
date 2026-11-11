@@ -137,3 +137,44 @@ def test_reading_keeps_subjective_claims_and_does_not_default_to_facts():
 
     old = Event(title="旧资料", cause="", conflict="", action="", outcome="", quote="旧引文")
     assert old.claim_type == "unverified"
+
+
+async def test_output_growth_is_available_after_two_validation_repairs(tmp_path):
+    from types import SimpleNamespace
+
+    from lib.backends.text_backends.base import TextOutputTruncatedError
+    from lib.novel_workflow.service import ask
+    from lib.novel_workflow.understanding_models import Findings
+
+    class Generator:
+        max_output_tokens = 48000
+
+        def __init__(self):
+            self.calls = []
+
+        async def generate(self, request, **kwargs):
+            self.calls.append(request.max_output_tokens)
+            if len(self.calls) <= 2:
+                return SimpleNamespace(text='{"unknown": true}')
+            if request.max_output_tokens < 48000:
+                raise TextOutputTruncatedError(provider="test", model="test", output_tokens=request.max_output_tokens)
+            return SimpleNamespace(text='{"links": [], "unresolved": ["保留疑点"]}')
+
+    generator = Generator()
+    result = await ask(tmp_path, generator, Findings, "原文", max_output_tokens=24000, grow_output=True)
+    assert result.unresolved == ["保留疑点"]
+    assert generator.calls == [24000, 24000, 24000, 48000]
+
+
+def test_scene_excerpt_expansion_restores_omitted_source_and_rejects_ambiguity():
+    from lib.novel_workflow.evidence import expand_scene_excerpt
+
+    source = "甲开门。中间有重要否定：并不是景麒。乙离开。"
+    start, end = expand_scene_excerpt(source, "甲开门。……乙离开。")
+    assert source[start:end] == source
+    with pytest.raises(ValueError, match="唯一"):
+        expand_scene_excerpt(source, "甲踢门。……乙离开。")
+    with pytest.raises(ValueError, match="唯一"):
+        expand_scene_excerpt(source + "乙离开。", "甲开门。……乙离开。")
+    with pytest.raises(ValueError, match="唯一"):
+        locate(source, "甲开门。……乙离开。")

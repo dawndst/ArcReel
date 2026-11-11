@@ -83,7 +83,8 @@ async def ask(
         )
     error = ""
     output_limit = max_output_tokens
-    for attempt in range(3):
+    validation_failures = 0
+    while validation_failures < 3:
         check_stop()
         try:
             response = await generator.generate(
@@ -93,7 +94,7 @@ async def ask(
             )
         except TextOutputTruncatedError:
             larger = min(output_limit * 2, generator.max_output_tokens, 48000) if grow_output else output_limit
-            if larger <= output_limit or attempt == 2:
+            if larger <= output_limit:
                 raise
             output_limit = larger
             continue
@@ -105,6 +106,7 @@ async def ask(
         try:
             return validate(schema.model_validate_json(strip_json_code_fences(response.text)))
         except (ValidationError, ValueError) as exc:
+            validation_failures += 1
             error = "\n修正上次输出中的问题，不删掉原始事实：" + str(exc)[:2200]
     raise ValueError("模型输出未通过原文或结构校验，已保留响应及完成片段，可修正后重试。" + error)
 

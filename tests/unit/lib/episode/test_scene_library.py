@@ -177,3 +177,29 @@ def test_director_keeps_selected_order_scene_boundaries_and_segment_numbers():
     ]
     assert [m["library_shot_id"] for m in mapping] == ["SH-8", "SH-8", "SH-2"]
     assert [s["scene_id"] for s in content["scenes"]] == ["E3S001", "E3S002", "E3S003"]
+
+
+def test_short_logical_shot_merges_segments_without_losing_actions_or_dialogue():
+    from copy import deepcopy
+
+    raw = scene_output()
+    segments = raw["scenes"][0]["shots"][0]["segments"]
+    segments[0].update(duration_seconds=4, utterances=[{"kind": "dialogue", "speaker": "甲", "text": "走吧。"}])
+    segments.append(
+        {
+            **deepcopy(segments[0]),
+            "scene_description": "甲转身",
+            "utterances": [{"kind": "dialogue", "speaker": "甲", "text": "快点。"}],
+        }
+    )
+    result = scene_library.ground(
+        SceneBatch.model_validate(raw),
+        {"text": "甲拿起古剑。走吧。快点。"},
+        {"character": {"甲"}, "scene": set(), "prop": set()},
+        [4, 8],
+    )
+    merged = result["scenes"][0]["shots"][0]["segments"]
+    assert len(merged) == 1
+    assert merged[0]["duration_seconds"] == 8
+    assert merged[0]["scene_description"] == "甲拿起古剑\n甲转身"
+    assert [u["text"] for u in merged[0]["utterances"]] == ["走吧。", "快点。"]

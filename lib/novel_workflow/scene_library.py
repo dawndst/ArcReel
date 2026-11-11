@@ -12,8 +12,8 @@ from lib.infra.json_io import load_json
 from lib.novel_understanding.service import check_stop
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import chapters, store, understanding
-from lib.novel_workflow.evidence import locate
-from lib.novel_workflow.scene_models import SceneBatch
+from lib.novel_workflow.evidence import expand_scene_excerpt, locate
+from lib.novel_workflow.scene_models import SceneBatch, Segment
 
 
 def catalog(path):
@@ -117,18 +117,42 @@ def ground(value, chunk, assets, durations):
         for shot in scene.shots:
             try:
                 start, end = locate(chunk["text"], shot.quote)
-            except ValueError as exc:
-                raise ValueError("镜头依据必须是当前原文中的逐字摘录（允许排版空白差异）") from exc
+            except ValueError:
+                try:
+                    start, end = expand_scene_excerpt(chunk["text"], shot.quote)
+                except ValueError as exc:
+                    raise ValueError(
+                        f"镜头《{shot.title}》依据必须是当前原文中的逐字摘录（允许排版空白差异）：{shot.quote[:600]}"
+                    ) from exc
             shot.quote = chunk["text"][start:end]
             uttered = []
-            if len(shot.segments) > 1 and sum(seg.duration_seconds for seg in shot.segments) <= 15:
-                raise ValueError("不超过15秒的镜头应使用单个片段")
+            total_seconds = sum(seg.duration_seconds for seg in shot.segments)
+            if len(shot.segments) > 1 and total_seconds <= 15:
+                if total_seconds not in durations:
+                    raise ValueError("不超过15秒的镜头应使用单个片段；合计时长必须是模型支持档位")
+                # This is one logical shot. Keep every action and utterance in order, without a model rewrite.
+                shot.segments = [
+                    Segment(
+                        duration_seconds=total_seconds,
+                        scene_description="\n".join(seg.scene_description for seg in shot.segments),
+                        characters_in_scene=list(
+                            dict.fromkeys(name for seg in shot.segments for name in seg.characters_in_scene)
+                        ),
+                        scenes=list(dict.fromkeys(name for seg in shot.segments for name in seg.scenes)),
+                        props=list(dict.fromkeys(name for seg in shot.segments for name in seg.props)),
+                        utterances=[u for seg in shot.segments for u in seg.utterances],
+                    )
+                ]
             for segment in shot.segments:
                 if segment.duration_seconds not in durations:
                     raise ValueError("片段时长不在当前模型支持档位内")
                 for field, kind in [("characters_in_scene", "character"), ("scenes", "scene"), ("props", "prop")]:
-                    if not set(getattr(segment, field)) <= assets[kind]:
-                        raise ValueError("镜头引用了当前阅读资料以外的资产")
+                    unknown = set(getattr(segment, field)) - assets[kind]
+                    if unknown:
+                        raise ValueError(
+                            f"镜头《{shot.title}》的 {field} 引用了未登记资产：{sorted(unknown)}。"
+                            f"当前可引用：{sorted(assets[kind])}。普通背景物可保留在画面描述中，不要伪造资产引用。"
+                        )
                 for utterance in segment.utterances:
                     if utterance.text not in chunk["text"]:
                         try:
