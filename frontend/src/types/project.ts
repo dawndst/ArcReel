@@ -24,7 +24,10 @@ export interface ProjectOverview {
  * 角色的一个衍生：本体之外的另一套持续外观（换装、变身、易容等）。与本体共享名字、声音
  * 与身份，只持有相对本体的变化描述与资产图，没有原图。资产图由本体资产图编辑生成，也可以上传成品替换。
  */
+export interface AssetFirstNote { id: string; order: number; title: string }
+
 export interface CharacterDerivative {
+  first_note?: AssetFirstNote;
   asset_code?: string;
   asset_id?: string;
   entity_id?: string;
@@ -45,6 +48,7 @@ export interface CharacterDerivativeStatus extends CharacterDerivative {
 }
 
 export interface Character {
+  first_note?: AssetFirstNote;
   asset_code?: string;
   asset_id?: string;
   entity_id?: string;
@@ -65,6 +69,7 @@ export interface Character {
 }
 
 export interface Scene {
+  first_note?: AssetFirstNote;
   asset_code?: string;
   asset_id?: string;
   entity_id?: string;
@@ -75,6 +80,7 @@ export interface Scene {
 }
 
 export interface Prop {
+  first_note?: AssetFirstNote;
   asset_code?: string;
   asset_id?: string;
   entity_id?: string;
@@ -85,6 +91,7 @@ export interface Prop {
 }
 
 export interface Product {
+  first_note?: AssetFirstNote;
   asset_code?: string;
   asset_id?: string;
   entity_id?: string;

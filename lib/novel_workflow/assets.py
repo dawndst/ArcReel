@@ -11,7 +11,7 @@ from lib.artifacts.formal_write import project_metadata_lock
 from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest
 from lib.novel_workflow import store
-from lib.project.asset_codes import ensure_asset_codes
+from lib.project.asset_codes import ensure_asset_codes, keep_first_note
 from lib.project.asset_types import asset_name_comparison_key, validate_asset_name
 
 BUCKETS = {"character": "characters", "scene": "scenes", "prop": "props"}
@@ -51,6 +51,11 @@ def synchronize(path: Path) -> dict:
         entities = project.setdefault("note_asset_entities", {})
         variants = project.setdefault("note_asset_variants", {})
         ensure_asset_codes(project)
+        for bucket in BUCKETS.values():
+            for asset in project.get(bucket, {}).values():
+                asset.pop("first_note", None)
+                for variant in asset.get("derivatives", {}).values():
+                    variant.pop("first_note", None)
         registered = 0
         for note in notebook["notes"]:
             for mention in readings.get(note["id"], {}).get("assets", []):
@@ -121,6 +126,9 @@ def synchronize(path: Path) -> dict:
                             target = table.setdefault(variant, {"description": mention["description"]})
                         ensure_asset_codes(project)
                         variants[variant_key] = target["asset_id"]
+                first = {"id": note["id"], "order": note["order"], "title": note["title"]}
+                keep_first_note(asset, first)
+                keep_first_note(target, first)
                 links[mention["id"]] = {
                     "asset_id": target["asset_id"],
                     "entity_id": asset["entity_id"],
@@ -138,10 +146,10 @@ def reference(project: dict, mention: dict) -> dict:
     for bucket in BUCKETS.values():
         for name, asset in project.get(bucket, {}).items():
             if asset.get("asset_id") == link["asset_id"]:
-                return {**link, "asset_name": name}
+                return {**link, "asset_name": name, "first_note": asset.get("first_note")}
             for variant, value in asset.get("derivatives", {}).items():
                 if value.get("asset_id") == link["asset_id"]:
-                    return {**link, "asset_name": name, "variant": variant}
+                    return {**link, "asset_name": name, "variant": variant, "first_note": value.get("first_note")}
     return {**link, "asset_missing": True}
 
 

@@ -94,3 +94,34 @@ async def test_group_synopsis_does_not_make_episode_or_delete_notes(tmp_path):
     assert not json.loads((tmp_path / "project.json").read_text()).get("episodes")
     with pytest.raises(ValueError, match="仅留档"):
         await scene_library.generate(tmp_path, Reader(), ids, notebook["source_basis"], durations=[8])
+
+
+async def test_changed_svt_assignment_blocks_scenes_until_reextracted(tmp_path):
+    data, notebook = await asyncio.to_thread(project, tmp_path)
+    data.update(content_mode="drama", generation_mode="storyboard", episodes=[], characters={}, scenes={}, props={})
+    await asyncio.to_thread(store.write, tmp_path / "project.json", data)
+    note_id = notebook["notes"][0]["id"]
+    await read_notes(tmp_path, Reader(), [note_id], notebook["source_basis"])
+    await generate_svts(tmp_path, SVTReader(), [note_id], notebook["source_basis"])
+    file = store.root(tmp_path) / "svts.json"
+    value = await asyncio.to_thread(lambda: json.loads(file.read_text()))
+    value["svts"][0]["breakdown_status"] = "needs_review"
+    await asyncio.to_thread(store.write, file, value)
+    with pytest.raises(ValueError, match="主归属 SVT 已调整"):
+        await scene_library.generate(tmp_path, Reader(), [note_id], notebook["source_basis"], durations=[8])
+    reading = await asyncio.to_thread(store.note_result, tmp_path, notebook["notes"][0])
+    assert await asyncio.to_thread(scene_library.svt_event_tags, tmp_path, note_id, reading) == []
+
+
+def test_scene_assets_do_not_leak_later_state_from_same_note():
+    chunk = {"source_file": "book.txt", "note_id": "n1", "start": 100, "end": 200, "text": "阳子走进学校。"}
+
+    def asset(start, end):
+        return {
+            "raw_name": "阳子",
+            "evidence": {"source_file": "book.txt", "note_id": "n1", "start": start, "end": end},
+        }
+
+    assert scene_library.asset_available(asset(10, 30), chunk)
+    assert scene_library.asset_available(asset(110, 130), chunk)
+    assert not scene_library.asset_available(asset(250, 270), chunk)

@@ -28,7 +28,7 @@ async def summarize(path, generator, note_ids, expected, group_id):
         raise ValueError("资料组已变化，请刷新后重新归纳")
     readings = await asyncio.to_thread(store.valid_readings, path, notebook)
     if any(i not in readings for i in note_ids):
-        raise ValueError("请先精读组合内的章节，再重新归纳梗概")
+        raise ValueError("请先为组合内的章节生成 Notes，再重新归纳组合梗概")
     bases = {i: readings[i]["basis"] for i in note_ids}
     rules = await asyncio.to_thread(store.rule, path, "group")
     extracted = [{**readings[i], "summary": "\n".join(readings[i].get("summaries", []))} for i in group["note_ids"]]

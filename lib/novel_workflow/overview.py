@@ -20,21 +20,21 @@ class OverviewMaterial(StrictModel):
 
 def snapshot(path, project):
     if not enabled(project):
-        raise WorkflowError("小说工作流开关已变化，请刷新后重试")
+        raise WorkflowError("项目模式已变化，请刷新后重试")
     notebook = store.state(path)
     if not notebook:
-        raise WorkflowError("请先在小说工作台建立章节 Notes、选择可用范围并精读，再生成故事设定。")
+        raise WorkflowError("请先在小说工作台建立章节 Notes、选择可用范围并泛读生成 Notes，再生成故事设定。")
     try:
         store.require_current(path, project, notebook["source_basis"])
     except ValueError as exc:
-        raise WorkflowError("原文已变化，请先更新章节 Notes 并精读。") from exc
+        raise WorkflowError("原文已变化，请先更新章节 Notes 并泛读生成 Notes。") from exc
     if not scope.get(path):
-        raise WorkflowError("请先在小说工作台选择可用章节范围并精读，再生成故事设定。")
+        raise WorkflowError("请先在小说工作台选择可用章节范围并泛读生成 Notes，再生成故事设定。")
     allowed = scope.available_ids(path, notebook)
     readings = store.valid_readings(path, notebook)
     notes = [n for n in notebook["notes"] if n["id"] in allowed]
     if not notes or any(n["id"] not in readings or not readings[n["id"]].get("overview") for n in notes):
-        raise WorkflowError("当前可用范围还有未精读或已过期的 Notes。请完成精读，或缩小可用范围，再生成故事设定。")
+        raise WorkflowError("当前可用范围还有未生成或已过期的 Notes。请泛读生成 Notes，或缩小可用范围，再生成故事设定。")
     rule = store.rule(path, "overview")
     bases = {n["id"]: readings[n["id"]]["basis"] for n in notes}
     nodes = []

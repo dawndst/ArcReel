@@ -1,3 +1,4 @@
+import { AssetFirstNoteLink } from "./AssetFirstNoteLink";
 import { memo, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -265,6 +266,7 @@ export const AssetBrowseCard = memo(function AssetBrowseCard({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+        <AssetFirstNoteLink projectName={projectName} first={asset.firstNote} />
         <p className="line-clamp-2 text-sm text-subtle-foreground">
           {asset.description.trim() || <span className="text-muted-foreground">{t("assets:no_description")}</span>}
         </p>

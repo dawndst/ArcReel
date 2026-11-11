@@ -81,7 +81,7 @@ async def initialize(name: str, req: SourceRequest):
 async def run_workflow(name: str, req: ReadingRequest, user: CurrentUser):
     def validate(path, project):
         if project.get("content_mode") != "drama":
-            raise ValueError("Enable chapter Note workflow in project settings first")
+            raise ValueError("章节 Note 工作流适用于剧情演绎项目")
         return store.require_current(path, project, req.source_basis)
 
     await invoke(name, validate)

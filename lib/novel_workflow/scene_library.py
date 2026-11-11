@@ -12,6 +12,7 @@ from lib.infra.json_io import load_json
 from lib.novel_understanding.service import check_stop
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import chapters, store, understanding
+from lib.novel_workflow.evidence import locate
 from lib.novel_workflow.scene_models import SceneBatch
 
 
@@ -37,6 +38,7 @@ def svt_event_tags(path, note_id, reading):
         {"svt_id": svt["id"], "event_ids": [i for i in svt["event_ids"] if i in local_ids]}
         for svt in value.get("svts", [])
         if not svt.get("stale")
+        and svt.get("breakdown_status") != "needs_review"
         and note_id in svt["note_ids"]
         and value.get("note_assignments", {}).get(note_id) == svt["id"]
     ]
@@ -93,13 +95,26 @@ def in_chunk(evidence, chunk):
     )
 
 
+def asset_available(asset, chunk):
+    evidence = asset["evidence"]
+    return in_chunk(evidence, chunk) or (
+        evidence["source_file"] == chunk["source_file"]
+        and evidence["note_id"] == chunk["note_id"]
+        and evidence["end"] <= chunk["start"]
+        and asset["raw_name"] in chunk["text"]
+    )
+
+
 def ground(value, chunk, assets, durations):
     if not value.scenes and not value.skipped_reason.strip():
         raise ValueError("不生成场镜时必须说明跳过原因")
     for scene in value.scenes:
         for shot in scene.shots:
-            if shot.quote not in chunk["text"]:
-                raise ValueError("镜头依据必须是当前原文中的逐字摘录")
+            try:
+                start, end = locate(chunk["text"], shot.quote)
+            except ValueError as exc:
+                raise ValueError("镜头依据必须是当前原文中的逐字摘录（允许排版空白差异）") from exc
+            shot.quote = chunk["text"][start:end]
             uttered = []
             if len(shot.segments) > 1 and sum(seg.duration_seconds for seg in shot.segments) <= 15:
                 raise ValueError("不超过15秒的镜头应使用单个片段")
@@ -128,16 +143,19 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
     readings = await asyncio.to_thread(store.valid_readings, path, notebook)
     notes = [n for n in notebook["notes"] if n["id"] in note_ids]
     if not notes or len(notes) != len(set(note_ids)) or any(n["id"] not in readings for n in notes):
-        raise ValueError("请先精读所选章节")
+        raise ValueError("请先为所选章节泛读生成 Notes")
     if any(g.get("usage") == "reference" and set(g["note_ids"]) & set(note_ids) for g in notebook["groups"]):
         raise ValueError("所选章节包含仅留档资料，请先改为改编候选再生成场镜")
     from lib.novel_workflow.svt_contract import assignments, valid_svts
 
     svt_file = store.root(path) / "svts.json"
     svt_data = await asyncio.to_thread(load_json, svt_file) if await asyncio.to_thread(svt_file.exists) else None
-    primary = await asyncio.to_thread(lambda: assignments(valid_svts(path, svt_data, readings)))
+    live_svts = await asyncio.to_thread(valid_svts, path, svt_data, readings)
+    primary = assignments(live_svts)
     if any(n["id"] not in primary for n in notes):
         raise ValueError("请先为每个 Note 完成唯一主归属 SVT 的拆分，再生成场镜")
+    if any(s.get("breakdown_status") == "needs_review" and set(s["note_ids"]) & set(note_ids) for s in live_svts):
+        raise ValueError("主归属 SVT 已调整，请先选中该 SVT 的来源 Notes 重新提炼，核对梗概和爆点后再生成场镜")
     await asyncio.to_thread(understanding.require_understood, path, note_ids)
     project = await asyncio.to_thread(load_json, path / "project.json")
     if project.get("content_mode") != "drama" or project.get("generation_mode") == "reference_video":
@@ -194,7 +212,7 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                         "evidence": a["evidence"] if in_chunk(a["evidence"], chunk) else None,
                     }
                     for a in assets
-                    if in_chunk(a["evidence"], chunk) or a["raw_name"] in chunk["text"]
+                    if asset_available(a, chunk)
                 ]
                 local_names = {
                     kind: {a["name"] for a in local_assets if a["kind"] == kind}

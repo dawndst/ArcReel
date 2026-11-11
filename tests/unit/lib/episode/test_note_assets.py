@@ -146,3 +146,19 @@ def test_manual_merge_preserves_note_links_and_reread(tmp_path):
     assert ref["variant"] == "神秘来客"
     assert ref["asset_code"] == original_code
     assert len(data["characters"]) == 1
+
+
+def test_first_appearance_uses_source_order_and_tracks_variant_separately(tmp_path):
+    _, book = project(tmp_path)
+    first, later = book["notes"]
+    save_reading(tmp_path, later, [mention(later, "later", variant="兽形")])
+    assets.synchronize(tmp_path)
+    saved = load_json(tmp_path / "project.json")["characters"]["景麒"]
+    assert saved["first_note"]["id"] == later["id"]
+    save_reading(tmp_path, first, [mention(first, "first")])
+    # Later reading is keyed by its preceding context; resave after adding the earlier Note.
+    save_reading(tmp_path, later, [mention(later, "later", variant="兽形")])
+    assets.synchronize(tmp_path)
+    saved = load_json(tmp_path / "project.json")["characters"]["景麒"]
+    assert saved["first_note"] == {"id": first["id"], "order": first["order"], "title": first["title"]}
+    assert saved["derivatives"]["兽形"]["first_note"]["id"] == later["id"]

@@ -1,3 +1,4 @@
+import { AssetFirstNoteLink } from "./AssetFirstNoteLink";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -454,6 +455,7 @@ export function CharacterDerivativeRow({
             </code>
             <CopyButton text={token} label={t("assets:derivative_copy_token", { token })} />
           </div>
+          <AssetFirstNoteLink projectName={projectName} first={derivative.first_note} />
           {derivative.referenced === undefined ? null : (
             <p className="text-xs text-muted-foreground">
               {t(derivative.referenced ? "assets:derivative_referenced" : "assets:derivative_unreferenced")}

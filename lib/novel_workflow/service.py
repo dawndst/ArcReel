@@ -17,6 +17,7 @@ from lib.infra.text_utils import strip_json_code_fences
 from lib.novel_understanding.service import NovelReadingInterrupted, check_stop
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import chapters, memory, store, synthesis
+from lib.novel_workflow.evidence import locate
 from lib.novel_workflow.models import Reading, SVTBatch
 
 
@@ -26,14 +27,12 @@ def current(path: Path, expected: str) -> dict:
 
 
 def evidence(text: str, quote: str, part: dict) -> dict:
-    pos = text.find(quote)
-    if pos < 0 or text.find(quote, pos + 1) >= 0:
-        raise ValueError(f"Quote must occur exactly once in this fragment: {quote[:90]}")
+    pos, end = locate(text, quote)
     return {
         "source_file": part["source_file"],
         "start": part["start"] + pos,
-        "end": part["start"] + pos + len(quote),
-        "quote": quote,
+        "end": part["start"] + end,
+        "quote": text[pos:end],
         "note_id": part["note_id"],
     }
 
@@ -48,10 +47,12 @@ def ground(reading: Reading, part: dict, seed_ids=frozenset()) -> dict:
     for bucket in memory.BUCKETS:
         for item in data[bucket]:
             item["evidence"] = evidence(part["text"], item["quote"], part)
+            item["quote"] = item["evidence"]["quote"]
             item["id"] = digest([bucket, item])[:24]
             if bucket == "events":
                 for dialogue in item["dialogues"]:
                     dialogue["evidence"] = evidence(part["text"], dialogue["quote"], part)
+                    dialogue["quote"] = dialogue["evidence"]["quote"]
                     dialogue["id"] = digest(["dialogue", dialogue["evidence"]])[:24]
     return data
 
@@ -80,7 +81,7 @@ async def ask(path: Path, generator, schema, prompt: str, validate=lambda value:
             return validate(schema.model_validate_json(strip_json_code_fences(response.text)))
         except (ValidationError, ValueError) as exc:
             error = "\n修正上次输出中的问题，不删掉原始事实：" + str(exc)[:2200]
-    raise ValueError("Model output failed evidence or schema validation; responses saved")
+    raise ValueError("模型输出未通过原文或结构校验，已保留响应及完成片段，可修正后重试。" + error)
 
 
 async def read_part(path, generator, note, part, rules, rolling, expected, seed_ids=frozenset()):
@@ -150,7 +151,7 @@ async def read_notes(path: Path, generator, note_ids: list[str], expected: str) 
             check_stop()
             await asyncio.to_thread(current, path, expected)
             await asyncio.to_thread(scope.require, path, notebook, [note["id"]])
-            progress.update(done=index, note_id=note["id"])
+            progress.update(phase="reading", done=index, note_id=note["id"], part=0, parts=0)
             await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
             if await asyncio.to_thread(store.note_result, path, note):
                 continue
@@ -171,6 +172,8 @@ async def read_notes(path: Path, generator, note_ids: list[str], expected: str) 
                 seed_ids = {v["id"] for v in supplied["records"] if v.get("kind") == "seed"}
                 extracted.extend(await read_part(path, generator, note, part, rules, rolling, expected, seed_ids))
             await asyncio.to_thread(current, path, expected)
+            progress.update(phase="summarizing", part=0, parts=0)
+            await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
             overview = await synthesis.chapter(path, generator, extracted, chapter_rule)
             await asyncio.to_thread(current, path, expected)
             live_rule = await asyncio.to_thread(store.rule, path, "read")
@@ -393,6 +396,7 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
     by_event = {e["id"]: e for e in context_events}
     dialogues = {d["id"]: d for e in context_events for d in e["dialogues"]}
     progress = {"phase": "svt", "total": len(events), "done": run["cursor"], "started_at": now()}
+    await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
     try:
         while run["cursor"] < len(events):
             check_stop()

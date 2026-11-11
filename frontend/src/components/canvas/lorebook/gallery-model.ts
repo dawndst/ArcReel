@@ -3,6 +3,7 @@ import type { AssetSheetStatusRow, AssetSheetType, Character, Product, Prop, Sce
 /** 浏览卡展示的资产：四类资产归一后的同一形状，类型差异只体现在可选的计数上。 */
 export interface GalleryAsset {
   assetCode?: string;
+  firstNote?: import("@/types/project").AssetFirstNote;
   type: AssetSheetType;
   name: string;
   description: string;
@@ -34,6 +35,7 @@ export function toGalleryAsset(type: AssetSheetType, name: string, asset: Galler
     type,
     name,
     assetCode: asset.asset_code,
+    firstNote: asset.first_note,
     description: asset.description ?? "",
     sheetPath: sheetPathOf(type, asset) || null,
     aliasCount: "aliases" in asset ? (asset.aliases?.length ?? 0) : 0,

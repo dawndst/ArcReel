@@ -44,19 +44,29 @@ async def chapter(path, generator, extracted, rule):
             allowed = {v["id"] for node in batch for v in node.get("records", [])} | {
                 i for node in batch for i in node.get("evidence_ids", [])
             }
+            dialogue_owners = {
+                dialogue["id"]: record["id"]
+                for node in batch
+                for record in node.get("records", [])
+                for dialogue in record.get("dialogues", [])
+            }
             key = digest([rule, batch])
             target = store.root(path) / "chapter_summaries" / f"{key}.json"
             if await asyncio.to_thread(target.exists):
                 result = await asyncio.to_thread(load_json, target)
             else:
 
-                def validate(value, allowed=allowed):
+                def validate(value, allowed=allowed, dialogue_owners=dialogue_owners):
                     if len(value.summary) > limit:
                         raise ValueError(
                             f"Chapter summary exceeds configured limit {limit}; condense without losing core causality"
                         )
+                    # Nested dialogue is supplied evidence; retain its parent event as the stable summary anchor.
+                    value.evidence_ids = list(dict.fromkeys(dialogue_owners.get(i, i) for i in value.evidence_ids))
                     if not set(value.evidence_ids) <= allowed:
-                        raise ValueError("Chapter summary cited unknown evidence")
+                        raise ValueError(
+                            "Chapter summary cited unknown evidence: " + ", ".join(set(value.evidence_ids) - allowed)
+                        )
                     return value.model_dump()
 
                 result = await ask(

@@ -27,6 +27,11 @@ def ensure_asset_codes(project: dict) -> None:
         asset["entity_id"] = parent["entity_id"] if parent else asset.get("entity_id", asset["asset_id"])
 
 
+def keep_first_note(asset: dict, first: dict | None) -> None:
+    if first and (not asset.get("first_note") or first["order"] < asset["first_note"]["order"]):
+        asset["first_note"] = dict(first)
+
+
 def merge_note_links(project: dict, discarded: dict, kept: dict, plan) -> None:
     """Carry Note references through the creator's native asset merge operation."""
     ensure_asset_codes(project)
@@ -41,10 +46,13 @@ def merge_note_links(project: dict, discarded: dict, kept: dict, plan) -> None:
             project["note_asset_entities"][key] = kept["asset_id"]
             if plan.source_derivative:
                 project.setdefault("note_asset_entity_variants", {})[key] = target["asset_id"]
+    keep_first_note(target, discarded.get("first_note"))
+    keep_first_note(kept, discarded.get("first_note"))
     replacements = {old_id: target}
     for name, old in discarded.get("derivatives", {}).items():
         resolved = plan.derivative_names.get(asset_name_comparison_key(name))
         if resolved in table:
+            keep_first_note(table[resolved], old.get("first_note"))
             replacements[old.get("asset_id")] = table[resolved]
     for key, value in project.get("note_asset_variants", {}).items():
         if value in replacements:

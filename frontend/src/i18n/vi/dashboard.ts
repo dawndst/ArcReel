@@ -1,6 +1,18 @@
 import type enDashboard from "@/i18n/en/dashboard";
 
 export default {
+  nw_first_note: "First appearance: Note {{number}} · {{title}}",
+  nw_first_note_hint: "Earliest source appearance among generated Notes. Open the chapter; unread chapters are not inferred.",
+  nw_summarizing: "Summarizing the chapter overview",
+  nw_svt_counts: "Highlights: {{climaxes}} · Payoffs: {{payoffs}}",
+  nw_reference_block: "The selection includes reference-only Notes. Change the group to adaptation candidate before generating scenes.",
+  nw_svt_incomplete_hint: "Some SVTs lack multiple complete highlights. Scene candidates are allowed, but the breakdown remains incomplete. Check the source or add relevant chapters; never invent dialogue to fill a quota.",
+  nw_svt_review_required: "Primary assignment changed: select all source Notes of the affected SVT and re-extract before generating scenes.",
+  nw_next_scenes: "Next: generate scenes and shots, then select and order them in the scene library to assemble an episode.",
+  nw_next_svt: "Next: extract SVTs and highlights. Each Note has one primary SVT and optional alternatives.",
+  nw_next_read: "Next: generate Notes for the selected unread or outdated chapters.",
+  nw_next_select: "Next: select chapters. Actions apply only to the selected Notes.",
+
   nw_understanding_required: "Hoàn thành phân tích liên chương cho các chương đã chọn trước khi trích xuất SVT hoặc phân tích chuyển thể.",
   nw_tab_understanding: "Hiểu liên chương",
   nw_understand: "Phân tích và đọc lại liên chương",

@@ -136,7 +136,7 @@ def test_retrieval_searches_raw_chapters_and_citations_cannot_fabricate_or_backd
             }
         ]
     }
-    with pytest.raises(ValueError, match="exactly once"):
+    with pytest.raises(ValueError, match="唯一出现"):
         understanding.ground(Findings.model_validate(payload), hits, {notebook["notes"][0]["id"]}, notebook)
     payload["links"][0]["citations"][1]["quote"] = SECOND
     result = understanding.ground(Findings.model_validate(payload), hits, {notebook["notes"][0]["id"]}, notebook)
@@ -213,3 +213,35 @@ async def test_configured_summary_limit_is_validated_and_repair_is_requested(tmp
     )
     assert len(result["summary"]) == 380
     assert generator.calls == 2
+
+
+def test_single_note_claim_is_unresolved_not_confirmed_cross_chapter_fact(tmp_path):
+    project, notebook = setup(tmp_path)
+    corpus = retrieval.index(tmp_path, project, notebook)
+    first = notebook["notes"][0]
+    fragment = next(f for f in corpus["fragments"] if f["note_id"] == first["id"])
+    findings = Findings.model_validate(
+        {
+            "links": [
+                {
+                    "kind": "identity",
+                    "subject": "陌生人",
+                    "description": "身份同指待核对",
+                    "status": "supported",
+                    "story_time": "未明确",
+                    "citations": [
+                        {"fragment_id": fragment["id"], "quote": "门边站着紫衣陌生人。"},
+                        {"fragment_id": fragment["id"], "quote": "他手持白玉。"},
+                    ],
+                }
+            ],
+            "unresolved": [],
+            "next_queries": [],
+        }
+    )
+    result = understanding.ground(findings, [fragment], {first["id"]}, notebook)
+    assert result["links"] == []
+    assert len(result["unresolved"]) == 1
+    assert "仅有本章依据" in result["unresolved"][0]
+    with pytest.raises(ValueError, match="本次所选 Note"):
+        understanding.ground(findings, [fragment], {notebook["notes"][1]["id"]}, notebook)

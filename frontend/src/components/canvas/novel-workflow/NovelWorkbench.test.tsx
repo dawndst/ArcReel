@@ -102,3 +102,12 @@ it("selects a chapter range and generates only those Notes on explicit click", a
   fireEvent.click(screen.getByRole("button", { name: /AI 泛读并生成 Notes · 已选 1 章/ }));
   await waitFor(() => expect(run).toHaveBeenCalledWith("demo", "read", ["note-2"], "source-version"));
 });
+
+it("blocks scene generation for a changed primary SVT and explains the next action", async () => {
+  vi.mocked(API.getNovelWorkflow).mockResolvedValue({ ...data, settings: { summary_max_chars: 1200, understanding_enabled: false }, notes: [{ ...data.notes[0]!, status: "read", svt_id: "primary", svt_status: "needs_review" }] });
+  render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  fireEvent.click(await screen.findByRole("checkbox", { name: /卷一 · 第1章/ }));
+  expect(screen.getByRole("button", { name: "生成场与镜头" })).toBeDisabled();
+  expect(screen.getByText(/主归属已调整：请选中相关 SVT/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "从所选 Note 提炼 SVT" })).toBeEnabled();
+});

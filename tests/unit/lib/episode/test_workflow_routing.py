@@ -24,7 +24,7 @@ def test_overview_requires_explicit_scope_and_readings(tmp_path):
     with pytest.raises(WorkflowError, match="可用章节范围"):
         overview.snapshot(tmp_path, data)
     scope.configure(tmp_path, data, [book["notes"][0]["id"]], book["source_basis"])
-    with pytest.raises(WorkflowError, match="未精读"):
+    with pytest.raises(WorkflowError, match="未生成或已过期"):
         overview.snapshot(tmp_path, data)
 
 

@@ -10,6 +10,7 @@ from lib.infra.async_thread import run_noninterruptible_sync
 from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import memory, retrieval, settings, store, synthesis
+from lib.novel_workflow.evidence import locate
 from lib.novel_workflow.understanding_models import Findings, Inquiry
 
 
@@ -17,27 +18,29 @@ def ground(value, supplied, anchor_note_ids, notebook):
     by_id = {f["id"]: f for f in supplied}
     notes = {n["id"]: n for n in notebook["notes"]}
     links = []
+    unresolved = list(value.unresolved)
     for draft in value.links:
         evidence = []
         for citation in draft.citations:
             fragment = by_id.get(citation.fragment_id)
             if not fragment:
                 raise ValueError("Citation is outside the source fragments actually reread")
-            pos = fragment["text"].find(citation.quote)
-            if pos < 0 or fragment["text"].find(citation.quote, pos + 1) >= 0:
-                raise ValueError("Rereading quote must occur exactly once in its source fragment")
+            pos, end = locate(fragment["text"], citation.quote)
             evidence.append(
                 {
                     "note_id": fragment["note_id"],
                     "source_file": fragment["source_file"],
                     "start": fragment["start"] + pos,
-                    "end": fragment["start"] + pos + len(citation.quote),
-                    "quote": citation.quote,
+                    "end": fragment["start"] + end,
+                    "quote": fragment["text"][pos:end],
                 }
             )
         involved = {e["note_id"] for e in evidence}
-        if len(involved) < 2 or not involved & anchor_note_ids:
-            raise ValueError("A cross-Note link needs evidence from an anchor Note and another Note")
+        if not involved & anchor_note_ids:
+            raise ValueError("跨章关联必须包含本次所选 Note 的原文依据")
+        if len(involved) < 2:
+            unresolved.append("仅有本章依据，跨章关联待核对：" + draft.subject + "；" + draft.description)
+            continue
         latest = max(evidence, key=lambda e: (notes[e["note_id"]]["order"], e["end"]))
         for note_id in (draft.story_start_note_id, draft.story_end_note_id):
             if note_id is not None and note_id not in involved:
@@ -62,7 +65,7 @@ def ground(value, supplied, anchor_note_ids, notebook):
             },
         )
         links.append(data)
-    return {"links": links, "unresolved": value.unresolved, "next_queries": value.next_queries}
+    return {"links": links, "unresolved": list(dict.fromkeys(unresolved)), "next_queries": value.next_queries}
 
 
 def view(path: Path, notebook=None):
@@ -164,6 +167,7 @@ async def understand_notes(path, generator, note_ids, expected):
         else {"cursor": 0, "links": [], "unresolved": [], "inspections": []}
     )
     progress = {"phase": "understanding", "total": len(units), "done": run["cursor"], "started_at": now()}
+    await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
     try:
         while run["cursor"] < len(units):
             check_stop()
