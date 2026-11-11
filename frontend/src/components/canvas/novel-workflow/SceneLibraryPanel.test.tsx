@@ -53,3 +53,28 @@ it("shows before/after changes and blocks only selected unadopted revisions", ()
   fireEvent.click(screen.getByRole("button", { name: "采用修订并保存新版本" }));
   expect(adopt).toHaveBeenCalledWith("b", "r");
 });
+
+it("numbers recovered batches in source order and keeps stable IDs for selection and filtering", () => {
+  const first = structuredClone(batch);
+  first.part = 0;
+  first.basis = "first";
+  first.scenes[0].id = "SCN-0007";
+  first.scenes[0].shots[0].id = "SH-0030";
+  first.scenes[0].shots[1].id = "SH-0031";
+  const second = structuredClone(batch);
+  second.part = 1;
+  second.basis = "second";
+  second.scenes[0].id = "SCN-0005";
+  second.scenes[0].title = "办公室";
+  second.scenes[0].shots = [{ ...second.scenes[0].shots[0], id: "SH-0018", title: "来袭" }];
+  const select = vi.fn();
+  render(<SceneLibraryPanel batches={[second, first]} notes={[]} disabled={false} selection={[]} setSelection={select} title="" setTitle={() => {}} assemble={() => {}} source={() => {}} />);
+  expect(screen.getAllByRole("article").map((card) => within(card).getAllByRole("checkbox")[0].getAttribute("aria-label"))).toEqual(["选择整场：门前", "选择整场：办公室"]);
+  expect(screen.getByText("SCN-001 · SH-001")).toBeInTheDocument();
+  expect(screen.getByText("SCN-002 · SH-003")).toBeInTheDocument();
+  fireEvent.change(screen.getByRole("textbox", { name: "搜索场、镜头或对白" }), { target: { value: "SH-003" } });
+  expect(screen.queryByText("SCN-001 · SH-001")).not.toBeInTheDocument();
+  expect(screen.getByText("SCN-002 · SH-003")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("checkbox", { name: "选择镜头：来袭" }));
+  expect(select).toHaveBeenCalledWith(["SH-0018"]);
+});
