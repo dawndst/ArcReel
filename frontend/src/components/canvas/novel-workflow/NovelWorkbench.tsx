@@ -1,3 +1,5 @@
+import { useProjectsStore } from "@/stores/projects-store";
+import { ClaimBadge } from "./ClaimBadge";
 import { NoteReadingStart } from "./NoteReadingStart";
 import { NoteGroupsPanel } from "./NoteGroupsPanel";
 import { SceneLibraryPanel } from "./SceneLibraryPanel";
@@ -62,8 +64,8 @@ ${a.evidence.quote}`} className="font-semibold text-primary underline decoration
           navigate(`/app/projects/${encodeURIComponent(projectName)}${route}`);
         }}>{a.asset_code && <span className="mr-2 font-mono text-xs">{a.asset_code}</span>}{a.name}{a.variant && ` / ${a.variant}`}</button>{a.identity_scope && <span className="ml-2 text-xs text-muted-foreground">{a.identity_scope}</span>}<p className="mt-1 leading-relaxed">{a.description}</p><Evidence value={a.evidence} /></div>)}</div>
       </Section>)}
-      <Section title={t("guide_changes")}>{reading.changes.map((c) => <div key={c.id} className="mb-3 rounded-lg bg-muted/40 p-3"><strong>{c.character}</strong><p className="mt-1">{c.before} → {c.after}</p><p className="text-xs text-muted-foreground">{c.story_time}</p><Evidence value={c.evidence} /></div>)}</Section>
-      <Section title={t("nw_events")}>{reading.events.map((event) => <div key={event.id} className="mb-3 rounded-lg border p-3"><strong>{event.title}</strong><dl className="mt-2 space-y-2">{(["cause", "conflict", "action", "outcome", "open_thread"] as const).map((key) => event[key] && <div key={key}><dt className="inline font-semibold">{t(`nw_${key}`)}：</dt><dd className="inline">{event[key]}</dd></div>)}</dl><Evidence value={event.evidence} />{event.dialogues.map((d) => <blockquote key={d.id} className="mt-2 border-l-2 border-primary/40 pl-3"><strong>{d.speaker}：</strong>{d.quote}</blockquote>)}</div>)}</Section>
+      <Section title={t("guide_changes")}>{reading.changes.map((c) => <div key={c.id} className="mb-3 rounded-lg bg-muted/40 p-3"><strong>{c.character}</strong><ClaimBadge value={c} /><p className="mt-1">{c.before} → {c.after}</p><p className="text-xs text-muted-foreground">{c.story_time}</p><Evidence value={c.evidence} /></div>)}</Section>
+      <Section title={t("nw_events")}>{reading.events.map((event) => <div key={event.id} className="mb-3 rounded-lg border p-3"><strong>{event.title}</strong><ClaimBadge value={event} /><dl className="mt-2 space-y-2">{(["cause", "conflict", "action", "outcome", "open_thread"] as const).map((key) => event[key] && <div key={key}><dt className="inline font-semibold">{t(`nw_${key}`)}：</dt><dd className="inline">{event[key]}</dd></div>)}</dl><Evidence value={event.evidence} />{event.dialogues.map((d) => <blockquote key={d.id} className="mt-2 border-l-2 border-primary/40 pl-3"><strong>{d.speaker}：</strong>{d.quote}</blockquote>)}</div>)}</Section>
       {reading.questions.length > 0 && <Section title={t("nw_questions")}><ul className="list-disc space-y-1 pl-4">{reading.questions.map((q) => <li key={q}>{q}</li>)}</ul></Section>}
     </> : <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{t("nw_unread_hint")}</p>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
@@ -79,6 +81,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 export function NovelWorkbench({ projectName, onProduction }: { projectName: string; onProduction: () => void }) {
   const { t } = useTranslation(["dashboard", "common"]);
   const [, navigate] = useLocation();
+  const project = useProjectsStore((state) => state.currentProjectData);
   const [data, setData] = useState<NovelWorkflow | null>(null);
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState("");
@@ -174,7 +177,11 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
         usage={(group) => void act(() => API.setNoteGroupUsage(projectName, group.id, group.usage === "reference" ? "candidate" : "reference", data.source_basis!))}
         dissolve={(id) => void act(() => API.dissolveNoteGroup(projectName, id))} />}
       {tab === "scenes" && data.pending_assemblies?.map((pending) => <div key={pending.request_id} className="flex items-center gap-3 border-b bg-warn/10 p-3 text-sm"><span>{t("dashboard:nw_assembly_pending", { title: pending.title })}</span><Button disabled={busy || working} size="sm" onClick={() => void act(async () => { const created = await API.assembleDirectorEpisode(projectName, pending.shot_ids, pending.title, pending.source_basis, pending.request_id); if (await refreshAfterWrite(projectName, t) === "success") navigate(`/episodes/${created.episode}`); })}>{t("dashboard:nw_assembly_retry")}</Button></div>)}
-      {tab === "scenes" && <SceneLibraryPanel batches={data.scene_batches ?? []} notes={data.notes} disabled={busy || working || data.stale}
+      {tab === "scenes" && <SceneLibraryPanel characters={Object.keys(project?.characters ?? {})}
+        confirmQuestions={(batch, revision, reason) => void act(async () => { await API.confirmSceneQuestions(projectName, batch, revision, reason, data.source_basis!); await refreshAfterWrite(projectName, t); })}
+        adoptRevision={(batch, revision) => void act(async () => { await API.adoptSceneRevision(projectName, batch, revision, data.source_basis!); await refreshAfterWrite(projectName, t); })}
+        attribute={(shot, segment, utterance, speaker, revision) => void act(async () => { await API.attributeNoteDialogue(projectName, shot, segment, utterance, speaker, data.source_basis!, revision); await refreshAfterWrite(projectName, t); })}
+        batches={data.scene_batches ?? []} notes={data.notes} disabled={busy || working || data.stale}
         selection={shotSelection} setSelection={(ids) => { setShotSelection(ids); setAssemblyRequest(crypto.randomUUID()); }}
         title={episodeTitle} setTitle={(value) => { setEpisodeTitle(value); setAssemblyRequest(crypto.randomUUID()); }}
         source={(id) => { setFocused(id); setTab("notes"); }}

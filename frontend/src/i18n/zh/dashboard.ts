@@ -1,6 +1,28 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_scene_description: "画面与动作描述",
+
+  nw_review_reason: "核对本片段后的依据（至少10字）",
+  nw_review_confirm: "记录核对依据，确认疑点已处理",
+
+  nw_semantic_review: "原文一致性检查",
+  nw_revision_applied: "已采用，旧版已保留",
+  nw_revision_adopt: "采用修订并保存新版本",
+  nw_review_blocked: "所选场镜还有一致性问题，先处理修订建议再组集。",
+
+  nw_speaker_pending: "说话人待确认",
+  nw_speaker_hint: "保留原文对白，核对原文后选择说话人。缺少人物时先到人物资产库添加；不要猜测身份。",
+  nw_speaker_confirm: "确认说话人",
+  nw_speaker_blocked: "所选镜头有对白尚未确认说话人，请先在镜头中确认，再组集。",
+  nw_claim_fact: "正文事实",
+  nw_claim_statement: "人物说法",
+  nw_claim_inference: "推测",
+  nw_claim_vision: "梦境／幻象",
+  nw_claim_adaptation: "改编建议",
+  nw_claim_unverified: "确定性未判定",
+  nw_claim_annotation: "批注，非剧情事实",
+
   nw_first_note: "首次出现：Note {{number}} · {{title}}",
   nw_first_note_hint: "已生成 Notes 中最早的原文出现位置；点击查看章节。尚未阅读的章节不作推断。",
   nw_summarizing: "正在汇总本章导览",

@@ -25,7 +25,23 @@ def ground(value, supplied, anchor_note_ids, notebook):
             fragment = by_id.get(citation.fragment_id)
             if not fragment:
                 raise ValueError("Citation is outside the source fragments actually reread")
-            pos, end = locate(fragment["text"], citation.quote)
+            try:
+                pos, end = locate(fragment["text"], citation.quote)
+            except ValueError as exc:
+                matches = {}
+                for candidate in supplied:
+                    try:
+                        start, stop = locate(candidate["text"], citation.quote)
+                    except ValueError:
+                        continue
+                    span = (candidate["source_file"], candidate["start"] + start, candidate["start"] + stop)
+                    matches[span] = (candidate, start, stop)
+                if len(matches) != 1:
+                    raise ValueError(
+                        f"fragment_id={citation.fragment_id} 的引文必须在原文中唯一出现：{citation.quote}。"
+                        "请回到该原文片段复制一条连续短句；多处证据拆为多条 citations，禁止添加省略号。"
+                    ) from exc
+                fragment, pos, end = next(iter(matches.values()))
             evidence.append(
                 {
                     "note_id": fragment["note_id"],
@@ -37,7 +53,8 @@ def ground(value, supplied, anchor_note_ids, notebook):
             )
         involved = {e["note_id"] for e in evidence}
         if not involved & anchor_note_ids:
-            raise ValueError("跨章关联必须包含本次所选 Note 的原文依据")
+            unresolved.append("关联未覆盖本次锚点 Note，尚不能确认：" + draft.subject + "；" + draft.description)
+            continue
         if len(involved) < 2:
             unresolved.append("仅有本章依据，跨章关联待核对：" + draft.subject + "；" + draft.description)
             continue
@@ -54,6 +71,8 @@ def ground(value, supplied, anchor_note_ids, notebook):
         if draft.kind == "contradiction" and draft.status != "uncertain":
             raise ValueError("Contradictions remain uncertain until further evidence resolves them")
         data = draft.model_dump(exclude={"citations"})
+        if draft.claim_type in {"statement", "inference", "vision", "adaptation"} or draft.source_kind == "annotation":
+            data["status"] = "uncertain"
         data.update(
             id=digest([draft.kind, draft.subject, sorted((e["note_id"], e["start"], e["end"]) for e in evidence)])[:24],
             note_ids=sorted(involved, key=lambda i: notes[i]["order"]),
@@ -168,88 +187,113 @@ async def understand_notes(path, generator, note_ids, expected):
     )
     progress = {"phase": "understanding", "total": len(units), "done": run["cursor"], "started_at": now()}
     await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
+
+    async def read_unit(unit_index):
+        check_stop()
+        await asyncio.to_thread(current, path, expected)
+        if await asyncio.to_thread(scope.basis, path, notebook) != scope_basis:
+            raise ValueError("可用章节范围已变化，请重新进行跨章理解")
+        unit = units[unit_index]
+        unit_key = digest([key, unit_index])
+        unit_file = store.root(path) / "understanding" / "units" / f"{unit_key}.json"
+        if await asyncio.to_thread(unit_file.exists):
+            return await asyncio.to_thread(load_json, unit_file)
+        result = {"links": [], "unresolved": [], "inspections": []}
+        inquiry_file = store.root(path) / "understanding" / "inquiries" / f"{unit_key}.json"
+        if await asyncio.to_thread(inquiry_file.exists):
+            inquiry = await asyncio.to_thread(load_json, inquiry_file)
+        else:
+            inquiry = (
+                await ask(
+                    path,
+                    generator,
+                    Inquiry,
+                    rules + scope_hint + "\n查询规划材料：" + json.dumps(unit, ensure_ascii=False),
+                )
+            ).model_dump()
+            await run_noninterruptible_sync(store.write, inquiry_file, inquiry)
+        anchors = await asyncio.to_thread(retrieval.anchors, corpus, unit["records"])
+        # Split anchor material itself when dense chapters contain many source quotations.
+        anchor_batches = list(synthesis.packs(anchors, 10000))
+        unresolved = list(inquiry["questions"])
+        for anchor_batch in anchor_batches:
+            queries = inquiry["queries"] or [unit["title"]]
+            seen = {f["id"] for f in anchor_batch}
+            previous_matches = []
+            for round_number in range(3):
+                check_stop()
+                if await asyncio.to_thread(scope.basis, path, notebook) != scope_basis:
+                    raise ValueError("可用章节范围已变化，请重新进行跨章理解")
+                matches = await asyncio.to_thread(retrieval.search, corpus, queries, exclude=seen, limit=6)
+                supplied = anchor_batch + previous_matches[-2:] + matches
+                previous_matches = matches
+                round_key = digest([unit_key, supplied, queries, round_number])
+                round_file = store.root(path) / "understanding" / "rounds" / f"{round_key}.json"
+                if await asyncio.to_thread(round_file.exists):
+                    findings = await asyncio.to_thread(load_json, round_file)
+                else:
+
+                    def validate(value, supplied=supplied, note_id=unit["note_id"]):
+                        return ground(value, supplied, {note_id}, notebook)
+
+                    findings = await ask(
+                        path,
+                        generator,
+                        Findings,
+                        rules
+                        + scope_hint
+                        + "\n回读问题："
+                        + json.dumps(inquiry["questions"], ensure_ascii=False)
+                        + "\n原文片段："
+                        + json.dumps(supplied, ensure_ascii=False),
+                        validate,
+                        grow_output=True,
+                    )
+                    await run_noninterruptible_sync(store.write, round_file, findings)
+                result["links"].extend(findings["links"])
+                unresolved = findings["unresolved"]
+                if not any(v["status"] == "supported" for v in findings["links"]) and not unresolved:
+                    unresolved = list(inquiry["questions"])
+                seen.update(f["id"] for f in matches)
+                result["inspections"].append(
+                    {
+                        "anchor_note_id": unit["note_id"],
+                        "queries": queries,
+                        "fragment_ids": [f["id"] for f in supplied],
+                        "note_ids": list(dict.fromkeys(f["note_id"] for f in supplied)),
+                        "round": round_number + 1,
+                    }
+                )
+                queries = findings["next_queries"]
+                if not queries:
+                    break
+            if queries:
+                unresolved += ["达到本次检索轮次上限，尚待回查：" + q for q in queries]
+            result["unresolved"].extend({"note_id": unit["note_id"], "question": q} for q in unresolved)
+        await run_noninterruptible_sync(store.write, unit_file, result)
+        return result
+
     try:
         while run["cursor"] < len(units):
             check_stop()
-            await asyncio.to_thread(current, path, expected)
-            if await asyncio.to_thread(scope.basis, path, notebook) != scope_basis:
-                raise ValueError("可用章节范围已变化，请重新进行跨章理解")
-            unit = units[run["cursor"]]
-            unit_key = digest([key, run["cursor"]])
-            inquiry_file = store.root(path) / "understanding" / "inquiries" / f"{unit_key}.json"
-            if await asyncio.to_thread(inquiry_file.exists):
-                inquiry = await asyncio.to_thread(load_json, inquiry_file)
-            else:
-                inquiry = (
-                    await ask(
-                        path,
-                        generator,
-                        Inquiry,
-                        rules + scope_hint + "\n查询规划材料：" + json.dumps(unit, ensure_ascii=False),
-                    )
-                ).model_dump()
-                await run_noninterruptible_sync(store.write, inquiry_file, inquiry)
-            anchors = await asyncio.to_thread(retrieval.anchors, corpus, unit["records"])
-            # Split anchor material itself when dense chapters contain many source quotations.
-            anchor_batches = list(synthesis.packs(anchors, 10000))
-            unresolved = list(inquiry["questions"])
-            for anchor_batch in anchor_batches:
-                queries = inquiry["queries"] or [unit["title"]]
-                seen = {f["id"] for f in anchor_batch}
-                previous_matches = []
-                for round_number in range(3):
-                    check_stop()
-                    if await asyncio.to_thread(scope.basis, path, notebook) != scope_basis:
-                        raise ValueError("可用章节范围已变化，请重新进行跨章理解")
-                    matches = await asyncio.to_thread(retrieval.search, corpus, queries, exclude=seen, limit=6)
-                    supplied = anchor_batch + previous_matches[-2:] + matches
-                    previous_matches = matches
-                    round_key = digest([unit_key, supplied, queries, round_number])
-                    round_file = store.root(path) / "understanding" / "rounds" / f"{round_key}.json"
-                    if await asyncio.to_thread(round_file.exists):
-                        findings = await asyncio.to_thread(load_json, round_file)
-                    else:
-
-                        def validate(value, supplied=supplied, note_id=unit["note_id"]):
-                            return ground(value, supplied, {note_id}, notebook)
-
-                        findings = await ask(
-                            path,
-                            generator,
-                            Findings,
-                            rules
-                            + scope_hint
-                            + "\n回读问题："
-                            + json.dumps(inquiry["questions"], ensure_ascii=False)
-                            + "\n原文片段："
-                            + json.dumps(supplied, ensure_ascii=False),
-                            validate,
-                        )
-                        await run_noninterruptible_sync(store.write, round_file, findings)
-                    run["links"].extend(findings["links"])
-                    unresolved = findings["unresolved"]
-                    if not any(v["status"] == "supported" for v in findings["links"]) and not unresolved:
-                        unresolved = list(inquiry["questions"])
-                    seen.update(f["id"] for f in matches)
-                    run["inspections"].append(
-                        {
-                            "anchor_note_id": unit["note_id"],
-                            "queries": queries,
-                            "fragment_ids": [f["id"] for f in supplied],
-                            "note_ids": list(dict.fromkeys(f["note_id"] for f in supplied)),
-                            "round": round_number + 1,
-                        }
-                    )
-                    queries = findings["next_queries"]
-                    if not queries:
-                        break
-                if queries:
-                    unresolved += ["达到本次检索轮次上限，尚待回查：" + q for q in queries]
-                run["unresolved"].extend({"note_id": unit["note_id"], "question": q} for q in unresolved)
-            run["cursor"] += 1
+            # Independent units finish their paid calls and persist before any sibling error propagates.
+            results = await asyncio.gather(
+                *(read_unit(i) for i in range(run["cursor"], min(run["cursor"] + 3, len(units)))),
+                return_exceptions=True,
+            )
+            failure = None
+            for result in results:
+                if isinstance(result, BaseException):
+                    failure = result
+                    break
+                for field in ("links", "unresolved", "inspections"):
+                    run[field].extend(result[field])
+                run["cursor"] += 1
             await run_noninterruptible_sync(store.write, checkpoint, run)
             progress["done"] = run["cursor"]
             await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
+            if failure is not None:
+                raise failure
         await asyncio.to_thread(current, path, expected)
         latest = await asyncio.to_thread(store.valid_readings, path, notebook)
         if (

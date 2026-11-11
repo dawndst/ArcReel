@@ -1,5 +1,6 @@
+import { useShotHierarchyCode } from "@/hooks/useShotHierarchyCode";
 import { Input } from "@/components/ui/input";
-import { MAX_SEGMENT_SECONDS, shotHierarchyCode } from "@/utils/shot-hierarchy";
+import { MAX_SEGMENT_SECONDS } from "@/utils/shot-hierarchy";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock, Loader2, Lock, RotateCcw, Save } from "lucide-react";
@@ -278,6 +279,7 @@ function DramaSceneCard({
   context: PlanItemContext;
   onChange: (patch: Partial<DramaSceneContent>) => void;
 }) {
+  const shotHierarchyCode = useShotHierarchyCode();
   const { t } = useTranslation("dashboard");
   return (
     <ItemCardShell notes={notes}>
@@ -312,6 +314,9 @@ function DramaSceneCard({
           onChange={onChange}
         />
       )}
+
+      <SectionLabel>{t("nw_scene_description")}</SectionLabel>
+      {readOnly ? <ReadOnlyText text={scene.scene_description} /> : <Textarea value={scene.scene_description} disabled={disabled} aria-label={t("nw_scene_description")} onChange={(event) => onChange({ scene_description: event.target.value })} />}
 
       <SectionLabel>{t("review_utterances_label")}</SectionLabel>
       {readOnly ? (

@@ -25,3 +25,9 @@ it("does not invent hierarchy for old scripts and keeps unsplit shots free of SE
   expect(shotHierarchyCode({scene_id:"E1S01"})).toBeNull();
   expect(shotHierarchyCode(scene(1,2,3,null))).toBe("EP01-SCN002-SH003");
 });
+it("uses episode order rather than a deleted episode's internal ID sequence", () => {
+  const item = { ...scene(1, 2, 3, 1), scene_id: "E15S001" };
+  expect(shotHierarchyCode(item, [{ episode: 15, title: "第一集" }])).toBe("EP01-SCN002-SH003-SEG1");
+  expect(shotHierarchyCode(item, [{ episode: 20, title: "第一集" }, { episode: 15, title: "第二集" }])).toBe("EP02-SCN002-SH003-SEG1");
+  expect(item.scene_id).toBe("E15S001");
+});

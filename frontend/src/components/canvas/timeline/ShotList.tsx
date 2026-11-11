@@ -1,4 +1,4 @@
-import { shotHierarchyCode } from "@/utils/shot-hierarchy";
+import { useShotHierarchyCode } from "@/hooks/useShotHierarchyCode";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, SearchIcon } from "lucide-react";
@@ -89,6 +89,7 @@ export function ShotList({
   moveDisabled = false,
   footer,
 }: ShotListProps) {
+  const shotHierarchyCode = useShotHierarchyCode();
   const { t } = useTranslation("dashboard");
   const [search, setSearch] = useState("");
   // 改序请求在途时先按新顺序显示，落定后回到 segments（成功时它已是新顺序，失败时回到原序）。
@@ -121,7 +122,7 @@ export function ShotList({
         String(positionById.get(id)) === query.trim() || (shotHierarchyCode(seg)?.toLowerCase().includes(query) ?? false) || getSegmentText(seg, contentMode).toLowerCase().includes(query)
       );
     });
-  }, [orderedIds, search, segments, indexById, positionById, contentMode]);
+  }, [orderedIds, search, segments, indexById, positionById, contentMode, shotHierarchyCode]);
 
   const selectedId = segments[selectedIndex] ? getScriptItemId(segments[selectedIndex], contentMode) : null;
 
@@ -274,7 +275,7 @@ export function ShotList({
                       <ItemPositionBadge position={"shot_number" in seg && typeof seg.shot_number === "number" ? seg.shot_number : positionById.get(id) ?? null} kind="shot" overlay />
                     </span>
                     <span className="flex min-w-0 flex-1 flex-col gap-1">
-                      {shotHierarchyCode(seg) && <span className="break-all font-mono text-[10px] font-semibold text-primary">{shotHierarchyCode(seg)}</span>}
+                      {shotHierarchyCode(seg) && <span className="break-all font-mono text-xs font-semibold text-primary">{shotHierarchyCode(seg)}</span>}
                       <span className="flex items-center gap-1.5">
                         <StatusBadge status={statusFromAssets(seg.generated_assets?.status)} />
                       </span>

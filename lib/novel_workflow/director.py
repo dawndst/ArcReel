@@ -12,6 +12,10 @@ from lib.script.script_review import formal_script_plan_lock, write_formal_scrip
 
 
 def content_from_selection(selected, episode, title):
+    from lib.novel_workflow.scene_library import require_attributed
+
+    for _batch, _scene, shot in selected:
+        require_attributed(shot)
     rows, mapping = [], []
     last_scene, scene_number, shot_number = None, 0, 0
     for _batch, scene, shot in selected:
@@ -57,6 +61,11 @@ def assemble(manager, name, shot_ids, title, expected, request_id):
         notebook = store.require_current(path, project, expected)
         readings = store.valid_readings(path, notebook)
         selected = scene_library.selected_shots(path, notebook, readings, shot_ids)
+        for _batch, _scene, shot in selected:
+            scene_library.require_attributed(shot)
+            from lib.novel_workflow.scene_review import require_reviewed
+
+            require_reviewed(_batch, shot)
         if len(shot_ids) > 300:
             raise ValueError("单集最多编排300个镜头")
         existing = next(

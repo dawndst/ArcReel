@@ -59,6 +59,12 @@ def synchronize(path: Path) -> dict:
         registered = 0
         for note in notebook["notes"]:
             for mention in readings.get(note["id"], {}).get("assets", []):
+                if mention.get("source_kind") == "annotation" or mention.get("claim_type") in {
+                    "inference",
+                    "statement",
+                    "adaptation",
+                }:
+                    continue
                 key = entity_key(mention, note["id"])
                 bucket = project.setdefault(BUCKETS[mention["kind"]], {})
                 entity = entities.get(key)

@@ -192,3 +192,67 @@ async def get_rules(name: str):
     from lib.novel_workflow.rule_catalog import catalog
 
     return await invoke(name, catalog)
+
+
+class AttributionRequest(SourceRequest):
+    segment_index: int = Field(ge=0)
+    utterance_index: int = Field(ge=0)
+    speaker: str = Field(min_length=1, max_length=200)
+    shot_basis: str
+
+
+@router.patch(
+    "/projects/{name}/novel-workflow/shots/{shot_id}/speaker", dependencies=[Depends(require_project_migration_ok)]
+)
+async def attribute_speaker(name: str, shot_id: str, req: AttributionRequest):
+    from lib.novel_workflow.scene_library import attribute_dialogue
+
+    return await invoke(
+        name,
+        lambda path, project: attribute_dialogue(
+            path,
+            project,
+            shot_id,
+            req.segment_index,
+            req.utterance_index,
+            req.speaker,
+            req.source_basis,
+            req.shot_basis,
+        ),
+    )
+
+
+class AdoptSceneRevision(SourceRequest):
+    batch_basis: str
+    revision_id: str
+
+
+@router.post(
+    "/projects/{name}/novel-workflow/scene-revisions/adopt", dependencies=[Depends(require_project_migration_ok)]
+)
+async def adopt_scene_revision(name: str, req: AdoptSceneRevision):
+    from lib.novel_workflow.scene_review import adopt
+
+    return await invoke(
+        name, lambda path, project: adopt(path, project, req.batch_basis, req.revision_id, req.source_basis)
+    )
+
+
+class ConfirmSceneQuestions(SourceRequest):
+    batch_basis: str
+    review_basis: str
+    reason: str = Field(min_length=10, max_length=3000)
+
+
+@router.post(
+    "/projects/{name}/novel-workflow/scene-revisions/confirm", dependencies=[Depends(require_project_migration_ok)]
+)
+async def confirm_scene_questions(name: str, req: ConfirmSceneQuestions):
+    from lib.novel_workflow.scene_review import confirm_questions
+
+    return await invoke(
+        name,
+        lambda path, project: confirm_questions(
+            path, project, req.batch_basis, req.source_basis, req.review_basis, req.reason
+        ),
+    )

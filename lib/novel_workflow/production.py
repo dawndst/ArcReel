@@ -97,6 +97,12 @@ async def prepare(path, episode, binding, inputs, generator, *, dry_run=False):
         scoped[bucket] = {}
         for result in readings:
             for asset in result["assets"]:
+                if asset.get("source_kind") == "annotation" or asset.get("claim_type") in {
+                    "inference",
+                    "statement",
+                    "adaptation",
+                }:
+                    continue
                 if asset["kind"] == kind:
                     ref = reference(_project, asset)
                     if ref.get("asset_missing"):
@@ -112,6 +118,7 @@ async def prepare(path, episode, binding, inputs, generator, *, dry_run=False):
                         }
                     quotes.append(asset["evidence"]["quote"])
     context = "\n" + (await asyncio.to_thread(store.rule, path, "production")).strip()
+    context += "\n" + (await asyncio.to_thread(store.rule, path, "fidelity")).strip()
     # Original episode text already includes every selected Note; this is only a bounded reminder.
     selected = []
     used = 0

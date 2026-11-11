@@ -146,6 +146,7 @@ describe("ScriptReviewGate", () => {
 
     await waitFor(() => expect(screen.getByDisplayValue("你终于回来了。")).toBeInTheDocument());
     expect(screen.getByDisplayValue("阿离")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "画面与动作描述" })).toHaveValue("雨夜，阿离立于屋檐下");
     expect(screen.getByRole("img", { name: "分镜 1" })).toBeInTheDocument();
     expect(screen.getByText("待确认")).toBeInTheDocument();
     expect(screen.getByText("确认并继续")).toBeInTheDocument();
@@ -178,6 +179,7 @@ describe("ScriptReviewGate", () => {
     render(<ScriptReviewGate projectName="p" episode={1} contentMode="drama" onOpenTimeline={openTimeline} />);
 
     expect(await screen.findByText("你终于回来了。")).toBeInTheDocument();
+    expect(screen.getByText("雨夜，阿离立于屋檐下")).toBeInTheDocument();
     expect(screen.getByText("三年后，阿离立于屋檐下：你终于回来了。")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "删除发声" })).not.toBeInTheDocument();

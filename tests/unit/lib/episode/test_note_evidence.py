@@ -72,3 +72,68 @@ async def test_chapter_summary_accepts_supplied_dialogue_as_parent_event_evidenc
     ]
     result = await chapter(tmp_path, Generator(), extracted, "按原文归纳")
     assert result["evidence_ids"] == ["event-1"]
+
+
+async def test_bounded_output_growth_preserves_prompt_and_does_not_change_reading_split_policy(tmp_path):
+    import json
+    from types import SimpleNamespace
+
+    from lib.backends.text_backends.base import TextOutputTruncatedError
+    from lib.novel_workflow.service import ask
+    from lib.novel_workflow.understanding_models import Findings
+
+    class Generator:
+        max_output_tokens = 24000
+
+        def __init__(self):
+            self.requests = []
+
+        async def generate(self, request, **kwargs):
+            self.requests.append(request)
+            if request.max_output_tokens < self.max_output_tokens:
+                raise TextOutputTruncatedError(provider="test", model="test", output_tokens=12000)
+            return SimpleNamespace(text=json.dumps({"links": [], "unresolved": ["仍待回查"], "next_queries": []}))
+
+    generator = Generator()
+    result = await ask(tmp_path, generator, Findings, "完整材料", grow_output=True)
+    assert result.unresolved == ["仍待回查"]
+    assert [r.max_output_tokens for r in generator.requests] == [12000, 24000]
+    assert generator.requests[0].prompt == generator.requests[1].prompt
+    with pytest.raises(TextOutputTruncatedError):
+        await ask(tmp_path, Generator(), Findings, "普通请求")
+    capped = Generator()
+    capped.max_output_tokens = 12000
+
+    async def truncated(request, **kwargs):
+        raise TextOutputTruncatedError(provider="test", model="test", output_tokens=12000)
+
+    capped.generate = truncated
+    with pytest.raises(TextOutputTruncatedError):
+        await ask(tmp_path, capped, Findings, "注册上限", grow_output=True)
+
+
+def test_reading_keeps_subjective_claims_and_does_not_default_to_facts():
+    value = Reading(
+        complete=True,
+        summary="疑似故人",
+        events=[
+            {
+                "title": "阳子疑似见到景麒",
+                "cause": "",
+                "conflict": "",
+                "action": "看不清脸",
+                "outcome": "身份未确认",
+                "quote": "说不定是阳子自己看错人了。",
+                "claim_type": "inference",
+                "perspective": "阳子",
+                "source_kind": "narrative",
+            }
+        ],
+    )
+    result = ground(value, {"text": "说不定是阳子自己看错人了。", "start": 0, "note_id": "n2", "source_file": "book"})
+    assert result["events"][0]["claim_type"] == "inference"
+    assert result["events"][0]["perspective"] == "阳子"
+    from lib.novel_workflow.models import Event
+
+    old = Event(title="旧资料", cause="", conflict="", action="", outcome="", quote="旧引文")
+    assert old.claim_type == "unverified"

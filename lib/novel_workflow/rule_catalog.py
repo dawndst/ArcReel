@@ -7,6 +7,7 @@ from lib.novel_workflow import settings, store
 from lib.prompts.prompt_templates.builtin import builtin_templates
 
 TITLES = {
+    "fidelity": ("事实、推测与对白归属", "保留认知边界、梦境与批注性质；无法确认的对白先留待确认"),
     "overview": ("故事设定：Note 归纳", "只汇总当前可用范围的精读成果，不重新读取全书"),
     "scope": ("未完结小说与可用章节", "限定阅读范围、保留待续线索，不要求读完全书"),
     "production": ("导演选镜后的生产约束", "保留导演选择、防止未选内容和未来设定混入制作"),

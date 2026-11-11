@@ -40,7 +40,13 @@ def ledger(path, notebook, *, through=None, extra=(), readings=None):
                 for v in reading.get(key, [])
             )
     items = list({v["id"]: v for v in items}.values())
-    aliases = [v for v in items if v["bucket"] == "aliases"]
+    aliases = [
+        v
+        for v in items
+        if v["bucket"] == "aliases"
+        and v.get("claim_type", "unverified") in {"fact", "unverified"}
+        and v.get("source_kind") != "annotation"
+    ]
     people = {}
     for item in items:
         if item["bucket"] != "assets" or item["kind"] != "character":

@@ -44,7 +44,7 @@ class Reader:
                     ensure_ascii=False,
                 )
             )
-        text = request.prompt.split("当前原文：\n", 1)[1].split("\n只输出 JSON", 1)[0]
+        text = json.loads(request.prompt.split("\n", 1)[1])["source"]
         quote = "甲拿起古剑。" if "甲拿起古剑。" in text else "乙推开城门。"
         return SimpleNamespace(
             text=json.dumps(

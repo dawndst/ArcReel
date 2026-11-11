@@ -30,3 +30,26 @@ it("management groups expose synopsis and reference controls, never episode asse
   fireEvent.click(within(card).getByRole("button", { name: "设为仅留档" }));
   expect(usage).toHaveBeenCalledOnce();
 });
+it("keeps unresolved dialogue visible and requires attribution before assembly", () => {
+  const draft = structuredClone(batch);
+  const shot = draft.scenes[0].shots[0];
+  shot.revision = "rev";
+  shot.segments[0].utterances = [{ kind: "dialogue", speaker: null, text: "不愧是班长。" }];
+  const attribute = vi.fn();
+  render(<SceneLibraryPanel batches={[draft]} notes={[]} disabled={false} selection={[shot.id]} setSelection={() => {}} title="验收" setTitle={() => {}} assemble={() => {}} source={() => {}} characters={["同学甲"]} attribute={attribute} />);
+  expect(screen.getByText("说话人待确认：不愧是班长。")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "将所选场镜编排为一集" })).toBeDisabled();
+  fireEvent.change(screen.getByRole("combobox", { name: "确认说话人" }), { target: { value: "同学甲" } });
+  expect(attribute).toHaveBeenCalledWith(shot.id, 0, 0, "同学甲", "rev");
+});
+it("shows before/after changes and blocks only selected unadopted revisions", () => {
+  const draft = structuredClone(batch);
+  draft.review = { revisions: [{ id: "r", scene_index: 0, shot_index: 0, segment_index: null, field: "title", before: "红发", after: "发辫", reason: "发色未明确", source_quote: "编成一条辫子", applied: false }], unresolved: [] };
+  const adopt = vi.fn();
+  render(<SceneLibraryPanel batches={[draft]} notes={[]} disabled={false} selection={["SH-1"]} setSelection={() => {}} title="验收" setTitle={() => {}} assemble={() => {}} source={() => {}} adoptRevision={adopt} />);
+  expect(screen.getByText("红发").closest("p")).toHaveClass("bg-destructive/10");
+  expect(screen.getByText("发辫")).toHaveClass("bg-primary/10");
+  expect(screen.getByRole("button", { name: "将所选场镜编排为一集" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "采用修订并保存新版本" }));
+  expect(adopt).toHaveBeenCalledWith("b", "r");
+});

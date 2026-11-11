@@ -57,21 +57,46 @@ def ground(reading: Reading, part: dict, seed_ids=frozenset()) -> dict:
     return data
 
 
-async def ask(path: Path, generator, schema, prompt: str, validate=lambda value: value):
-    error = ""
-    for _ in range(3):
-        check_stop()
-        response = await generator.generate(
-            TextGenerationRequest(
-                prompt=prompt
-                + "\n只输出 JSON，结构："
-                + json.dumps(schema.model_json_schema(), ensure_ascii=False)
-                + error,
-                max_output_tokens=12000,
-            ),
-            project_name=path.name,
-            require_complete=True,
+async def ask(
+    path: Path,
+    generator,
+    schema,
+    prompt: str | dict,
+    validate=lambda value: value,
+    *,
+    grow_output=False,
+    max_output_tokens=12000,
+):
+    fidelity = await asyncio.to_thread(store.rule, path, "fidelity")
+    if isinstance(prompt, dict):
+        prompt = {**prompt, "instructions": prompt.get("instructions", "") + "\n" + fidelity}
+    else:
+        prompt = fidelity + "\n" + prompt
+    if isinstance(prompt, dict):
+        prompt = (
+            "请按 instructions 规则处理 source；memory 仅为上下文，不作为证据。只输出符合 schema 的 JSON。\n"
+            + json.dumps({**prompt, "schema": schema.model_json_schema()}, ensure_ascii=False)
         )
+    else:
+        prompt += "\n只输出 JSON 数据实例（不是 schema 本身），结构：" + json.dumps(
+            schema.model_json_schema(), ensure_ascii=False
+        )
+    error = ""
+    output_limit = max_output_tokens
+    for attempt in range(3):
+        check_stop()
+        try:
+            response = await generator.generate(
+                TextGenerationRequest(prompt=prompt + error, max_output_tokens=output_limit),
+                project_name=path.name,
+                require_complete=True,
+            )
+        except TextOutputTruncatedError:
+            larger = min(output_limit * 2, generator.max_output_tokens, 48000) if grow_output else output_limit
+            if larger <= output_limit or attempt == 2:
+                raise
+            output_limit = larger
+            continue
         await run_noninterruptible_sync(
             store.write,
             store.root(path) / "responses" / f"{uuid4().hex}.json",
@@ -92,7 +117,7 @@ async def read_part(path, generator, note, part, rules, rolling, expected, seed_
     marker = target.with_suffix(".split.json")
     split = await asyncio.to_thread(marker.exists)
     if not split:
-        prompt = rules + "\n已读片段提示（不能作为本段证据）：" + rolling + "\n当前原文：\n" + part["text"]
+        prompt = {"instructions": rules, "memory": rolling, "source": part["text"]}
         try:
             data = await ask(
                 path,
@@ -211,7 +236,13 @@ async def read_notes(path: Path, generator, note_ids: list[str], expected: str) 
             from lib.novel_workflow.understanding import understand_notes
 
             progress.update(phase="understanding", done=0)
-            await understand_notes(path, generator, note_ids, expected)
+            try:
+                await understand_notes(path, generator, note_ids, expected)
+            except Exception:
+                latest_progress = await asyncio.to_thread(load_json, store.root(path) / "progress.json")
+                if latest_progress.get("phase") in {"understanding", "failed", "stopped"}:
+                    progress = latest_progress
+                raise
         progress.update(phase="complete", done=len(notes), completed_at=now())
         return {"read_notes": len(notes)}
     except Exception as exc:

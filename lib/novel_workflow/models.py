@@ -4,14 +4,33 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class Mention(StrictModel):
+class EvidencedClaim(StrictModel):
+    claim_type: Literal["fact", "statement", "inference", "vision", "adaptation", "unverified"] = Field(
+        default="unverified",
+        description="fact=正文明确事实；statement=人物说法；inference=推测；vision=梦境或幻象；adaptation=改编建议；unverified=未判定。引用存在不等于结论成立。",
+    )
+    perspective: str = Field(default="", description="谁说、谁猜、谁梦见；事实可为空。不得将角色认知提升为客观事实。")
+    source_kind: Literal["narrative", "annotation", "unknown"] = Field(
+        default="unknown", description="正文、读者/译者批注、未判定；批注不作剧情事实"
+    )
+
+    @model_validator(mode="after")
+    def retain_perspective(self):
+        if self.claim_type in {"statement", "inference", "vision"} and not self.perspective.strip():
+            raise ValueError("人物说法、推测或梦境必须标明认知主体 perspective；未知时写明未明确，不得默认客观事实")
+        if self.source_kind == "annotation" and self.claim_type == "fact":
+            raise ValueError("读者或译者批注不能标为正文事实")
+        return self
+
+
+class Mention(EvidencedClaim):
     kind: Literal["character", "scene", "prop"]
     name: str = Field(min_length=1)
     identity_scope: str = Field(default="", description="Distinguish same-name entities; unknown stays unknown")
@@ -23,7 +42,7 @@ class Mention(StrictModel):
     quote: str = Field(min_length=2)
 
 
-class Change(StrictModel):
+class Change(EvidencedClaim):
     character: str
     before: str
     after: str
@@ -32,13 +51,13 @@ class Change(StrictModel):
     quote: str = Field(min_length=2)
 
 
-class Dialogue(StrictModel):
+class Dialogue(EvidencedClaim):
     speaker: str
     quote: str = Field(min_length=2)
     value: str
 
 
-class Event(StrictModel):
+class Event(EvidencedClaim):
     title: str
     cause: str
     conflict: str
@@ -89,14 +108,14 @@ class SVTBatch(StrictModel):
     merge_suggestions: list[str] = Field(default_factory=list)
 
 
-class Alias(StrictModel):
+class Alias(EvidencedClaim):
     name: str
     alias: str
     identity_scope: str = ""
     quote: str = Field(min_length=2)
 
 
-class Relation(StrictModel):
+class Relation(EvidencedClaim):
     subject: str
     target: str
     relation: str
@@ -106,14 +125,14 @@ class Relation(StrictModel):
     quote: str = Field(min_length=2)
 
 
-class Thread(StrictModel):
+class Thread(EvidencedClaim):
     kind: Literal["seed", "resolution"]
     description: str
     seed_id: str | None = None
     quote: str = Field(min_length=2)
 
 
-class Highlight(StrictModel):
+class Highlight(EvidencedClaim):
     kind: Literal["payoff", "growth", "fear", "ethical_conflict", "revelation", "tragedy", "hook"]
     description: str
     beneficiary: str

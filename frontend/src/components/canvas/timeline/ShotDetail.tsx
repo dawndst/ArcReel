@@ -1,4 +1,5 @@
-import { MAX_SEGMENT_SECONDS, shotHierarchyCode } from "@/utils/shot-hierarchy";
+import { useShotHierarchyCode } from "@/hooks/useShotHierarchyCode";
+import { MAX_SEGMENT_SECONDS } from "@/utils/shot-hierarchy";
 import { useCallback, useEffect, useId, useMemo, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Film, ImageIcon, Timer } from "lucide-react";
@@ -479,6 +480,7 @@ export function ShotDetail({
   durationWarningReason,
   editRef,
 }: ShotDetailProps) {
+  const shotHierarchyCode = useShotHierarchyCode();
   const { t } = useTranslation("dashboard");
   const itemLabel = useItemPositionLabel(segmentId);
   const status = statusFromAssets(segment.generated_assets?.status);

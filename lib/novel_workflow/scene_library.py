@@ -70,6 +70,11 @@ def view(path, notebook, readings):
     batches = list(catalog(path)["batches"].values())
     for batch in batches:
         batch["stale"] = not valid_batch(path, batch, notebook, readings)
+        if "review" in batch:
+            batch["review_revision"] = digest(batch["review"])
+        for scene in batch["scenes"]:
+            for shot in scene["shots"]:
+                shot["revision"] = digest(shot)
     return sorted(batches, key=lambda b: (b["note_order"], b["part"]))
 
 
@@ -125,11 +130,15 @@ def ground(value, chunk, assets, durations):
                     if not set(getattr(segment, field)) <= assets[kind]:
                         raise ValueError("镜头引用了当前阅读资料以外的资产")
                 for utterance in segment.utterances:
+                    if utterance.text not in chunk["text"]:
+                        try:
+                            start, end = locate(chunk["text"], utterance.text)
+                            utterance.text = chunk["text"][start:end]
+                        except ValueError as exc:
+                            raise ValueError(f"对白或旁白必须有当前原文的逐字依据：{utterance.text[:100]}") from exc
                     uttered.append(utterance.text)
                     if uttered.count(utterance.text) > chunk["text"].count(utterance.text):
                         raise ValueError("不得在SEG之间重复复制整段对白")
-                    if utterance.text not in chunk["text"]:
-                        raise ValueError("对白或旁白必须有当前原文的逐字依据")
                     if utterance.speaker and utterance.speaker not in segment.characters_in_scene:
                         raise ValueError("说话人必须出现在本镜头角色列表中")
     return value.model_dump()
@@ -182,6 +191,12 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
             chunks = chunks_by_note[note["id"]]
             assets = []
             for asset in reading["assets"]:
+                if asset.get("source_kind") == "annotation" or asset.get("claim_type") in {
+                    "inference",
+                    "statement",
+                    "adaptation",
+                }:
+                    continue
                 ref = reference(project, asset)
                 if ref.get("asset_missing"):
                     raise ValueError("原文关联资产已删除，请先处理资产引用")
@@ -238,13 +253,34 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                     "events": [e for e in reading["events"] if in_chunk(e["evidence"], chunk)],
                     "highlights": [e for e in reading.get("highlights", []) if in_chunk(e["evidence"], chunk)],
                 }
-                result = await ask(
-                    path,
-                    generator,
-                    SceneBatch,
-                    rules + "\n当前材料：" + json.dumps(payload, ensure_ascii=False),
-                    lambda value, chunk=chunk, local_names=local_names: ground(value, chunk, local_names, durations),
-                )
+                draft_file = store.root(path) / "scene_drafts" / f"{key}.json"
+                if await asyncio.to_thread(draft_file.exists):
+                    result = await asyncio.to_thread(load_json, draft_file)
+                else:
+                    result = await ask(
+                        path,
+                        generator,
+                        SceneBatch,
+                        rules + "\n当前原文与事实：" + json.dumps(payload, ensure_ascii=False),
+                        lambda value, chunk=chunk, local_names=local_names: ground(
+                            value, chunk, local_names, durations
+                        ),
+                        grow_output=True,
+                        max_output_tokens=24000,
+                    )
+                    await run_noninterruptible_sync(store.write, draft_file, result)
+                from lib.novel_workflow.scene_review import review
+
+                review_file = store.root(path) / "scene_reviews" / f"{key}.json"
+                if await asyncio.to_thread(review_file.exists):
+                    semantic_review = await asyncio.to_thread(load_json, review_file)
+                else:
+                    semantic_review = (
+                        await review(path, generator, result["scenes"], chunk["text"])
+                        if result["scenes"]
+                        else {"revisions": [], "unresolved": []}
+                    )
+                    await run_noninterruptible_sync(store.write, review_file, semantic_review)
                 scenes = []
                 for scene in result["scenes"]:
                     for shot in scene["shots"]:
@@ -268,6 +304,7 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                     "understanding_basis": known["basis"],
                     "svt_basis": digest(tags),
                     "scenes": scenes,
+                    "review": semantic_review,
                     "skipped_reason": result["skipped_reason"],
                     "created_at": now(),
                 }
@@ -313,3 +350,52 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
         store.write, store.root(path) / "progress.json", {"phase": "idle", "done": completed, "total": total}
     )
     return {"batches": completed}
+
+
+def require_attributed(shot):
+    for segment in shot["segments"]:
+        for utterance in segment["utterances"]:
+            if utterance["kind"] == "dialogue" and not (utterance.get("speaker") or "").strip():
+                raise ValueError(
+                    f"{shot['id']} 有对白尚未确认说话人：{utterance['text'][:60]}。请在场镜素材库确认后再组集。"
+                )
+
+
+def attribute_dialogue(path, project, shot_id, segment_index, utterance_index, speaker, expected, shot_basis):
+    """Human attribution is local, versioned and guarded against stale edits."""
+    with project_metadata_lock(path):
+        notebook = store.require_current(path, project, expected)
+        reading = store.valid_readings(path, notebook)
+        library = catalog(path)
+        for batch in library["batches"].values():
+            for scene in batch["scenes"]:
+                for shot in scene["shots"]:
+                    if shot["id"] != shot_id:
+                        continue
+                    if not valid_batch(path, batch, notebook, reading) or digest(shot) != shot_basis:
+                        raise ValueError("镜头已变化，请刷新后确认说话人")
+                    try:
+                        segment = shot["segments"][segment_index]
+                        utterance = segment["utterances"][utterance_index]
+                    except IndexError as exc:
+                        raise ValueError("对白位置不存在") from exc
+                    if segment_index < 0 or utterance_index < 0 or utterance["kind"] != "dialogue":
+                        raise ValueError("只能确认角色对白的说话人")
+                    if speaker not in project.get("characters", {}):
+                        raise ValueError("请选择项目中已登记的人物资产；未明确身份可建立无名角色资产")
+                    store.write(store.root(path) / "history" / f"scene-attribution-{uuid4().hex}.json", batch)
+                    utterance["speaker"] = speaker
+                    if speaker not in segment["characters_in_scene"]:
+                        segment["characters_in_scene"].append(speaker)
+                    shot.setdefault("attribution_history", []).append(
+                        {
+                            "segment": segment_index,
+                            "utterance": utterance_index,
+                            "speaker": speaker,
+                            "confirmed_by": "human",
+                            "created_at": now(),
+                        }
+                    )
+                    store.write(store.root(path) / "scene_library.json", library)
+                    return {"shot_id": shot_id}
+        raise ValueError("镜头不存在")

@@ -2178,6 +2178,15 @@ class API {
   static async setNoteGroupUsage(name: string, id: string, usage: "reference" | "candidate", source_basis: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/groups/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ usage, source_basis }) });
   }
+  static async confirmSceneQuestions(name: string, batch_basis: string, review_basis: string, reason: string, source_basis: string): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/scene-revisions/confirm`, { method: "POST", body: JSON.stringify({ batch_basis, review_basis, reason, source_basis }) });
+  }
+  static async adoptSceneRevision(name: string, batch_basis: string, revision_id: string, source_basis: string): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/scene-revisions/adopt`, { method: "POST", body: JSON.stringify({ batch_basis, revision_id, source_basis }) });
+  }
+  static async attributeNoteDialogue(name: string, shot: string, segment_index: number, utterance_index: number, speaker: string, source_basis: string, shot_basis: string): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/shots/${encodeURIComponent(shot)}/speaker`, { method: "PATCH", body: JSON.stringify({ segment_index, utterance_index, speaker, source_basis, shot_basis }) });
+  }
   static async assembleDirectorEpisode(name: string, shot_ids: string[], title: string, source_basis: string, request_id: string): Promise<{ episode: number }> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/episodes`, { method: "POST", body: JSON.stringify({ shot_ids, title, source_basis, request_id }) });
   }

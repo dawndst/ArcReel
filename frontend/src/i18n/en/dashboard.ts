@@ -1,5 +1,27 @@
 
 export default {
+  nw_scene_description: "Scene and action description",
+
+  nw_review_reason: "Reason after checking this excerpt (10+ characters)",
+  nw_review_confirm: "Record rationale and resolve questions",
+
+  nw_semantic_review: "Source consistency review",
+  nw_revision_applied: "Applied; previous version retained",
+  nw_revision_adopt: "Apply revision and save new version",
+  nw_review_blocked: "Resolve the selected source consistency issues before assembly.",
+
+  nw_speaker_pending: "Speaker unresolved",
+  nw_speaker_hint: "Keep the original dialogue. Check the source before assigning a speaker. Add missing characters in the asset library; do not guess identities.",
+  nw_speaker_confirm: "Confirm speaker",
+  nw_speaker_blocked: "Resolve the selected dialogue speakers before assembling the episode.",
+  nw_claim_fact: "Narrative fact",
+  nw_claim_statement: "Character statement",
+  nw_claim_inference: "Inference",
+  nw_claim_vision: "Dream / vision",
+  nw_claim_adaptation: "Adaptation suggestion",
+  nw_claim_unverified: "Certainty unverified",
+  nw_claim_annotation: "Annotation, not narrative fact",
+
   nw_first_note: "First appearance: Note {{number}} · {{title}}",
   nw_first_note_hint: "Earliest source appearance among generated Notes. Open the chapter; unread chapters are not inferred.",
   nw_summarizing: "Summarizing the chapter overview",

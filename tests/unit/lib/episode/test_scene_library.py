@@ -40,7 +40,8 @@ def scene_output(quote="甲拿起古剑。"):
     }
 
 
-async def test_generation_has_no_episode_side_effect_and_cache_preserves_selection_ids(tmp_path):
+@pytest.mark.parametrize("truncate", [False, True])
+async def test_generation_has_no_episode_side_effect_and_cache_preserves_selection_ids(tmp_path, truncate):
     data, notebook = await asyncio.to_thread(project, tmp_path)
     data.update(content_mode="drama", generation_mode="storyboard", episodes=[], characters={}, scenes={}, props={})
     store.write(tmp_path / "project.json", data)
@@ -51,17 +52,24 @@ async def test_generation_has_no_episode_side_effect_and_cache_preserves_selecti
 
     class Generator:
         calls = 0
+        max_output_tokens = 48000
 
         async def generate(self, request, **kwargs):
+            if "逐项审核场镜" in request.prompt:
+                return SimpleNamespace(text=json.dumps({"revisions": [], "unresolved": []}))
             self.calls += 1
             assert "乙推开城门" not in request.prompt
+            if truncate and self.calls == 1:
+                from lib.backends.text_backends.base import TextOutputTruncatedError
+
+                raise TextOutputTruncatedError(provider="test", model="test", output_tokens=request.max_output_tokens)
             return SimpleNamespace(text=json.dumps(scene_output(), ensure_ascii=False))
 
     generator = Generator()
     await scene_library.generate(tmp_path, generator, [note_id], notebook["source_basis"], durations=[8])
     original = scene_library.catalog(tmp_path)
     await scene_library.generate(tmp_path, generator, [note_id], notebook["source_basis"], durations=[8])
-    assert generator.calls == 1
+    assert generator.calls == 1 + int(truncate)
     assert scene_library.catalog(tmp_path) == original
     assert json.loads((tmp_path / "project.json").read_text())["episodes"] == []
     shot = next(iter(original["batches"].values()))["scenes"][0]["shots"][0]
@@ -125,3 +133,47 @@ def test_scene_assets_do_not_leak_later_state_from_same_note():
     assert scene_library.asset_available(asset(10, 30), chunk)
     assert scene_library.asset_available(asset(110, 130), chunk)
     assert not scene_library.asset_available(asset(250, 270), chunk)
+
+
+def test_missing_speaker_preserved_in_library_but_blocks_production_until_confirmed():
+    from lib.novel_workflow.director import content_from_selection
+
+    raw = scene_output("“不愧是班长。”")
+    segment = raw["scenes"][0]["shots"][0]["segments"][0]
+    segment["utterances"] = [{"kind": "dialogue", "speaker": " ", "text": "不愧是班长。"}]
+    result = scene_library.ground(
+        SceneBatch.model_validate(raw),
+        {"text": "“不愧是班长。”"},
+        {"character": {"甲"}, "scene": set(), "prop": set()},
+        [8],
+    )
+    scene = {**result["scenes"][0], "id": "SCN-1"}
+    shot = {**scene["shots"][0], "id": "SH-1", "evidence": {"quote": "“不愧是班长。”"}}
+    assert shot["segments"][0]["utterances"][0]["speaker"] is None
+    assert shot["segments"][0]["utterances"][0]["kind"] == "dialogue"
+    with pytest.raises(ValueError, match="确认说话人"):
+        content_from_selection([({}, scene, shot)], 1, "验收")
+    shot["segments"][0]["utterances"][0]["speaker"] = "甲"
+    script, mapping = content_from_selection([({}, scene, shot)], 1, "验收")
+    assert script["scenes"][0]["utterances"][0]["text"] == "不愧是班长。"
+    assert mapping[0]["library_shot_id"] == "SH-1"
+
+
+def test_director_keeps_selected_order_scene_boundaries_and_segment_numbers():
+    from copy import deepcopy
+
+    from lib.novel_workflow.director import content_from_selection
+
+    scene = {**scene_output()["scenes"][0], "id": "SCN-9"}
+    shot = {**scene["shots"][0], "id": "SH-8", "evidence": {"quote": "甲拿起古剑。"}}
+    shot["segments"].append(deepcopy(shot["segments"][0]))
+    other = {**deepcopy(shot), "id": "SH-2", "segments": [deepcopy(shot["segments"][0])]}
+    selected = [({}, scene, shot), ({}, {**scene, "id": "SCN-2"}, other)]
+    content, mapping = content_from_selection(selected, 3, "导演选择")
+    assert [(s["scene_number"], s["shot_number"], s["segment_number"]) for s in content["scenes"]] == [
+        (1, 1, 1),
+        (1, 1, 2),
+        (2, 1, None),
+    ]
+    assert [m["library_shot_id"] for m in mapping] == ["SH-8", "SH-8", "SH-2"]
+    assert [s["scene_id"] for s in content["scenes"]] == ["E3S001", "E3S002", "E3S003"]
