@@ -14,6 +14,7 @@ from pydantic.json_schema import SkipJsonSchema
 
 from lib.script.script_skeleton import resolve_declared_kind
 from lib.script.shot_hierarchy import ShotPlacement, segment_durations, validate_hierarchy
+from lib.speech.delivery import Delivery
 
 # 所有剧本模型默认禁止额外字段:Agent 的 `patch_episode_script` 通过 `_set_nested` 允许在
 # dict 上凭空创建叶子(为了让 Agent 补 LLM 漏写的 optional 字段);若 Pydantic 走默认
@@ -111,6 +112,7 @@ class Dialogue(BaseModel):
 
     model_config = _STRICT_CONFIG
 
+    delivery: Delivery | None = Field(default=None, exclude_if=lambda value: value is None)
     speaker: str = Field(description="说话人名称")
     line: str = Field(description="对话内容")
 
@@ -457,6 +459,11 @@ class Utterance(BaseModel):
 
     model_config = _STRICT_CONFIG
 
+    delivery: Delivery | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="发声方式与角色出镜独立：on_screen画内、off_screen画外、inner内心、narration旁白",
+    )
     kind: UtteranceKind = Field(description="发声类型：dialogue=带角色归属的角色发声、voiceover=无角色归属的叙述旁白")
     speaker: str | None = Field(default=None, description="说话角色名；dialogue 必填非空、voiceover 必须为 null")
     text: str = Field(description="发声内容原文，逐字保留")
@@ -479,6 +486,8 @@ class Utterance(BaseModel):
                 raise ValueError("dialogue utterance 必须带非空 speaker")
         elif self.speaker is not None:
             raise ValueError("voiceover utterance 不得带 speaker")
+        if self.delivery is not None and ((self.kind == "voiceover") != (self.delivery == "narration")):
+            raise ValueError("发声方式与对白/旁白归属不一致")
         return self
 
 

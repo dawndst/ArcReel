@@ -188,8 +188,8 @@ const EMPTY_UTTERANCES: Utterance[] = [];
 // 否则上游把画外音字段规范化后修改标记清不掉。
 const canonicalUtterance = (u: Utterance): Utterance =>
   u.kind === "dialogue"
-    ? { kind: "dialogue", speaker: u.speaker, text: u.text }
-    : { kind: "voiceover", speaker: null, text: u.text };
+    ? { kind: "dialogue", speaker: u.speaker, text: u.text, ...(u.delivery ? { delivery: u.delivery } : {}) }
+    : { kind: "voiceover", speaker: null, text: u.text, ...(u.delivery ? { delivery: u.delivery } : {}) };
 
 /**
  * 字段的等值签名。字段集合稳定，JSON 即可：键序差异只会来自同一构造路径。

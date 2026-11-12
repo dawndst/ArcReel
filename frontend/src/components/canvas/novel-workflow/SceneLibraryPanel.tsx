@@ -3,13 +3,21 @@ import { SceneQuestions, type ConfirmQuestion } from "./SceneQuestions";
 import { MomentCoverage } from "./MomentCoverage";
 import { ShotProductionPanel } from "./ShotProductionPanel";
 import { sceneLibraryOrder } from "./scene-library-order";
+import { ExecutionEditor } from "./ExecutionEditor";
+import { ExecutionChecks } from "./ExecutionChecks";
+import type { ReactNode } from "react";
+import type { LibraryShot, ShotEdit, ExecutionAssetOption } from "@/types/novel-workflow";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ChapterNote, SceneLibraryBatch, ShotDecisions, ShotAssetBinding } from "@/types/novel-workflow";
 
-export function SceneLibraryPanel({ batches, notes, disabled, selection, setSelection, title, setTitle, assemble, source, characters = [], attribute, adoptRevision, confirmQuestions, completeProduction, saveProduction, openAsset, openSvt, batchSource, suggestSpeakers }: {
+export function SceneLibraryPanel({ batches, notes, disabled, selection, setSelection, title, setTitle, assemble, source, characters = [], attribute, adoptRevision, confirmQuestions, completeProduction, saveProduction, openAsset, openSvt, batchSource, suggestSpeakers, projectName, assetOptions = [], saveExecution, draftExecution, assemblyActions }: {
+  projectName?: string; assetOptions?: ExecutionAssetOption[];
+  saveExecution?: (shot: LibraryShot, edit: ShotEdit) => Promise<void>;
+  draftExecution?: (note: string, shot: string) => void;
+  assemblyActions?: ReactNode;
   batchSource?: (basis: string, shotId?: string, segment?: number, utterance?: number) => void;
   suggestSpeakers?: (note: string, shot: string) => void;
   completeProduction?: (notes: string[]) => void;
@@ -25,6 +33,7 @@ export function SceneLibraryPanel({ batches, notes, disabled, selection, setSele
 }) {
   const { t } = useTranslation("dashboard");
   const [filter, setFilter] = useState("");
+  const [editing, setEditing] = useState<{ shot: LibraryShot; batch: string; proposal: boolean } | null>(null);
   const { ordered, sceneLabels, shotLabels } = sceneLibraryOrder(batches, notes);
   const query = filter.trim().toLowerCase();
   const isNumberSearch = /^(SCN|SH)-\d+$/i.test(query);
@@ -47,7 +56,7 @@ export function SceneLibraryPanel({ batches, notes, disabled, selection, setSele
       {!batches.length && <p className="text-sm">{t("nw_scene_empty")}</p>}
       {ordered.map((batch, batchIndex) => <div key={batch.basis} id={`scene-batch-${batch.basis}`} className="space-y-3">
         {(batchIndex === 0 || ordered[batchIndex - 1].note_id !== batch.note_id) && <button className="text-sm font-semibold text-primary underline" onClick={() => source(batch.note_id)}>{notes.find((n) => n.id === batch.note_id)?.title ?? batch.note_id}</button>}
-        {batch.review && <details className="space-y-3 rounded-lg border border-warn/40 p-3"><summary className="cursor-pointer font-semibold">{t("nw_semantic_review")}{(batch.review.unresolved.length + batch.review.revisions.filter((r) => !r.applied).length) > 0 && ` (${batch.review.unresolved.length + batch.review.revisions.filter((r) => !r.applied).length})`}</summary><SceneQuestions key={batch.review_revision} batch={batch} disabled={disabled || batch.stale} confirm={confirmQuestions} source={() => batchSource ? batchSource(batch.basis, batch.scenes.flatMap((s) => s.shots).find((sh) => sh.segments.some((seg) => seg.utterances.some((u) => u.kind === "dialogue" && !u.speaker)))?.id) : source(batch.note_id)} shotLabels={shotLabels} locate={(id) => { setFilter(shotLabels.get(id) ?? id); requestAnimationFrame(() => document.getElementById(`library-shot-${id}`)?.scrollIntoView({ block: "center", behavior: "smooth" })); }} />{batch.review.revisions.map((r) => <article key={r.id} className="space-y-2 rounded border p-3 text-sm"><p>{r.reason}</p><p className="rounded bg-destructive/10 p-2"><del>{r.before}</del></p><p className="rounded bg-primary/10 p-2">{r.after}</p><details><summary>{t("nw_evidence")}</summary><blockquote>{r.source_quote}</blockquote></details>{r.applied ? <p className="text-primary">{t("nw_revision_applied")}</p> : <Button size="sm" disabled={disabled || batch.stale || !adoptRevision} onClick={() => adoptRevision?.(batch.basis, r.id)}>{t("nw_revision_adopt")}</Button>}</article>)}</details>}
+        {batch.review && <details className="space-y-3 rounded-lg border border-warn/40 p-3"><summary className="cursor-pointer font-semibold">{t("nw_semantic_review")}{(batch.review.unresolved.length + batch.review.revisions.filter((r) => !r.applied && !r.superseded).length) > 0 && ` (${batch.review.unresolved.length + batch.review.revisions.filter((r) => !r.applied && !r.superseded).length})`}</summary><SceneQuestions key={batch.review_revision} batch={batch} disabled={disabled || batch.stale} confirm={confirmQuestions} source={() => batchSource ? batchSource(batch.basis, batch.scenes.flatMap((s) => s.shots).find((sh) => sh.segments.some((seg) => seg.utterances.some((u) => u.kind === "dialogue" && !u.speaker)))?.id) : source(batch.note_id)} shotLabels={shotLabels} locate={(id) => { setFilter(shotLabels.get(id) ?? id); requestAnimationFrame(() => document.getElementById(`library-shot-${id}`)?.scrollIntoView({ block: "center", behavior: "smooth" })); }} />{batch.review.revisions.filter((r) => !r.superseded).map((r) => <article key={r.id} className="space-y-2 rounded border p-3 text-sm"><p>{r.reason}</p><p className="rounded bg-destructive/10 p-2"><del>{r.before}</del></p><p className="rounded bg-primary/10 p-2">{r.after}</p><details><summary>{t("nw_evidence")}</summary><blockquote>{r.source_quote}</blockquote></details>{r.applied ? <p className="text-primary">{t("nw_revision_applied")}</p> : <Button size="sm" disabled={disabled || batch.stale || r.superseded || !adoptRevision} onClick={() => adoptRevision?.(batch.basis, r.id)}>{t("nw_revision_adopt")}</Button>}</article>)}</details>}
         {batch.production_stale && <p className="text-sm text-warn">{t("nw_production_stale")}</p>}
         {batch.stale && <p className="text-sm text-destructive">{t("nw_scene_stale")}</p>}
         {batch.skipped_reason && <p className="text-sm text-muted-foreground">{t("nw_scene_skipped")}：{batch.skipped_reason}</p>}
@@ -60,6 +69,8 @@ export function SceneLibraryPanel({ batches, notes, disabled, selection, setSele
             <label className="flex items-center gap-2 text-base font-semibold"><input type="checkbox" aria-label={t("nw_select_shot", { title: shot.title })} disabled={disabled || batch.stale} checked={selection.includes(shot.id)} onChange={() => toggle([shot.id])} />{shot.title}<span className="ml-auto text-xs">{shot.segments.reduce((n, s) => n + s.duration_seconds, 0)}s</span></label>
             <p className="font-mono text-xs text-muted-foreground">{sceneLabels.get(scene.id)} · {shotLabels.get(shot.id)}</p>
             <div className="flex flex-wrap gap-2">{batchSource && <Button size="sm" variant="outline" onClick={() => batchSource(batch.basis, shot.id)}>{t("nw_shot_source")}</Button>}{suggestSpeakers && shot.segments.some((seg) => seg.utterances.some((u) => u.kind === "dialogue" && !u.speaker)) && <Button size="sm" disabled={disabled || batch.stale} onClick={() => suggestSpeakers(batch.note_id, shot.id)}>{t("nw_speaker_ai")}</Button>}</div>
+            <div className="flex flex-wrap gap-2">{saveExecution && <Button size="sm" disabled={disabled || batch.stale} onClick={() => setEditing({ shot, batch: batch.basis, proposal: false })}>{t("nw_exec_edit")}</Button>}{draftExecution && <Button size="sm" variant="outline" disabled={disabled || batch.stale} onClick={() => draftExecution(batch.note_id, shot.id)}>{t("nw_exec_ai_request")}</Button>}{shot.execution_draft && <Button size="sm" variant="outline" disabled={disabled || batch.stale || shot.execution_draft.stale} onClick={() => setEditing({ shot, batch: batch.basis, proposal: true })}>{t("nw_exec_ai_draft")}</Button>}{shot.execution_draft?.stale && <span className="text-xs text-warn">{t("nw_exec_draft_stale")}</span>}</div>
+            {shot.execution_checks && <ExecutionChecks checks={shot.execution_checks} />}
             <ShotProductionPanel shot={shot} context={batch.production_context} disabled={disabled || batch.stale || !!batch.production_stale} openAsset={openAsset} openSvt={openSvt} save={saveProduction && shot.revision ? (value) => saveProduction(shot.id, shot.revision!, value) : undefined} />
             <h4 className="text-sm font-semibold">{t("nw_shot_performance")}</h4>
             {shot.segments.map((segment, i) => <div key={i} className="space-y-1 rounded bg-muted/30 p-2 text-sm"><strong>{shot.segments.length > 1 ? `SEG${i + 1} · ` : ""}{segment.duration_seconds}s</strong><p>{segment.scene_description}</p>{segment.utterances.map((u, j) => <div key={j} className="rounded-r border-l-2 border-primary/30 bg-primary/5 p-3 text-foreground"><p>{u.speaker ? `${u.speaker}：` : u.kind === "dialogue" ? `${t("nw_speaker_pending")}：` : ""}{u.text}</p>{u.kind === "dialogue" && !u.speaker && <DialogueAttribution shot={shot} segment={i} utterance={j} characters={characters} disabled={disabled || batch.stale} attribute={attribute} source={batchSource ? () => batchSource(batch.basis, shot.id, i, j) : undefined} />}</div>)}</div>)}
@@ -72,13 +83,13 @@ export function SceneLibraryPanel({ batches, notes, disabled, selection, setSele
       <h2 className="text-lg font-bold">{t("nw_director_assembly")}</h2><details open={selection.length > 0 ? true : undefined}><summary className="cursor-pointer text-base font-semibold text-primary">{t("nw_selected_shots", { count: selection.length, seconds: total })}</summary><div className="mt-3 space-y-3">
       <p className="text-xs text-muted-foreground">{t("nw_director_order_hint")}</p>
       <ol className="space-y-2">{selection.map((id, i) => <li key={id} className="rounded border p-2 text-sm"><span>{i + 1}. {shotLabels.get(id)} · {byId.get(id)?.title ?? id}</span><div className="mt-1 flex gap-1"><Button variant="ghost" size="sm" disabled={disabled || i === 0} aria-label={t("nw_move_up", { index: i + 1 })} onClick={() => move(i, -1)}>↑</Button><Button variant="ghost" size="sm" disabled={disabled || i === selection.length - 1} aria-label={t("nw_move_down", { index: i + 1 })} onClick={() => move(i, 1)}>↓</Button><Button variant="ghost" size="sm" disabled={disabled} onClick={() => toggle([id])}>{t("nw_remove_selection")}</Button></div></li>)}</ol>
-      {productionBlocked && <p className="text-sm text-destructive">{t("nw_production_blocked")}</p>}
+      {!assemblyActions && productionBlocked && <p className="text-sm text-destructive">{t("nw_production_blocked")}</p>}
       {invalid && <p className="text-sm text-destructive">{t("nw_scene_stale")}</p>}
-      {reviewBlocked && <p className="text-sm text-destructive">{t("nw_review_blocked")}</p>}
-      {unresolved && <p role="status" className="text-sm text-destructive">{t("nw_speaker_blocked")}</p>}
+      {!assemblyActions && reviewBlocked && <p className="text-sm text-destructive">{t("nw_review_blocked")}</p>}
+      {!assemblyActions && unresolved && <p role="status" className="text-sm text-destructive">{t("nw_speaker_blocked")}</p>}
       <Input aria-label={t("nw_episode_title")} placeholder={t("nw_episode_title")} value={title} disabled={disabled} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
-      <Button className="w-full" disabled={disabled || invalid || unresolved || reviewBlocked || productionBlocked || !selection.length || !title.trim()} onClick={assemble}>{t("nw_assemble_selected")}</Button>
+      {assemblyActions ?? <Button className="w-full" disabled={disabled || invalid || unresolved || reviewBlocked || productionBlocked || !selection.length || !title.trim()} onClick={assemble}>{t("nw_assemble_selected")}</Button>}
       <p className="text-xs text-muted-foreground">{t("nw_assembly_no_ai")}</p>
     </div></details></aside>
-  </div></div>;
+  </div>{editing && projectName && saveExecution && <ExecutionEditor key={`${editing.shot.id}:${editing.proposal}`} projectName={projectName} batch={editing.batch} shot={editing.shot} label={shotLabels.get(editing.shot.id) ?? editing.shot.id} assets={assetOptions} proposal={editing.proposal} disabled={disabled} close={() => setEditing(null)} save={async (value) => { await saveExecution(editing.shot, value); setEditing(null); }} />}</div>;
 }

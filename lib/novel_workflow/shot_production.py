@@ -318,6 +318,37 @@ def update(path, project, shot_id, expected, revision, decisions):
 
 def native_segment(segment, production, index):
     """Project library bindings into the native name/variant reference syntax once at assembly."""
+    value = deepcopy(segment)
+    from lib.speech.delivery import DELIVERY_DIRECTIONS
+
+    start, end = value.pop("start_frame", ""), value.pop("end_frame", "")
+    states = value.pop("asset_states", [])
+    instructions = []
+    if start:
+        instructions.append("起始画面：" + start)
+    if end:
+        instructions.append("结束画面与下片段衔接：" + end)
+    instructions.extend(
+        f"资产状态 {state['name']}（{state['visibility']}）：{state.get('start', '')} → {state.get('end', '')}；{state.get('attachment', '')}"
+        for state in states
+    )
+    for line in value.get("utterances", []):
+        line.pop("origin", None)
+        line.pop("basis_quote", None)
+        mode = line.get("delivery") or ("narration" if line["kind"] == "voiceover" else None)
+        if mode == "narration":
+            line["delivery"] = "narration"
+        if mode == "unclassified":
+            line.pop("delivery", None)
+        elif mode in DELIVERY_DIRECTIONS:
+            instructions.append(f"发声 {line.get('speaker') or '叙述旁白'}：{DELIVERY_DIRECTIONS[mode]}")
+    if instructions:
+        value["scene_description"] += "\n" + "\n".join(instructions)
+    return effective_segment(value, production, index)
+
+
+def effective_segment(segment, production, index):
+    """Resolve bound visual variants consistently for review, handoff and native publication."""
     from lib.references.reference_catalog import derivative_reference
 
     value = deepcopy(segment)
@@ -331,6 +362,9 @@ def native_segment(segment, production, index):
         target = derivative_reference(name, binding["variant"]) if binding.get("variant") else name
         field = {"character": "characters_in_scene", "scene": "scenes", "prop": "props"}[binding["kind"]]
         value[field] = [target if n == source else n for n in value[field]]
+        for state in value.get("asset_states", []):
+            if state["kind"] == binding["kind"] and state["name"] == source:
+                state["name"] = target
         if binding["kind"] == "character":
             for u in value["utterances"]:
                 if u.get("speaker") in {source, name}:
@@ -352,7 +386,20 @@ def require_ready(shot, project):
 
 def planning_inputs(ctx, rules, shots, project, reading):
     clean = {
-        key: {k: v for k, v in sh.items() if k not in ("production", "revision", "issues", "speaker_suggestions")}
+        key: {
+            k: v
+            for k, v in sh.items()
+            if k
+            not in (
+                "production",
+                "revision",
+                "issues",
+                "speaker_suggestions",
+                "execution_draft",
+                "edit_history",
+                "execution_checks",
+            )
+        }
         for key, sh in shots.items()
     }
     bindings = {key: asset_bindings(project, reading, sh) for key, sh in shots.items()}

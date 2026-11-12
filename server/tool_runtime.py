@@ -2798,6 +2798,21 @@ async def _execute_queued_text_task(
             )
         from lib.novel_workflow.condensation import generate as condense_notes
 
+        if payload["action"] in {"shot_draft", "selection_story"}:
+            from lib.novel_workflow import production_advice
+
+            if payload["action"] == "shot_draft":
+                return await production_advice.shot_draft(
+                    path, generator, payload["note_ids"], payload["source_basis"], payload.get("shot_ids", [])
+                )
+            return await production_advice.selection_story(
+                path,
+                generator,
+                payload["note_ids"],
+                payload["source_basis"],
+                payload.get("shot_ids", []),
+                payload.get("title", ""),
+            )
         if payload["action"] == "speaker_attribution":
             from lib.novel_workflow.speaker_attribution import generate as suggest_speakers
 

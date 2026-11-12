@@ -11,7 +11,7 @@ from lib.script.script_models import DramaNormalizedScript
 from lib.script.script_review import formal_script_plan_lock, write_formal_script_plan_locked
 
 
-def content_from_selection(selected, episode, title):
+def content_from_selection(selected, episode, title, review=None):
     from lib.novel_workflow.scene_library import require_attributed
     from lib.novel_workflow.shot_production import design_text, native_segment
 
@@ -27,6 +27,10 @@ def content_from_selection(selected, episode, title):
         shot_number += 1
         for index, segment in enumerate(shot["segments"], 1):
             segment = native_segment(segment, shot.get("production"), index - 1)
+            if review:
+                from lib.novel_workflow.delivery_review import director_notes
+
+                segment["scene_description"] += "\n编导处理：" + director_notes(review, shot["id"], index - 1)
             row_id = f"E{episode}S{len(rows) + 1:03}"
             rows.append(
                 {
@@ -65,6 +69,10 @@ def assemble(manager, name, shot_ids, title, expected, request_id):
         notebook = store.require_current(path, project, expected)
         readings = store.valid_readings(path, notebook)
         selected = scene_library.selected_shots(path, notebook, readings, shot_ids)
+        from lib.novel_workflow.delivery_review import preview
+
+        selection_plan = preview(path, project, shot_ids, title, expected)
+        approved = selection_plan if selection_plan["approved"] else None
         for _batch, _scene, shot in selected:
             scene_library.require_attributed(shot)
             from lib.novel_workflow.shot_production import require_ready
@@ -72,15 +80,23 @@ def assemble(manager, name, shot_ids, title, expected, request_id):
             if _batch.get("production_stale"):
                 raise ValueError("爆点或镜头设计规则已变化，请先完善制作信息")
             require_ready(shot, project)
-            from lib.novel_workflow.scene_review import require_reviewed
 
-            require_reviewed(_batch, shot)
         if len(shot_ids) > 300:
             raise ValueError("单集最多编排300个镜头")
         existing = next(
-            (e for e in project["episodes"] if e.get("director_selection", {}).get("request_id") == request_id), None
+            (
+                e
+                for e in project["episodes"]
+                if e.get("director_selection", {}).get("request_id") == request_id
+                or e.get("director_selection", {}).get("selection_basis") == selection_plan["basis"]
+            ),
+            None,
         )
-        if existing and existing["director_selection"]["signature"] != signature:
+        if (
+            existing
+            and existing["director_selection"].get("request_id") == request_id
+            and existing["director_selection"]["signature"] != signature
+        ):
             raise ValueError("本次编排已提交不同内容，请刷新后新建编排")
         if existing and not existing["director_selection"].get("pending"):
             return existing["episode"]
@@ -106,7 +122,7 @@ def assemble(manager, name, shot_ids, title, expected, request_id):
                     raise ValueError("场镜在编排期间发生变化，请刷新后重试")
                 episode = add_own_source_episode(path, current, text, undo=undo, title=title, source_kind="novel")
                 entry = current["episodes"][-1]
-                content, mapping = content_from_selection(selected, episode, title)
+                content, mapping = content_from_selection(selected, episode, title, review=approved)
                 entry["director_selection"] = {
                     "request_id": request_id,
                     "signature": signature,
@@ -121,7 +137,7 @@ def assemble(manager, name, shot_ids, title, expected, request_id):
                     "understanding_basis": known["basis"],
                     "text_basis": digest(text),
                 }
-        content, mapping = content_from_selection(selected, episode, title)
+        content, mapping = content_from_selection(selected, episode, title, review=approved)
         plan_path = episode_drafts_dir(path, episode) / SCRIPT_PLAN_FILENAMES["drama"]
         # Native publication keeps review, prompt authoring and artifact tracking on the standard path.
         # A failed publication leaves an explicit pending assembly; the same request resumes, never duplicates.
@@ -134,6 +150,9 @@ def assemble(manager, name, shot_ids, title, expected, request_id):
         def complete(current):
             entry = next(e for e in current["episodes"] if e["episode"] == episode)
             entry["director_selection"]["pending"] = False
+            entry["director_selection"]["published_content_basis"] = digest(content)
+            entry["director_selection"]["delivery_basis"] = approved["basis"] if approved else None
+            entry["director_selection"]["selection_basis"] = selection_plan["basis"]
 
         manager.update_project(name, complete)
         return episode

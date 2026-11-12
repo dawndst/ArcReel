@@ -7,6 +7,8 @@ from lib.novel_workflow import settings, store
 from lib.prompts.prompt_templates.builtin import builtin_templates
 
 TITLES = {
+    "shot_execution": ("单镜执行方案修订", "原文对照、发声方式、关键资产、起止状态和剪辑切点；人工采用"),
+    "selection_story": ("选镜后的观众理解检查", "只审阅实际选中音画，不借未选原文补脑；编导记录取舍"),
     "speaker_attribution": ("单镜对白说话人补判", "读取当前原文和相邻镜头，提供有证据的建议；采用后才填写说话人"),
     "condense": ("章节精编与原文回读", "逐段保留因果与原文索引，省略可追溯，待定内容保留原文"),
     "fidelity": ("事实、推测与对白归属", "保留认知边界、梦境与批注性质；无法确认的对白先留待确认"),

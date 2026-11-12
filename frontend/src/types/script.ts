@@ -90,6 +90,7 @@ export type UtteranceKind = "dialogue" | "voiceover";
  * speaker、voiceover 带 speaker）编译期即被拒，与后端 Utterance 契约一致。
  */
 export interface DialogueUtterance {
+  delivery?: "on_screen" | "off_screen" | "inner" | "narration" | null;
   kind: "dialogue";
   /** 角色台词必带非空说话人。 */
   speaker: string;
@@ -97,6 +98,7 @@ export interface DialogueUtterance {
 }
 
 export interface VoiceoverUtterance {
+  delivery?: "on_screen" | "off_screen" | "inner" | "narration" | null;
   kind: "voiceover";
   /** 无说话人画外音：speaker 恒为 null 或缺省。 */
   speaker?: null;

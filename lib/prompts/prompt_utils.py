@@ -15,6 +15,7 @@ from lib.project.asset_types import normalize_asset_bucket, normalize_asset_name
 from lib.prompts.prompt_style import normalize_style_value
 from lib.prompts.prompt_templates.builtin import builtin_templates
 from lib.prompts.reference_image_numbering import REFERENCE_IMAGES_KEY
+from lib.references.reference_catalog import split_derivative_reference
 from lib.script.script_models import CameraMotion, ShotType
 
 logger = logging.getLogger(__name__)
@@ -136,6 +137,15 @@ def project_storyboard_image_prompt(image_prompt: object, project_style: str) ->
     )
 
 
+def _dialogue_yaml_entry(entry):
+    from lib.speech.delivery import DELIVERY_DIRECTIONS
+
+    value = {"Speaker": entry["speaker"], "Line": entry["line"]}
+    if entry.get("delivery") in {"off_screen", "inner", "narration"}:
+        value["Delivery"] = DELIVERY_DIRECTIONS[entry["delivery"]]
+    return value
+
+
 def video_prompt_to_yaml(video_prompt: dict) -> str:
     """
     将 videoPrompt 结构转换为 YAML 格式字符串
@@ -153,7 +163,7 @@ def video_prompt_to_yaml(video_prompt: dict) -> str:
     Returns:
         YAML 格式字符串，以 ``Avoid`` 反向约束键收尾
     """
-    dialogue = [{"Speaker": d["speaker"], "Line": d["line"]} for d in video_prompt.get("dialogue", [])]
+    dialogue = [_dialogue_yaml_entry(d) for d in video_prompt.get("dialogue", [])]
     voice_profiles = video_prompt.get("voice_profiles") or []
 
     ordered: dict[str, Any] = {}
@@ -200,7 +210,17 @@ def normalize_video_prompt(prompt: object) -> str:
         speaker = str(item.get("speaker", "") or "").strip()
         line = str(item.get("line", "") or "").strip()
         if speaker or line:
-            normalized_dialogue.append({"speaker": speaker, "line": line})
+            normalized_dialogue.append(
+                {
+                    "speaker": speaker,
+                    "line": line,
+                    **(
+                        {"delivery": item["delivery"]}
+                        if item.get("delivery") in {"off_screen", "inner", "narration"}
+                        else {}
+                    ),
+                }
+            )
 
     normalized_prompt: dict[str, Any] = {
         "action": action_text,
@@ -259,9 +279,7 @@ def _attach_drama_speech_text(text: str, item: Mapping[str, Any] | None, *, char
         if voice_profiles:
             sections.append(yaml_section({"Voice_Profiles": voice_profiles}))
     if dialogue:
-        sections.append(
-            yaml_section({"Dialogue": [{"Speaker": entry["speaker"], "Line": entry["line"]} for entry in dialogue]})
-        )
+        sections.append(yaml_section({"Dialogue": [_dialogue_yaml_entry(entry) for entry in dialogue]}))
     pending = [section for section in sections if section not in text]
     if not pending:
         return text
@@ -404,6 +422,11 @@ def _build_voice_profiles(dialogue: list[Any], characters: dict[str, Any]) -> li
             continue
         seen.add(speaker_key)
         character = characters.get(speaker_key)
+        base_name, variant = split_derivative_reference(speaker_key)
+        if variant and not isinstance(character, dict):
+            root = characters.get(base_name)
+            if isinstance(root, dict) and variant in normalize_asset_bucket(root.get("derivatives")):
+                character = root
         if not isinstance(character, dict):
             logger.debug("Voice_Profiles 跳过：speaker %r 未命中角色资产", speaker)
             continue
@@ -419,7 +442,7 @@ def utterances_to_dialogue(utterances: object) -> list[dict[str, str]]:
     """drama 口型音轨出口：从有序 ``utterances`` 取 dialogue-kind 条目，转成 video YAML 的
     ``{speaker, line}`` 列表（保留时序）。
 
-    voiceover-kind 不进视频提示词（无 speaker，留给字幕 / TTS）。对脏数据稳健：非 list 整体、
+    显式 delivery=narration 的旁白交给原生配音；旧 voiceover 不进视频提示词（留给字幕 / TTS）。对脏数据稳健：非 list 整体、
     非 dict/object 元素、非 dialogue 条目一律跳过；dialogue 须 speaker 与 line 同时非空才进口型音轨，
     缺 speaker 的脏 dialogue（契约要求 dialogue 必带非空 speaker）不重新喂给 lip-sync / video prompt。
 
@@ -435,20 +458,30 @@ def utterances_to_dialogue(utterances: object) -> list[dict[str, str]]:
             kind = entry.get("kind")
             speaker_val = entry.get("speaker")
             text_val = entry.get("text")
+            delivery = entry.get("delivery")
         elif hasattr(entry, "kind"):
             kind = getattr(entry, "kind", None)
             speaker_val = getattr(entry, "speaker", None)
             text_val = getattr(entry, "text", None)
+            delivery = getattr(entry, "delivery", None)
         else:
             continue
 
-        if kind != "dialogue":
+        if kind != "dialogue" and not (kind == "voiceover" and delivery == "narration"):
             continue
 
         speaker = speaker_val.strip() if isinstance(speaker_val, str) else ""
+        if kind == "voiceover" and delivery == "narration":
+            speaker = "叙述旁白"
         line = text_val.strip() if isinstance(text_val, str) else ""
         if speaker and line:
-            dialogue.append({"speaker": speaker, "line": line})
+            dialogue.append(
+                {
+                    "speaker": speaker,
+                    "line": line,
+                    **({"delivery": delivery} if delivery in {"off_screen", "inner", "narration"} else {}),
+                }
+            )
     return dialogue
 
 

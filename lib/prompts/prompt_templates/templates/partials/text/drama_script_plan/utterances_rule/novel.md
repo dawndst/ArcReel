@@ -1,1 +1,2 @@
-按口播出现顺序产出发声序列，台词（dialogue）的 speaker 必须出现在 characters_in_scene。叙述、心理独白等不靠画面演出的内容，可按剧情语境判断写为画外音（voiceover）。分镜无口播则留空。
+按口播出现顺序产出发声序列，画内对白的 speaker 必须出现在 characters_in_scene，画外发声和内心独白保留角色归属但不强制入画。叙述、心理独白等不靠画面演出的内容，可按剧情语境判断写为画外音（voiceover）。分镜无口播则留空。
+角色发声用delivery区分on_screen画内对白、off_screen角色画外音和inner内心独白。仅on_screen需要说话者在characters_in_scene；其他发声不自动加入出镜名单。叙述旁白仍用voiceover，delivery=narration，不添加旁白人物。

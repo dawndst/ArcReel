@@ -93,6 +93,8 @@ def adopt(path, project, batch_basis, revision_id, expected):
         item = next((r for r in batch.get("review", {}).get("revisions", []) if r["id"] == revision_id), None)
         if not item:
             raise ValueError("修订建议不存在")
+        if item.get("superseded"):
+            raise ValueError("镜头方案已变化，该修订建议已过期，请重新核对当前镜头")
         if item["applied"]:
             return {"applied": True}
         obj = target(batch["scenes"], item)
@@ -111,7 +113,7 @@ def require_reviewed(batch, shot):
         raise ValueError("场镜语义审核仍有待核实问题，请复核原文并修订后再组集")
     for item in review.get("revisions", []):
         candidate = batch["scenes"][item["scene_index"]]["shots"][item["shot_index"]]
-        if candidate["id"] == shot["id"] and not item["applied"]:
+        if candidate["id"] == shot["id"] and not item["applied"] and not item.get("superseded"):
             raise ValueError(f"{shot['id']} 有未采纳的原文一致性修订，请先在场镜素材库处理")
 
 
@@ -144,7 +146,7 @@ def confirm_questions(path, project, batch_basis, expected, review_basis, reason
                 for u in segment["utterances"]
             ):
                 raise ValueError("本片段仍有台词缺少说话人，请先在对应台词中确认；填写说明不会修复台词")
-            if any(not r.get("applied") for r in review.get("revisions", [])):
+            if any(not r.get("applied") and not r.get("superseded") for r in review.get("revisions", [])):
                 raise ValueError("本片段仍有未采用的修订，请先处理后确认已修复")
         store.write(store.root(path) / "history" / f"scene-review-{uuid4().hex}.json", batch)
         review.setdefault("resolved_questions", []).append(

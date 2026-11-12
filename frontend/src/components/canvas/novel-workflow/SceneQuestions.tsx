@@ -16,7 +16,7 @@ export function SceneQuestions({ batch, disabled, confirm, locate, source, shotL
   const review = batch.review;
   if (!review) return null;
   const missing = batch.scenes.flatMap((s) => s.shots).filter((shot) => shot.segments.some((seg) => seg.utterances.some((u) => u.kind === "dialogue" && !u.speaker?.trim())));
-  const repairBlocked = missing.length > 0 || review.revisions.some((r) => !r.applied);
+  const repairBlocked = missing.length > 0 || review.revisions.some((r) => !r.applied && !r.superseded);
   return <div className="space-y-3">
     {review.unresolved.map((question, index) => <article key={index} className="space-y-3 rounded border border-warn/40 p-3">
       <p className="text-sm font-medium">{index + 1}. {question.replace(/utterances/gi, t("nw_question_dialogue"))}</p>

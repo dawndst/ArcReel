@@ -9,6 +9,8 @@ import { useProjectsStore } from "@/stores/projects-store";
 import { ClaimBadge } from "./ClaimBadge";
 import { NoteReadingStart } from "./NoteReadingStart";
 import { NoteGroupsPanel } from "./NoteGroupsPanel";
+import { DeliveryPanel } from "./DeliveryPanel";
+import type { ExecutionAssetOption } from "@/types/novel-workflow";
 import { SceneLibraryPanel } from "./SceneLibraryPanel";
 import { ReadingScopePanel } from "./ReadingScopePanel";
 import { useAppStore } from "@/stores/app-store";
@@ -51,7 +53,7 @@ function PrimarySvt({ note, busy, adopt }: { note: ChapterNote; busy: boolean; a
 
 function NoteDetails({ projectName, note, busy, adopt, condense, resolveAsset }: { projectName: string; note: ChapterNote; busy: boolean; adopt: (candidate: string) => void; condense: () => void; resolveAsset: (id: string, value: IdentityDecision) => Promise<void> }) {
   const { t } = useTranslation("dashboard");
-  const [location, navigate] = useLocation();
+  const [_location, navigate] = useLocation();
   const [source, setSource] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -162,6 +164,23 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
     catch (reason) { setError(errMsg(reason)); }
     finally { setBusy(false); }
   }
+  const assetOptions: ExecutionAssetOption[] = [
+    ...Object.entries(project?.characters ?? {}).flatMap(([name, item]) => [{ kind: "character" as const, name, asset_code: item.asset_code ?? "" }, ...Object.entries(item.derivatives ?? {}).map(([variant, derivative]) => ({ kind: "character" as const, name: `${name}/${variant}`, asset_code: derivative.asset_code ?? item.asset_code ?? "" }))]),
+    ...Object.entries(project?.scenes ?? {}).map(([name, item]) => ({ kind: "scene" as const, name, asset_code: item.asset_code ?? "" })),
+    ...Object.entries(project?.props ?? {}).map(([name, item]) => ({ kind: "prop" as const, name, asset_code: item.asset_code ?? "" })),
+  ];
+  function openAsset(kind: "character" | "scene" | "prop", name: string) {
+    const route = `/${{ character: "characters", scene: "scenes", prop: "props" }[kind]}`;
+    useAppStore.getState().triggerScrollTo({ type: kind, id: name, route });
+    navigate(`/app/projects/${encodeURIComponent(projectName)}${route}`);
+  }
+  function assembleSelection() { void act(async () => {
+    const created = await API.assembleDirectorEpisode(projectName, shotSelection, episodeTitle, data!.source_basis!, assemblyRequest);
+    await refreshAfterWrite(projectName, t);
+    setRevision((n) => n + 1);
+    setAssemblyRequest(crypto.randomUUID());
+    setError(t("dashboard:nw_delivery_episode", { episode: created.episode }));
+  }); }
   const selectedNotes = data?.notes.filter((n) => selected.includes(n.id)) ?? [];
   const note = data?.notes.find((n) => n.id === (focused ?? requestedNote)) ?? data?.notes[0];
   const canRun = !!data?.source_basis && selectedNotes.length > 0 && !data.stale && !working && !busy;
@@ -230,6 +249,15 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
         dissolve={(id) => void act(() => API.dissolveNoteGroup(projectName, id))} />}
       {tab === "scenes" && data.pending_assemblies?.map((pending) => <div key={pending.request_id} className="flex items-center gap-3 border-b bg-warn/10 p-3 text-sm"><span>{t("dashboard:nw_assembly_pending", { title: pending.title })}</span><Button disabled={busy || working} size="sm" onClick={() => void act(async () => { const created = await API.assembleDirectorEpisode(projectName, pending.shot_ids, pending.title, pending.source_basis, pending.request_id); if (await refreshAfterWrite(projectName, t) === "success") navigate(`/episodes/${created.episode}`); })}>{t("dashboard:nw_assembly_retry")}</Button></div>)}
       {tab === "scenes" && <SceneLibraryPanel
+        projectName={projectName} assetOptions={assetOptions}
+        saveExecution={async (shot, value) => {
+          const edited = await API.editShotExecution(projectName, shot.id, data.source_basis!, shot.revision!, value);
+          setShotSelection((ids) => ids.flatMap((id) => id === shot.id ? edited.shot_ids : [id]));
+          await refreshAfterWrite(projectName, t); setRevision((n) => n + 1);
+          setAssemblyRequest(crypto.randomUUID()); setTab("scenes", shot.id);
+        }}
+        draftExecution={(note, shot) => void act(() => API.productionAdvice(projectName, "shot_draft", [note], [shot], data.source_basis!))}
+        assemblyActions={data.settings?.delivery_checks_enabled === false ? undefined : <DeliveryPanel key={projectName} projectName={projectName} sourceBasis={data.source_basis!} selection={shotSelection} title={episodeTitle} disabled={busy || working || data.stale} revision={revision + (working ? 1 : 0)} labels={sceneLibraryOrder(data.scene_batches ?? [], data.notes).shotLabels} load={(ids, title) => { setShotSelection(ids); setEpisodeTitle(title); setAssemblyRequest(crypto.randomUUID()); }} locate={(id) => setTab("scenes", id)} openAsset={openAsset} assemble={assembleSelection} />}
         completeProduction={(ids) => void act(() => API.runNoteWorkflow(projectName, "scenes", ids, data.source_basis!))}
         saveProduction={async (shot, basis, decisions) => {
           if (busy || working) throw new Error(t("dashboard:nw_working"));
@@ -253,11 +281,7 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
         selection={shotSelection} setSelection={(ids) => { setShotSelection(ids); setAssemblyRequest(crypto.randomUUID()); }}
         title={episodeTitle} setTitle={(value) => { setEpisodeTitle(value); setAssemblyRequest(crypto.randomUUID()); }}
         source={(id) => { setFocused(id); setTab("notes"); }}
-        assemble={() => void act(async () => {
-          const created = await API.assembleDirectorEpisode(projectName, shotSelection, episodeTitle, data.source_basis!, assemblyRequest);
-          setShotSelection([]); setEpisodeTitle(""); setAssemblyRequest(crypto.randomUUID());
-          if (await refreshAfterWrite(projectName, t) === "success") navigate(`/episodes/${created.episode}`);
-        })} />}
+        assemble={assembleSelection} />}
 
     </>}
     {sourceBatch && <SceneBatchSource key={`${sourceBatch.basis}:${sourceBatch.shotId}:${sourceBatch.segment}:${sourceBatch.utterance}`} projectName={projectName} {...sourceBatch} shotLabels={sceneLibraryOrder(data?.scene_batches ?? [], data?.notes ?? []).shotLabels} close={() => setSourceBatch(null)} />}

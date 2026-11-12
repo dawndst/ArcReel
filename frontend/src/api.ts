@@ -2159,7 +2159,7 @@ class API {
   static async setNoteScope(name: string, note_ids: string[], source_basis: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/scope`, { method: "PUT", body: JSON.stringify({ note_ids, source_basis }) });
   }
-  static async updateNoteSettings(name: string, values: { summary_max_chars: number; understanding_enabled: boolean }): Promise<unknown> {
+  static async updateNoteSettings(name: string, values: { summary_max_chars: number; understanding_enabled: boolean; delivery_checks_enabled?: boolean }): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/settings`, { method: "PATCH", body: JSON.stringify(values) });
   }
 
@@ -2195,6 +2195,30 @@ class API {
   }
   static async dissolveNoteGroup(name: string, id: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/groups/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+  static async editShotExecution(name: string, shot: string, source_basis: string, shot_basis: string, value: import("@/types/novel-workflow").ShotEdit): Promise<{ shot_ids: string[] }> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/shots/${encodeURIComponent(shot)}/execution`, { method: "PATCH", body: JSON.stringify({ source_basis, shot_basis, value }) });
+  }
+  static async productionAdvice(name: string, action: "shot_draft" | "selection_story", note_ids: string[], shot_ids: string[], source_basis: string, title = ""): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action, note_ids, shot_ids, source_basis, title }) });
+  }
+  static async deliveryPlans(name: string): Promise<import("@/types/novel-workflow").SavedDelivery[]> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/deliveries`);
+  }
+  static async deliveryPreview(name: string, shot_ids: string[], title: string, source_basis: string, handoff = false): Promise<import("@/types/novel-workflow").DeliveryPlan> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/deliveries/${handoff ? "handoff" : "preview"}`, { method: "POST", body: JSON.stringify({ shot_ids, title, source_basis }) });
+  }
+  static async confirmDelivery(name: string, shot_ids: string[], title: string, source_basis: string, decision: import("@/types/novel-workflow").DirectorDecision): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/deliveries/confirm`, { method: "POST", body: JSON.stringify({ shot_ids, title, source_basis, decision }) });
+  }
+  static async confirmDeliveryImage(name: string, shot_ids: string[], title: string, source_basis: string, basis: string, asset_id: string, image_hash: string, reviewer: string): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/deliveries/assets/confirm`, { method: "POST", body: JSON.stringify({ shot_ids, title, source_basis, basis, asset_id, image_hash, reviewer }) });
+  }
+  static async exportDelivery(name: string, shot_ids: string[], title: string, source_basis: string, final: boolean): Promise<Blob> {
+    const url = `/projects/${encodeURIComponent(name)}/novel-workflow/deliveries/export`;
+    const response = await fetch(`${API_BASE}${url}`, withAuth(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shot_ids, title, source_basis, final }) }));
+    await throwIfNotOk(response, i18n.t("dashboard:nw_delivery_export_failed"));
+    return response.blob();
   }
   static async suggestShotSpeakers(name: string, note_id: string, shot_id: string, source_basis: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action: "speaker_attribution", note_ids: [note_id], shot_ids: [shot_id], source_basis }) });

@@ -24,7 +24,7 @@ export interface NovelWorkflow {
   scene_batches?: SceneLibraryBatch[];
   pending_assemblies?: { episode: number; title: string; source_basis: string; request_id: string; shot_ids: string[] }[];
   scope?: { configured: boolean; note_ids: string[]; available_count: number; read_count: number; total_count: number; mode: "ongoing" };
-  settings?: { summary_max_chars: number; understanding_enabled: boolean };
+  settings?: { summary_max_chars: number; understanding_enabled: boolean; delivery_checks_enabled?: boolean };
   understanding?: { links: UnderstandingLink[]; reports: UnderstandingReport[] };
   initialized: boolean; source_basis?: string; notes: ChapterNote[]; groups: NoteGroup[]; stale: boolean;
   ledger?: NovelLedger | null; reviews?: NovelScopeReview[];
@@ -59,10 +59,10 @@ export interface UnderstandingReport {
   inspections: { anchor_note_id: string; queries: string[]; note_ids: string[]; round: number }[];
 }
 
-export interface LibrarySegment { duration_seconds: number; scene_description: string; characters_in_scene: string[]; scenes: string[]; props: string[]; utterances: { kind: string; speaker: string | null; text: string }[] }
-export interface LibraryShot { speaker_suggestions?: { items: { segment_index: number; utterance_index: number; speaker: string | null; proposed_role?: string | null; source_quote: string; reason: string }[] }; production?: ShotProduction; issues?: { code: string; blocking: boolean; segment?: number }[]; revision?: string; id: string; title: string; segments: LibrarySegment[]; evidence: NoteEvidence }
+export interface LibrarySegment { start_frame?: string; end_frame?: string; asset_states?: ExecutionAssetState[]; duration_seconds: number; scene_description: string; characters_in_scene: string[]; scenes: string[]; props: string[]; utterances: { kind: string; speaker: string | null; text: string; delivery?: SpeechDelivery; origin?: "source" | "adaptation"; basis_quote?: string }[] }
+export interface LibraryShot { execution_checks?: ExecutionCheck[]; execution_draft?: ExecutionDraft; speaker_suggestions?: { items: { segment_index: number; utterance_index: number; speaker: string | null; proposed_role?: string | null; source_quote: string; reason: string }[] }; production?: ShotProduction; issues?: { code: string; blocking: boolean; segment?: number }[]; revision?: string; id: string; title: string; segments: LibrarySegment[]; evidence: NoteEvidence }
 export interface LibraryScene { id: string; title: string; location: string; time: string; purpose: string; shots: LibraryShot[] }
-export interface SceneRevision { id: string; scene_index: number; shot_index: number; segment_index: number | null; field: string; before: string; after: string; reason: string; source_quote: string; applied: boolean }
+export interface SceneRevision { superseded?: boolean; id: string; scene_index: number; shot_index: number; segment_index: number | null; field: string; before: string; after: string; reason: string; source_quote: string; applied: boolean }
 export interface SceneLibraryBatch { production_stale?: boolean; production_context?: ShotProductionContext; note_order?: number; part?: number; review_revision?: string; review?: { revisions: SceneRevision[]; unresolved: string[]; resolved_questions?: { questions: string[]; reason: string; resolution?: "repaired" | "false_positive"; created_at: string }[] }; basis: string; note_id: string; stale: boolean; scenes: LibraryScene[]; skipped_reason: string }
 
 export interface SVTCandidate { candidate_id: string; existing_id: string | null; title: string; summary: string; reason: string }
@@ -82,3 +82,15 @@ export interface ChapterEdition {
 }
 
 export interface SceneSource { text: string; source_file: string; start: number; end: number; note_title: string; part: number; shots: { id: string; title: string; start: number; end: number; dialogues: { segment: number; utterance: number; text: string; ranges: { start: number; end: number }[] }[] }[] }
+
+export type SpeechDelivery = "on_screen" | "off_screen" | "inner" | "narration" | "unclassified";
+export interface ExecutionAssetState { kind: "character" | "scene" | "prop"; name: string; visibility: "visible" | "hidden" | "off_screen"; start: string; end: string; attachment: string }
+export interface ShotEdit { title: string; segments: LibrarySegment[]; cut_before: number[] }
+export interface ExecutionCheck { id: string; code: string; hard: boolean; shot_id: string; segment: number | null; details: Record<string, unknown> }
+export interface ExecutionDraft { edit: ShotEdit; reason: string; source_quotes: string[]; basis: string; stale?: boolean }
+export interface ExecutionAssetOption { kind: "character" | "scene" | "prop"; name: string; asset_code: string }
+export interface DirectorDecision { basis: string; reviewer: string; story_intent: string; withheld: string; story_checked: boolean; timing_checked: boolean; continuity_checked: boolean; decisions: Record<string, string> }
+export interface StoryFinding { kind: string; shot_ids: string[]; reason: string; visible_evidence: string; suggestion: string }
+export interface DeliveryAsset { kind: "character" | "scene" | "prop"; name: string; asset_id: string; asset_code: string; visible: boolean; voice: boolean; description: string; voice_style: string; image: string | null; image_hash: string | null; image_approved?: boolean }
+export interface DeliveryPlan { basis: string; title: string; shot_ids: string[]; note_ids: string[]; seconds: number; aspect_ratio: string; approved: boolean; decision: DirectorDecision | null; issues: ExecutionCheck[]; assets: DeliveryAsset[]; ai_review: { summary: string; audience_understanding: string; findings: StoryFinding[] } | null; shots: { id: string; scene_id: string; scene?: { title: string; location: string; time: string; purpose: string }; story_links?: ShotProductionContext; title: string; segments: LibrarySegment[]; design: Record<string, string>; source: NoteEvidence }[]; ready?: boolean; episode?: number | null; missing_materials?: { code: string; name: string; asset_id: string | null }[] }
+export interface SavedDelivery { basis: string; title: string; shot_ids: string[]; source_basis: string; confirmed_at: string }

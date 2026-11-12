@@ -4,7 +4,7 @@ from lib.artifacts.formal_write import project_metadata_lock
 from lib.infra.json_io import load_json
 from lib.novel_workflow import store
 
-DEFAULTS = {"summary_max_chars": 1200, "understanding_enabled": True}
+DEFAULTS = {"summary_max_chars": 1200, "understanding_enabled": True, "delivery_checks_enabled": True}
 
 
 def get(path):

@@ -116,3 +116,10 @@ describe("UtteranceListEditor", () => {
     expect(focused.value).toBe("末行画外音。");
   });
 });
+
+it("preserves inner speech placement when editing text and speaker", () => {
+  const onChange = vi.fn();
+  render(<UtteranceListEditor utterances={[{ kind: "dialogue", speaker: "阿离", text: "心里想着", delivery: "inner" }]} onChange={onChange} />);
+  fireEvent.change(screen.getByRole("textbox", { name: "台词" }), { target: { value: "仍在心里想着" } });
+  expect(onChange).toHaveBeenLastCalledWith([{ kind: "dialogue", speaker: "阿离", text: "仍在心里想着", delivery: "inner" }]);
+});

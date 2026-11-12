@@ -41,11 +41,23 @@ class SourceRequest(BaseModel):
 
 
 class ReadingRequest(SourceRequest):
-    action: Literal["read", "svt", "review", "understand", "scenes", "condense", "group_summary", "speaker_attribution"]
+    action: Literal[
+        "read",
+        "svt",
+        "review",
+        "understand",
+        "scenes",
+        "condense",
+        "group_summary",
+        "speaker_attribution",
+        "shot_draft",
+        "selection_story",
+    ]
     note_ids: list[str] = Field(min_length=1, max_length=10000)
 
     group_id: str | None = Field(default=None, max_length=100)
-    shot_ids: list[str] = Field(default_factory=list, max_length=1)
+    shot_ids: list[str] = Field(default_factory=list, max_length=300)
+    title: str = Field(default="", max_length=200)
 
 
 class GroupRequest(SourceRequest):
@@ -213,6 +225,7 @@ async def assemble_episode(name: str, req: AssemblyRequest):
 
 
 class UnderstandingSettings(BaseModel):
+    delivery_checks_enabled: bool | None = None
     summary_max_chars: int = Field(ge=400, le=3000)
     understanding_enabled: bool
 
@@ -221,7 +234,7 @@ class UnderstandingSettings(BaseModel):
 async def update_settings(name: str, req: UnderstandingSettings):
     from lib.novel_workflow.settings import update
 
-    return await invoke(name, lambda path, _project: update(path, req.model_dump()))
+    return await invoke(name, lambda path, _project: update(path, req.model_dump(exclude_none=True)))
 
 
 class ScopeRequest(SourceRequest):
@@ -343,4 +356,114 @@ async def update_shot_production(name: str, shot_id: str, req: ShotProductionReq
 
     return await invoke(
         name, lambda path, project: update(path, project, shot_id, req.source_basis, req.shot_basis, req.decisions)
+    )
+
+
+from lib.novel_workflow.delivery_review import DirectorDecision
+from lib.novel_workflow.execution import ShotEdit
+
+
+class ExecutionRequest(SourceRequest):
+    shot_basis: str
+    value: ShotEdit
+    split: bool = False
+
+
+@router.patch(
+    "/projects/{name}/novel-workflow/shots/{shot_id}/execution", dependencies=[Depends(require_project_migration_ok)]
+)
+async def edit_execution(name: str, shot_id: str, req: ExecutionRequest):
+    from lib.novel_workflow.execution import update
+
+    return await invoke(
+        name, lambda path, project: update(path, shot_id, req.source_basis, req.shot_basis, req.value, split=req.split)
+    )
+
+
+class DeliverySelection(SourceRequest):
+    shot_ids: list[str] = Field(min_length=1, max_length=300)
+    title: str = Field(min_length=1, max_length=200)
+
+
+class DeliveryConfirmation(DeliverySelection):
+    decision: DirectorDecision
+
+
+class DeliveryAssetConfirmation(DeliverySelection):
+    basis: str
+    asset_id: str
+    image_hash: str
+    reviewer: str = Field(min_length=1, max_length=100)
+
+
+class DeliveryExport(DeliverySelection):
+    final: bool = False
+
+
+@router.get("/projects/{name}/novel-workflow/deliveries")
+async def list_deliveries(name: str):
+    from lib.novel_workflow.delivery_review import list_plans
+
+    return await invoke(name, lambda path, project: list_plans(path))
+
+
+@router.post("/projects/{name}/novel-workflow/deliveries/preview")
+async def preview_delivery(name: str, req: DeliverySelection):
+    from lib.novel_workflow.delivery_review import preview
+
+    return await invoke(name, lambda path, project: preview(path, project, req.shot_ids, req.title, req.source_basis))
+
+
+@router.post("/projects/{name}/novel-workflow/deliveries/confirm", dependencies=[Depends(require_project_migration_ok)])
+async def confirm_delivery(name: str, req: DeliveryConfirmation, user: CurrentUser):
+    from lib.novel_workflow.delivery_review import approve
+
+    return await invoke(
+        name,
+        lambda path, project: approve(path, req.shot_ids, req.title, req.source_basis, req.decision, actor_id=user.id),
+    )
+
+
+@router.post(
+    "/projects/{name}/novel-workflow/deliveries/assets/confirm", dependencies=[Depends(require_project_migration_ok)]
+)
+async def confirm_delivery_asset(name: str, req: DeliveryAssetConfirmation, user: CurrentUser):
+    from lib.novel_workflow.delivery_review import asset_approval
+
+    return await invoke(
+        name,
+        lambda path, project: asset_approval(
+            path,
+            req.shot_ids,
+            req.title,
+            req.source_basis,
+            req.basis,
+            req.asset_id,
+            req.image_hash,
+            req.reviewer,
+            actor_id=user.id,
+        ),
+    )
+
+
+@router.post("/projects/{name}/novel-workflow/deliveries/handoff")
+async def delivery_handoff(name: str, req: DeliverySelection):
+    from lib.novel_workflow.delivery_review import handoff
+
+    return await invoke(name, lambda path, project: handoff(path, project, req.shot_ids, req.title, req.source_basis))
+
+
+@router.post("/projects/{name}/novel-workflow/deliveries/export")
+async def export_delivery(name: str, req: DeliveryExport):
+    from fastapi.responses import Response
+
+    from lib.novel_workflow.delivery_review import export
+
+    content = await invoke(
+        name, lambda path, project: export(path, project, req.shot_ids, req.title, req.source_basis, final=req.final)
+    )
+    return Response(
+        content,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=production-package.zip"},
     )

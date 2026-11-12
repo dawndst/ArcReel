@@ -42,8 +42,8 @@ function nextKey(keys: string[]): string {
  *  speaker; voiceover→dialogue opens an empty speaker for the author to fill. */
 function flipKind(u: Utterance): Utterance {
   return u.kind === "dialogue"
-    ? { kind: "voiceover", speaker: null, text: u.text }
-    : { kind: "dialogue", speaker: "", text: u.text };
+    ? { kind: "voiceover", speaker: null, text: u.text, ...(u.delivery ? { delivery: "narration" as const } : {}) }
+    : { kind: "dialogue", speaker: "", text: u.text, ...(u.delivery ? { delivery: "on_screen" as const } : {}) };
 }
 
 interface UtteranceRowProps {
@@ -114,7 +114,7 @@ function UtteranceRow({
               value={speaker}
               list={speakerListId}
               disabled={disabled}
-              onChange={(e) => onUpdate({ kind: "dialogue", speaker: e.target.value, text: value.text })}
+              onChange={(e) => onUpdate({ ...value, kind: "dialogue", speaker: e.target.value, text: value.text })}
               placeholder={t("speaker_placeholder")}
               aria-label={t("speaker_placeholder")}
               aria-invalid={speakerMissing}
@@ -122,6 +122,7 @@ function UtteranceRow({
             />
           )}
 
+          {isDialogue && <select aria-label={t("nw_exec_delivery")} disabled={disabled} className="max-w-36 rounded border bg-background p-1 text-xs" value={value.delivery ?? "on_screen"} onChange={(e) => onUpdate({ ...value, delivery: e.target.value as "on_screen" | "off_screen" | "inner" })}>{(["on_screen", "off_screen", "inner"] as const).map((mode) => <option key={mode} value={mode}>{t(`nw_delivery_${mode}`)}</option>)}</select>}
           <span className="flex-1" />
 
           <TooltipIconButton
@@ -150,7 +151,7 @@ function UtteranceRow({
           disabled={disabled}
           onChange={(e) => {
             const text = e.target.value;
-            onUpdate(isDialogue ? { kind: "dialogue", speaker, text } : { kind: "voiceover", speaker: null, text });
+            onUpdate({ ...value, text });
           }}
           placeholder={isDialogue ? t("utterance_dialogue_placeholder") : t("utterance_voiceover_placeholder")}
           aria-label={isDialogue ? t("utterance_kind_dialogue") : t("utterance_kind_voiceover")}

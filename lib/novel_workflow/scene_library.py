@@ -93,6 +93,16 @@ def view(path, notebook, readings):
             for shot in scene["shots"]:
                 shot["revision"] = digest(shot)
                 shot["issues"] = issues(shot)
+                from lib.novel_workflow.execution import inspect
+
+                shot["execution_checks"] = inspect(shot, project)
+                if shot.get("execution_draft"):
+                    from lib.novel_workflow.execution import content_basis
+
+                    draft = shot["execution_draft"]
+                    draft["stale"] = draft["basis"] != content_basis(shot) or draft.get("rule_basis") != digest(
+                        store.rule(path, "shot_execution")
+                    )
     return sorted(batches, key=lambda b: (b["note_order"], b["part"]))
 
 
@@ -509,7 +519,7 @@ def attribute_dialogue(
                         None,
                     )
                     utterance["speaker"] = speaker
-                    if speaker not in segment["characters_in_scene"]:
+                    if utterance.get("delivery") == "on_screen" and speaker not in segment["characters_in_scene"]:
                         segment["characters_in_scene"].append(speaker)
                     shot.setdefault("attribution_history", []).append(
                         {
