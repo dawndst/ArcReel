@@ -39,3 +39,11 @@ it("shows who claimed a relationship instead of presenting it as an established 
   expect(screen.getByText("人物说法 · 景麒")).toBeVisible();
   expect(screen.queryByText("正文事实")).not.toBeInTheDocument();
 });
+
+it("keeps ordinary classmate identity in memory without presenting a borrowing event as relationship change", async () => {
+  const { storyRelations } = await import("./ReadingAnnotations");
+  const ordinary = { ...relation, relation: "同班同学", record_kind: "existing" as const, trigger: "杉本来向阳子借课本" };
+  expect(storyRelations([ordinary])).toEqual([]);
+  expect(ordinary.trigger).toBe("杉本来向阳子借课本");
+  expect(storyRelations([{ ...ordinary, record_kind: "changed", relation: "被迫疏远" }])).toHaveLength(1);
+});

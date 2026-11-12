@@ -6,11 +6,12 @@ function meaningful(value: string) {
   return !!value.trim() && !["未明确", "未知", "不明", "未提及", "未说明", "现在"].includes(value.trim());
 }
 
-const basicRelations = new Set(["父亲", "母亲", "父", "母", "儿子", "女儿", "子", "女", "老师", "学生", "同学", "兄弟", "姐妹", "哥哥", "姐姐", "弟弟", "妹妹"]);
+const basicRelations = new Set(["父亲", "母亲", "父", "母", "儿子", "女儿", "子", "女", "老师", "学生", "同学", "同班同学", "师生", "兄弟", "姐妹", "哥哥", "姐姐", "弟弟", "妹妹"]);
 
 export function storyRelations(relations: NoteRelation[]) {
   return relations.filter((r) => {
     if (r.record_kind === "changed" || r.record_kind === "established") return true;
+    if (r.record_kind === "existing" && basicRelations.has(r.relation.trim())) return false;
     const hasChange = meaningful(r.previous) && r.previous !== r.relation;
     return !basicRelations.has(r.relation.trim()) || hasChange || meaningful(r.trigger);
   });
