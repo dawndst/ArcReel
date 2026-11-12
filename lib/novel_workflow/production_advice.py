@@ -13,7 +13,6 @@ from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import delivery_review, execution, store
 from lib.novel_workflow.assets import mentions, reference
-from lib.novel_workflow.evidence import locate
 from lib.novel_workflow.models import StrictModel
 from lib.novel_workflow.scene_library import catalog
 from lib.novel_workflow.scene_source import batch_source
@@ -86,7 +85,11 @@ async def shot_draft(path, generator, note_ids, expected, shot_ids):
     def validate(value):
         edit = execution.validate_edit(value.edit, source["text"], project)
         for quote in value.source_quotes:
-            locate(source["text"], quote)
+            # These supporting excerpts carry no occurrence offsets. Repeated dialogue is
+            # valid evidence here; exact occurrence binding remains on the original shot.
+            excerpt = "".join(quote.split()).strip('「」『』“”‘’"')
+            if not excerpt or excerpt not in "".join(source["text"].split()):
+                raise ValueError("候选方案的支持引文必须来自当前原文")
         return {"edit": edit, "reason": value.reason, "source_quotes": value.source_quotes}
 
     result = await ask(
