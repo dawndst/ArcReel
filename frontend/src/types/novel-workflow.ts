@@ -11,7 +11,7 @@ export interface ChapterNote {
   id: string; order: number; title: string; volume: string; chapter: string; chars: number; basis: string; needs_review?: boolean;
   sections: { source_file: string; start: number; end: number; title: string }[];
   status?: "read" | "unread" | "stale" | "outdated";
-  reading?: { overview?: NoteOverview; aliases?: NoteAlias[]; relations?: NoteRelation[]; threads?: NoteThread[]; highlights?: NoteHighlight[]; basis: string; summaries: string[]; assets: NoteAsset[]; changes: NoteChange[]; events: NoteEvent[]; questions: string[] } | null;
+  reading?: { reading_questions?: { text: string; kind: "plot_unrevealed" | "extraction_check" | "unclassified" }[]; overview?: NoteOverview; aliases?: NoteAlias[]; relations?: NoteRelation[]; threads?: NoteThread[]; highlights?: NoteHighlight[]; basis: string; summaries: string[]; assets: NoteAsset[]; changes: NoteChange[]; events: NoteEvent[]; questions: string[] } | null;
 }
 export interface NoteGroup { usage?: "reference" | "candidate"; synopsis?: NoteOverview; summary_stale?: boolean; id: string; title: string; note_ids: string[]; source_basis: string; created_by: string }
 export interface NovelSVT {
@@ -34,7 +34,7 @@ export interface NovelWorkflow {
 export interface ChapterPreview { source_basis: string; notes: ChapterNote[]; excluded: { title: string; start: number; end: number }[] }
 export interface NoteFact extends ClaimStatus { id: string; evidence: NoteEvidence }
 export interface NoteAlias extends NoteFact { name: string; alias: string; identity_scope: string }
-export interface NoteRelation extends NoteFact { subject: string; target: string; relation: string; previous: string; trigger: string; story_time: string }
+export interface NoteRelation extends NoteFact { record_kind?: "existing" | "established" | "changed" | "unclassified"; subject: string; target: string; relation: string; previous: string; trigger: string; story_time: string }
 export interface NoteThread extends NoteFact { kind: "seed" | "resolution"; description: string; seed_id: string | null; resolutions?: NoteThread[] }
 export interface NoteHighlight extends NoteFact { kind: string; description: string; beneficiary: string; intensity: string; reason: string; visual: string }
 export interface NoteOverview { summary: string; cause: string; conflict: string; action: string; outcome: string; hook: string; evidence_ids: string[]; questions: string[] }

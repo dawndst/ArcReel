@@ -116,6 +116,10 @@ class Alias(EvidencedClaim):
 
 
 class Relation(EvidencedClaim):
+    record_kind: Literal["existing", "established", "changed", "unclassified"] = Field(
+        default="unclassified",
+        description="existing=本章记录的既有关系；established=剧情中明确新建立关系；changed=已知此前关系发生转变；unclassified=依据不足。亲属关系首次被记录不等于此刻才成为亲属。",
+    )
     subject: str
     target: str
     relation: str
@@ -171,7 +175,18 @@ class ScopeReview(StrictModel):
     questions: list[str] = Field(default_factory=list)
 
 
+class ReadingQuestion(StrictModel):
+    text: str = Field(min_length=1)
+    kind: Literal["plot_unrevealed", "extraction_check", "unclassified"] = Field(
+        description="plot_unrevealed=剧情尚未揭示的悬念；extraction_check=身份指代或抽取结论需要核实；unclassified=无法可靠分类。不把剧情悬念当作生成错误。"
+    )
+
+
 class Reading(StrictModel):
+    reading_questions: list[ReadingQuestion] = Field(
+        default_factory=list,
+        description="阅读疑问按剧情待揭示、抽取待核实分类；不确定时unclassified。与场镜制作审核阻断问题不同。",
+    )
     complete: bool
     summary: str
     assets: list[Mention] = Field(default_factory=list)

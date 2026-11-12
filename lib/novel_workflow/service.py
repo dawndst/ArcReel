@@ -39,6 +39,7 @@ def evidence(text: str, quote: str, part: dict) -> dict:
 
 def ground(reading: Reading, part: dict, seed_ids=frozenset()) -> dict:
     data = reading.model_dump()
+    data["questions"] = list(dict.fromkeys([*data["questions"], *(q["text"] for q in data["reading_questions"])]))
     for thread in data["threads"]:
         if thread["kind"] == "seed" and thread["seed_id"] is not None:
             raise ValueError("A new seed cannot resolve another seed")
@@ -215,6 +216,7 @@ async def read_notes(path: Path, generator, note_ids: list[str], expected: str) 
                 "basis": digest([note["basis"], rules, chapter_rule, context_basis, overview, extracted, 2]),
                 "context_basis": context_basis,
                 "overview": overview,
+                "reading_questions": [q for v in extracted for q in v.get("reading_questions", [])],
                 "summaries": [v["summary"] for v in extracted],
                 "created_at": now(),
                 "chunks": len(extracted),

@@ -1,3 +1,4 @@
+import { ReadingQuestions } from "./ReadingAnnotations";
 import { ChapterEditionPanel } from "./ChapterEditionPanel";
 import { NoteProductionActions, noteProductionStatus } from "./NoteProductionActions";
 import { useProjectsStore } from "@/stores/projects-store";
@@ -55,7 +56,7 @@ function NoteDetails({ projectName, note, busy, adopt, condense }: { projectName
     <details className="text-sm"><summary className="cursor-pointer">{t("nw_sections")} ({note.sections.length})</summary>{note.sections.map((s) => <p key={`${s.source_file}:${s.start}`} className="mt-1 text-xs text-muted-foreground">{s.title} · {s.start}–{s.end}</p>)}</details>
     {reading ? <>
       <Section title={t("nw_chapter_summary")}>{(reading.overview ? [reading.overview.summary] : reading.summaries).map((text, i) => <p key={`${i}:${text}`} className="mb-2 leading-relaxed">{text}</p>)}</Section>
-      {reading.overview && <Section title={t("nw_chapter_causality")}><dl className="space-y-2">{(["cause", "conflict", "action", "outcome"] as const).map((key) => <div key={key}><dt className="inline font-semibold">{t(`nw_${key}`)}：</dt><dd className="inline">{reading.overview![key]}</dd></div>)}</dl><p className="mt-2">{reading.overview.hook}</p>{reading.overview.questions.map((q) => <p key={q} className="mt-2 text-muted-foreground">{t("nw_questions")}：{q}</p>)}</Section>}
+      {reading.overview && <Section title={t("nw_chapter_causality")}><dl className="space-y-2">{(["cause", "conflict", "action", "outcome"] as const).map((key) => <div key={key}><dt className="inline font-semibold">{t(`nw_${key}`)}：</dt><dd className="inline">{reading.overview![key]}</dd></div>)}</dl><p className="mt-2">{reading.overview.hook}</p></Section>}
       <ChapterEditionPanel key={note.edition?.basis ?? "missing"} projectName={projectName} note={note} disabled={busy} generate={condense} />
       <ReadingEnrichment note={note} />
       {(["character", "scene", "prop"] as const).map((kind) => <Section key={kind} title={t(`nw_${kind}`)}>
@@ -69,7 +70,7 @@ ${a.evidence.quote}`} className="font-semibold text-primary underline decoration
       </Section>)}
       <Section title={t("guide_changes")}>{reading.changes.map((c) => <div key={c.id} className="mb-3 rounded-lg bg-muted/40 p-3"><strong>{c.character}</strong><ClaimBadge value={c} /><p className="mt-1">{c.before} → {c.after}</p><p className="text-xs text-muted-foreground">{c.story_time}</p><Evidence value={c.evidence} /></div>)}</Section>
       <Section title={t("nw_events")}>{reading.events.map((event) => <div key={event.id} className="mb-3 rounded-lg border p-3"><strong>{event.title}</strong><ClaimBadge value={event} /><dl className="mt-2 space-y-2">{(["cause", "conflict", "action", "outcome", "open_thread"] as const).map((key) => event[key] && <div key={key}><dt className="inline font-semibold">{t(`nw_${key}`)}：</dt><dd className="inline">{event[key]}</dd></div>)}</dl><Evidence value={event.evidence} />{event.dialogues.map((d) => <blockquote key={d.id} className="mt-2 border-l-2 border-primary/40 pl-3"><strong>{d.speaker}：</strong>{d.quote}</blockquote>)}</div>)}</Section>
-      {reading.questions.length > 0 && <Section title={t("nw_questions")}><ul className="list-disc space-y-1 pl-4">{reading.questions.map((q) => <li key={q}>{q}</li>)}</ul></Section>}
+      <ReadingQuestions reading={reading} />
     </> : <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{t("nw_unread_hint")}</p>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     <Button variant="outline" size="sm" disabled={loading} onClick={() => source ? setSource(null) : void readSource()}>{loading && <Loader2 className="animate-spin" data-icon="inline-start" />}{t(source ? "nw_hide_source" : "nw_show_source")}</Button>
