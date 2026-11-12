@@ -1,3 +1,4 @@
+import { ClaimBadge } from "./ClaimBadge";
 import { useTranslation } from "react-i18next";
 import type { ChapterNote, NoteRelation } from "@/types/novel-workflow";
 
@@ -21,7 +22,7 @@ export function RelationDescription({ relation: r }: { relation: NoteRelation })
   const changed = r.record_kind === "changed" && knownBefore && r.previous !== r.relation;
   const legacyChange = !r.record_kind || r.record_kind === "unclassified";
   return <>
-    <strong>{t("nw_relation_identity", { subject: r.subject, target: r.target, relation: r.relation })}</strong>
+    <strong>{t("nw_relation_identity", { subject: r.subject, target: r.target, relation: r.relation })}</strong>{r.claim_type && <ClaimBadge value={r} />}
     {changed || (legacyChange && knownBefore && r.previous !== r.relation) ? <p>{t("nw_relation_transition", { before: r.previous, after: r.relation })}</p>
       : <p className="text-xs text-muted-foreground">{t(r.record_kind === "established" ? "nw_relation_established" : (r.record_kind === "existing" || r.previous === r.relation) ? "nw_relation_existing" : "nw_relation_recorded")}</p>}
     {meaningful(r.story_time) && <p className="text-xs text-muted-foreground">{r.story_time}</p>}

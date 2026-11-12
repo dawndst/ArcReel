@@ -33,3 +33,9 @@ it("hides bare family and school roles but keeps changes and identity revelation
   const change = { ...teacher, id: "change", previous: "陌生人", record_kind: "changed" as const };
   expect(storyRelations([relation, teacher, loyalty, adoption, change]).map((r) => r.id)).toEqual(["loyalty", "adoption", "change"]);
 });
+
+it("shows who claimed a relationship instead of presenting it as an established fact", () => {
+  render(<RelationDescription relation={{ ...relation, subject: "景麒", target: "阳子", relation: "自称的仆从", claim_type: "statement", source_kind: "narrative", perspective: "景麒" }} />);
+  expect(screen.getByText("人物说法 · 景麒")).toBeVisible();
+  expect(screen.queryByText("正文事实")).not.toBeInTheDocument();
+});
