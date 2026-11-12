@@ -114,10 +114,11 @@ class AssetMergeReport:
     derivatives_folded: tuple[str, ...]
     episodes: tuple[AssetMergeEpisodeImpact, ...]
     dry_run: bool
+    novel_references: int = 0
 
     @property
     def references(self) -> int:
-        return sum(item.references for item in self.episodes)
+        return sum(item.references for item in self.episodes) + self.novel_references
 
 
 @dataclass(frozen=True, slots=True)

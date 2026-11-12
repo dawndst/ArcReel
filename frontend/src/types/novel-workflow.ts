@@ -1,6 +1,6 @@
 export interface ClaimStatus { claim_type?: "fact" | "statement" | "inference" | "vision" | "adaptation" | "unverified"; perspective?: string; source_kind?: "narrative" | "annotation" | "unknown" }
 export interface NoteEvidence { source_file: string; start: number; end: number; quote: string; note_id: string }
-export interface NoteAsset extends ClaimStatus { entity_id?: string; asset_issue?: string; asset_issue_blocking?: boolean; source_variant?: string; performance?: string; identity_candidates?: { entity_id: string; name: string; asset_code: string }[]; asset_code?: string; asset_id?: string; asset_name?: string; asset_missing?: boolean; variant?: string; id: string; kind: "character" | "scene" | "prop"; name: string; identity_scope: string; description: string; evidence: NoteEvidence }
+export interface NoteAsset extends ClaimStatus { variant_kind?: "visual" | "performance" | "none" | "unclassified"; state?: string; appearance_context?: "current" | "memory" | "vision" | "dream" | "unclassified"; entity_id?: string; asset_issue?: string; asset_issue_reason?: string; asset_issue_blocking?: boolean; source_variant?: string; performance?: string; identity_candidates?: { entity_id: string; name: string; asset_code: string }[]; asset_code?: string; asset_id?: string; asset_name?: string; asset_missing?: boolean; variant?: string; id: string; kind: "character" | "scene" | "prop"; name: string; identity_scope: string; description: string; evidence: NoteEvidence }
 export interface NoteChange extends ClaimStatus { id: string; character: string; dimension: string; before: string; after: string; story_time: string; evidence: NoteEvidence }
 export interface NoteDialogue extends ClaimStatus { id: string; speaker: string; quote: string; value: string; evidence: NoteEvidence }
 export interface NoteEvent extends ClaimStatus { id: string; title: string; cause: string; conflict: string; action: string; outcome: string; open_thread: string; dialogues: NoteDialogue[]; evidence: NoteEvidence }
@@ -71,7 +71,7 @@ export interface PromptRule { id: string; title: string; purpose: string; catego
 
 export interface ShotDesign { purpose: string; shot_size: string; camera_angle: string; camera_movement: string; framing: string; continuity: string; sound: string }
 export interface ShotDecisions { shot_id: string; event_ids: string[]; moment_ids: string[]; design: ShotDesign }
-export interface ShotAssetBinding { kind: "character" | "scene" | "prop"; name: string; asset_id: string | null; asset_code: string | null; variant?: string | null; segments: number[]; missing: boolean }
+export interface ShotAssetBinding { state?: string; kind: "character" | "scene" | "prop"; name: string; asset_id: string | null; asset_code: string | null; variant?: string | null; segments: number[]; missing: boolean }
 export interface ShotProduction extends ShotDecisions { svt_id: string; assets: ShotAssetBinding[]; dialogue_sources: { segment: number; utterance: number; dialogue_id: string | null }[] }
 export interface ShotMoment { id: string; kind: "climaxes" | "payoffs"; svt_id: string; note_ids: string[]; event_ids: string[]; dialogues: NoteDialogue[]; partial: boolean; scene: string; reason: string }
 export interface ShotProductionContext { svt_id: string | null; events: NoteEvent[]; moments: ShotMoment[] }

@@ -3268,12 +3268,22 @@ class ProjectManager:
                 new_sheet = entry.get(spec.sheet_field) if isinstance(entry, Mapping) else None
                 manifest_rekey_plan = _plan_manifest_rekey(old_key, new_clean, old_sheet, new_sheet)
 
+            from lib.novel_workflow.asset_reconciliation import plan_reference_refresh
+            from lib.references.reference_catalog import renamed_reference
+
+            novel_refresh = plan_reference_refresh(
+                project_dir,
+                project,
+                mutated,
+                lambda name, speaker: renamed_reference(name, old_key, new_clean),
+                asset_type,
+            )
             report = AssetRenameReport(
                 table=table,
                 old_name=old_key,
                 new_name=new_clean,
                 episodes=len(scan.episode_references),
-                references=scan.references,
+                references=scan.references + novel_refresh.references,
                 files=len(moves) + version_files + derivatives.files,
                 dry_run=dry_run,
             )
@@ -3302,8 +3312,9 @@ class ProjectManager:
             derivatives.relocate()
             self._touch_metadata(mutated)
             project_file = self._get_project_file_path(project_name)
-            with formal_write_transaction(project_file):
+            with formal_write_transaction(project_file, novel_refresh.path):
                 atomic_write_json(project_file, mutated)
+                novel_refresh.apply()
                 if manifest_rekey_plan is not None:
                     manifest_rekey_plan.commit()
                 derivatives.commit_manifest()
@@ -3668,6 +3679,23 @@ class ProjectManager:
             if new_errors:
                 raise ValueError("project.json 结构校验失败: " + "; ".join(sorted(new_errors)))
 
+            from lib.novel_workflow.asset_reconciliation import plan_reference_refresh
+            from lib.project.asset_merge import merged_reference
+
+            novel_refresh = plan_reference_refresh(
+                project_dir,
+                project,
+                mutated,
+                lambda name, speaker: merged_reference(
+                    name,
+                    source,
+                    target,
+                    as_derivative=as_derivative,
+                    speaker=speaker,
+                    derivatives=derivative_plan,
+                ),
+                asset_type,
+            )
             report = AssetMergeReport(
                 table=table,
                 source=source,
@@ -3681,6 +3709,7 @@ class ProjectManager:
                     AssetMergeEpisodeImpact(episode=episode, **counts) for episode, counts in sorted(impacts.items())
                 ),
                 dry_run=dry_run,
+                novel_references=novel_refresh.references,
             )
             if dry_run:
                 return report
@@ -3705,8 +3734,9 @@ class ProjectManager:
             project_file = self._get_project_file_path(project_name)
             # 被并方的资产图、版本历史、按名命名的文件与并入已有同名衍生的那些衍生进项目回收站：留在原处
             # 会让以后同名的资产接上不属于它的历史。迁到保留方名下的衍生此时已搬走，记录不收它们。
-            with formal_write_transaction(*asset_trash.state_paths(project_dir)):
+            with formal_write_transaction(*asset_trash.state_paths(project_dir), novel_refresh.path):
                 atomic_write_json(project_file, mutated)
+                novel_refresh.apply()
                 relocation.commit_manifest()
                 asset_trash.trash_asset(
                     project_dir,

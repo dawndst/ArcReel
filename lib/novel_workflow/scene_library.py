@@ -245,6 +245,9 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                 if ref.get("asset_missing"):
                     raise ValueError("原文关联资产已删除，请先处理资产引用")
                 name = ref.get("asset_name", asset["name"])
+                native = project.get(
+                    {"character": "characters", "scene": "scenes", "prop": "props"}[asset["kind"]], {}
+                ).get(name, {})
                 assets.append(
                     {
                         "name": name,
@@ -252,6 +255,10 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                         "kind": asset["kind"],
                         "variant": ref.get("variant", ""),
                         "performance": ref.get("performance", ""),
+                        "state": ref.get("state", ""),
+                        "appearance_context": ref.get("appearance_context", "unclassified"),
+                        "identity_level": native.get("identity_level", "individual"),
+                        "identity_basis": native.get("identity_basis", ""),
                         "evidence": asset["evidence"],
                     }
                 )

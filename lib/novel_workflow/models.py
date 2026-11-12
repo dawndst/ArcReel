@@ -31,6 +31,10 @@ class EvidencedClaim(StrictModel):
 
 
 class Mention(EvidencedClaim):
+    appearance_context: Literal["current", "memory", "vision", "dream", "unclassified"] = Field(
+        default="unclassified",
+        description="当前现实、回忆、幻象或梦境。回忆和幻象中的造型不能覆盖现实时间线的当前外观。",
+    )
     same_entity_as: str = Field(
         default="",
         description="当前原文明确延续已读资产时，引用memory中同一实体的既有资产记录id；不得使用未来记录，不因同名猜同一身份。没有可信同指依据时为空。",

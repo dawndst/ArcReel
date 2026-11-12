@@ -57,6 +57,39 @@ def merge_note_links(project: dict, discarded: dict, kept: dict, plan) -> None:
     for key, value in project.get("note_asset_variants", {}).items():
         if value in replacements:
             project["note_asset_variants"][key] = replacements[value]["asset_id"]
+    for key, value in project.get("note_asset_entity_variants", {}).items():
+        if value in replacements:
+            project["note_asset_entity_variants"][key] = replacements[value]["asset_id"]
+    for resolution in project.get("note_asset_resolutions", {}).values():
+        if resolution.get("entity_id") != old_id:
+            continue
+        resolution["entity_id"] = kept["asset_id"]
+        resolution["create_new"] = False
+        if resolution.get("variant_kind") == "visual":
+            old_variant = asset_name_comparison_key(resolution.get("variant_name", ""))
+            resolved = plan.derivative_names.get(old_variant)
+            if resolved in table:
+                resolution["variant_name"] = next(n for n, a in kept["derivatives"].items() if a is table[resolved])
+        elif plan.source_derivative:
+            resolution.update(
+                variant_kind="visual",
+                variant_name=next(n for n, a in kept["derivatives"].items() if a is target),
+            )
+    kept["note_source_names"] = list(
+        dict.fromkeys([*kept.get("note_source_names", []), *discarded.get("note_source_names", [])])
+    )
+    kept_name = next(n for bucket in BUCKETS for n, a in project.get(bucket, {}).items() if a is kept)
+    for issue in [
+        *project.get("note_asset_issues", {}).values(),
+        *project.get("note_asset_identity_reviews", {}).values(),
+    ]:
+        candidates = []
+        for candidate in issue.get("candidates", []):
+            if candidate.get("entity_id") == old_id:
+                candidate = {"entity_id": kept["asset_id"], "name": kept_name, "asset_code": kept["asset_code"]}
+            if candidate not in candidates:
+                candidates.append(candidate)
+        issue["candidates"] = candidates
     for link in project.get("note_asset_links", {}).values():
         if link.get("asset_id") in replacements:
             asset = replacements[link["asset_id"]]

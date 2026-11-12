@@ -872,3 +872,36 @@ def _visual_fields(asset):
     assert asset["asset_id"]
     assert asset["entity_id"]
     return {key: value for key, value in asset.items() if key not in {"asset_code", "asset_id", "entity_id"}}
+
+
+def test_merge_and_rename_cascade_unassembled_novel_scene_references(pm):
+    from lib.novel_workflow import store
+
+    path = pm.get_project_path(PROJECT)
+    segment = {
+        "characters_in_scene": ["老王", "王建国"],
+        "scenes": [],
+        "props": [],
+        "utterances": [{"speaker": "老王", "text": "老王是台词原文，不能改"}],
+    }
+    file = store.root(path) / "scene_library.json"
+    store.write(
+        file,
+        {
+            "batches": {
+                "b": {
+                    "note_id": "not-read",
+                    "scenes": [{"id": "SCN-1", "shots": [{"id": "SH-1", "segments": [segment]}]}],
+                }
+            }
+        },
+    )
+    preview = pm.merge_asset(PROJECT, "characters", "老王", "王建国", dry_run=True)
+    assert preview.novel_references == 2
+    assert load_json_or_none(file)["batches"]["b"]["scenes"][0]["shots"][0]["segments"][0] == segment
+    pm.merge_asset(PROJECT, "characters", "老王", "王建国")
+    pm.rename_asset(PROJECT, "characters", "王建国", "王老板")
+    saved = load_json_or_none(file)["batches"]["b"]["scenes"][0]["shots"][0]
+    assert saved["id"] == "SH-1"
+    assert saved["segments"][0]["characters_in_scene"] == ["王老板"]
+    assert saved["segments"][0]["utterances"] == [{"speaker": "王老板", "text": "老王是台词原文，不能改"}]

@@ -139,6 +139,7 @@ def test_manual_merge_preserves_note_links_and_reread(tmp_path):
     kept = data["characters"]["景麒"]
     discarded = data["characters"].pop("神秘来客")
     original_code = discarded["asset_code"]
+    data["note_asset_resolutions"] = {b["id"]: {"entity_id": discarded["asset_id"], "variant_kind": "none", "create_new": False}}
     plan = plan_derivative_merge(discarded, kept, "神秘来客", as_derivative=True)
     kept["derivatives"] = {plan.created: {"description": "伪装"}}
     merge_note_links(data, discarded, kept, plan)
@@ -224,3 +225,48 @@ def test_new_unclassified_variant_stays_pending_until_explicit_resolution(tmp_pa
     assert ref["asset_issue"] == "variant_classification"
     assert ref["asset_issue_blocking"] is True
     assert not data["characters"]["景麒"].get("derivatives")
+
+
+def test_performance_inherits_visual_and_memory_does_not_replace_current(tmp_path):
+    _, book = project(tmp_path)
+    note = book["notes"][0]
+    rows = [
+        mention(note, "baseline"),
+        mention(note, "costume", variant="男装"),
+        {**mention(note, "memory"), "appearance_context": "memory"},
+        {**mention(note, "tired", variant="疲惫"), "variant_kind": "performance"},
+        {**mention(note, "reset"), "appearance_context": "current"},
+    ]
+    for i, row in enumerate(rows):
+        row["evidence"].update(start=i, end=i + 1)
+    save_reading(tmp_path, note, rows)
+    assets.synchronize(tmp_path)
+    data = load_json(tmp_path / "project.json")
+    assert assets.reference(data, rows[3])["variant"] == "男装"
+    assert assets.reference(data, rows[3])["performance"] == "疲惫"
+    # A deliberate base-appearance decision resets the current visual.
+    assets.resolve(
+        tmp_path,
+        data,
+        "reset",
+        book["source_basis"],
+        note["basis"],
+        data["characters"]["景麒"]["asset_id"],
+        False,
+        "none",
+        "",
+    )
+    data = load_json(tmp_path / "project.json")
+    assert "variant" not in assets.reference(data, rows[4])
+    assert set(data["characters"]["景麒"]["derivatives"]) == {"男装"}
+
+
+def test_scene_state_is_not_a_character_derivative(tmp_path):
+    _, book = project(tmp_path)
+    note = book["notes"][0]
+    row = {**mention(note, name="办公室", variant="玻璃碎裂"), "kind": "scene"}
+    save_reading(tmp_path, note, [row])
+    assets.synchronize(tmp_path)
+    data = load_json(tmp_path / "project.json")
+    assert assets.reference(data, row)["state"] == "玻璃碎裂"
+    assert not data["scenes"]["办公室"].get("derivatives")

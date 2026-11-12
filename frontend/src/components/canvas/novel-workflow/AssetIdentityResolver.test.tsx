@@ -10,5 +10,5 @@ it("links the selected entity and records voice performance without a visual var
   fireEvent.change(screen.getByRole("combobox", { name: "选择关联的本体资产" }), { target: { value: "entity" } });
   fireEvent.change(screen.getByRole("combobox", { name: "变体用途" }), { target: { value: "performance" } });
   fireEvent.click(screen.getByRole("button", { name: "确认资产关联" }));
-  await waitFor(() => expect(save).toHaveBeenCalledWith({ entity_id: "entity", create_new: false, variant_kind: "performance", variant_name: "幻听/笑声" }));
+  await waitFor(() => expect(save).toHaveBeenCalledWith({ entity_id: "entity", create_new: false, variant_kind: "performance", variant_name: "幻听/笑声", appearance_context: "current" }));
 });

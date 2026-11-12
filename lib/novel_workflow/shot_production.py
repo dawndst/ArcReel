@@ -16,6 +16,7 @@ from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import store
 from lib.novel_workflow.assets import reference
 from lib.novel_workflow.models import StrictModel
+from lib.references.reference_catalog import split_derivative_reference
 
 
 class ShotDesign(StrictModel):
@@ -120,6 +121,7 @@ def asset_bindings(project, reading, shot):
         ("props", "prop", "props"),
     ):
         for name in dict.fromkeys(n for seg in shot["segments"] for n in seg.get(field, [])):
+            base, explicit_variant = split_derivative_reference(name) if kind == "character" else (name, "")
             mentions = []
             for mention in reading.get("assets", []):
                 ev = mention["evidence"]
@@ -130,17 +132,26 @@ def asset_bindings(project, reading, shot):
                 ):
                     continue
                 ref = reference(project, mention)
-                if ref.get("asset_name") == name and not ref.get("asset_missing"):
+                if ref.get("asset_name") == base and not ref.get("asset_missing"):
                     mentions.append((ev["start"], ref))
             latest = max(mentions, key=lambda pair: pair[0])[1] if mentions else {}
-            asset = project.get(bucket, {}).get(name, {})
+            asset = project.get(bucket, {}).get(base, {})
+            if explicit_variant:
+                asset = asset.get("derivatives", {}).get(explicit_variant, {})
+                latest = {
+                    "asset_id": asset.get("asset_id"),
+                    "asset_code": asset.get("asset_code"),
+                    "variant": explicit_variant,
+                }
             result.append(
                 {
                     "kind": kind,
-                    "name": name,
+                    "name": base,
+                    **({"reference": name} if explicit_variant else {}),
                     "asset_id": latest.get("asset_id", asset.get("asset_id")),
                     "asset_code": latest.get("asset_code", asset.get("asset_code")),
                     "variant": latest.get("variant"),
+                    **({"state": latest["state"]} if latest.get("state") else {}),
                     "segments": [i for i, seg in enumerate(shot["segments"]) if name in seg.get(field, [])],
                     "missing": not bool(latest.get("asset_id", asset.get("asset_id")))
                     or bool(latest.get("asset_issue") and latest.get("asset_issue_blocking", True)),
@@ -202,8 +213,11 @@ def design_text(production):
         "continuity": "连续性与起止状态",
         "sound": "声音设计",
     }
-    return "\n镜头设计（改编决定，视觉提示词须继承，不改变已定动作和台词）：\n" + "\n".join(
-        f"{label}：{production['design'][key]}" for key, label in labels.items()
+    states = "\n".join(f"资产状态：{a['name']}：{a['state']}" for a in production.get("assets", []) if a.get("state"))
+    return (
+        states
+        + "\n镜头设计（改编决定，视觉提示词须继承，不改变已定动作和台词）：\n"
+        + "\n".join(f"{label}：{production['design'][key]}" for key, label in labels.items())
     )
 
 
@@ -312,12 +326,13 @@ def native_segment(segment, production, index):
         if index not in binding["segments"]:
             continue
         name = binding["name"]
+        source = binding.get("reference", name)
         target = derivative_reference(name, binding["variant"]) if binding.get("variant") else name
         field = {"character": "characters_in_scene", "scene": "scenes", "prop": "props"}[binding["kind"]]
-        value[field] = [target if n == name else n for n in value[field]]
+        value[field] = [target if n == source else n for n in value[field]]
         if binding["kind"] == "character":
             for u in value["utterances"]:
-                if u.get("speaker") == name:
+                if u.get("speaker") in {source, name}:
                     u["speaker"] = target
     return value
 

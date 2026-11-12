@@ -59,8 +59,12 @@ def synchronize(path: Path) -> dict:
                 for variant in asset.get("derivatives", {}).values():
                     variant.pop("first_note", None)
         registered = 0
+        active_visuals = {}
         for note in notebook["notes"]:
-            for mention in readings.get(note["id"], {}).get("assets", []):
+            for mention in sorted(
+                readings.get(note["id"], {}).get("assets", []),
+                key=lambda m: (m["evidence"].get("start", 0), m["evidence"].get("end", 0)),
+            ):
                 if mention.get("source_kind") == "annotation" or mention.get("claim_type") in {
                     "inference",
                     "statement",
@@ -149,13 +153,25 @@ def synchronize(path: Path) -> dict:
                 names = asset.setdefault("note_source_names", [])
                 if mention["name"] not in names:
                     names.append(mention["name"])
-                variant = mention.get("variant", "").strip() if mention["kind"] == "character" else ""
+                variant = mention.get("variant", "").strip()
                 variant_kind = resolution.get("variant_kind", mention.get("variant_kind", "unclassified"))
                 variant = resolution.get("variant_name", variant)
+                context = resolution.get(
+                    "appearance_context",
+                    mention.get("appearance_context", "vision" if mention.get("claim_type") == "vision" else "current"),
+                )
                 performance = variant if variant_kind == "performance" else ""
+                state = resolution.get("asset_state", "")
+                if mention["kind"] != "character" and variant_kind == "visual":
+                    state = variant
+                    variant = ""
                 if variant_kind in {"performance", "none"}:
                     variant = ""
-                target = asset
+                target = (
+                    active_visuals.get(asset["entity_id"], asset) if variant_kind in {"performance", "none"} else asset
+                )
+                if resolution.get("variant_kind") == "none":
+                    target = asset
                 default_variant = project.get("note_asset_entity_variants", {}).get(key)
                 if (
                     default_variant
@@ -193,6 +209,8 @@ def synchronize(path: Path) -> dict:
                             target = table.setdefault(variant, {"description": mention["description"]})
                         ensure_asset_codes(project)
                         variants[variant_key] = target["asset_id"]
+                if context == "current" and variant_kind != "performance":
+                    active_visuals[asset["entity_id"]] = target
                 first = {"id": note["id"], "order": note["order"], "title": note["title"]}
                 keep_first_note(asset, first)
                 keep_first_note(target, first)
@@ -202,7 +220,18 @@ def synchronize(path: Path) -> dict:
                     "asset_code": target["asset_code"],
                     "note_id": note["id"],
                     "performance": performance,
+                    "state": state,
+                    "appearance_context": context,
+                    "variant_kind": variant_kind,
                 }
+                review = project.get("note_asset_identity_reviews", {}).get(mention["id"])
+                if review:
+                    issues[mention["id"]] = {
+                        "code": "identity_ambiguous",
+                        "candidates": review["candidates"],
+                        "blocking": False,
+                        "reason": review["reason"],
+                    }
         store.write(path / "project.json", project)
         return {"registered": registered, "linked": len(links)}
 
@@ -215,6 +244,7 @@ def reference(project: dict, mention: dict) -> dict:
             "asset_issue": issue["code"],
             "identity_candidates": issue["candidates"],
             "asset_issue_blocking": issue.get("blocking", True),
+            "asset_issue_reason": issue.get("reason", ""),
         }
         if issue
         else {}
@@ -253,7 +283,18 @@ def annotate(project: dict, reading: dict | None) -> dict | None:
     return result
 
 
-def resolve(path, project, mention_id, expected, reading_basis, entity_id, create_new, variant_kind, variant_name):
+def resolve(
+    path,
+    project,
+    mention_id,
+    expected,
+    reading_basis,
+    entity_id,
+    create_new,
+    variant_kind,
+    variant_name,
+    appearance_context="current",
+):
     """Explicit identity/variant decision; source readings remain immutable."""
     with project_metadata_lock(path):
         project = load_json(path / "project.json")
@@ -268,16 +309,19 @@ def resolve(path, project, mention_id, expected, reading_basis, entity_id, creat
         ):
             raise ValueError("请选择该类型已存在的本体资产，或明确另建资产")
         if variant_kind == "visual":
-            variant_name = validate_asset_name(variant_name)
+            if mention["kind"] == "character":
+                variant_name = validate_asset_name(variant_name)
         elif variant_kind not in {"performance", "none"}:
             raise ValueError("请明确选择视觉变体、表现或无变体")
         live = load_json(path / "project.json")
         previous = deepcopy(live)
+        live.setdefault("note_asset_identity_reviews", {}).pop(mention_id, None)
         live.setdefault("note_asset_resolutions", {})[mention_id] = {
             "entity_id": entity_id if not create_new else None,
             "create_new": create_new,
             "variant_kind": variant_kind,
             "variant_name": variant_name,
+            "appearance_context": appearance_context,
         }
         store.write(
             store.root(path)

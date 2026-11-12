@@ -88,3 +88,28 @@ def test_density_is_warning_and_missing_design_blocks_assembly():
     assert next(v for v in p.issues(shot) if v["code"] == "timing")["blocking"] is False
     with pytest.raises(ValueError, match="完善"):
         p.require_ready(shot, {})
+
+
+def test_explicit_derivative_reference_survives_native_assembly():
+    project = {
+        "characters": {
+            "景麒": {
+                "asset_id": "root",
+                "asset_code": "CHR-1",
+                "derivatives": {"兽形": {"asset_id": "form", "asset_code": "CHR-2"}},
+            }
+        }
+    }
+    segment = {
+        "characters_in_scene": ["景麒/兽形"],
+        "utterances": [{"kind": "dialogue", "speaker": "景麒", "text": "走吧"}],
+    }
+    shot = {"evidence": {}, "segments": [segment]}
+    bindings = p.asset_bindings(project, {"assets": []}, shot)
+    assert bindings[0]["asset_id"] == "form"
+    assert not bindings[0]["missing"]
+    shot["production"] = {"assets": bindings}
+    p.require_ready(shot, project)
+    result = p.native_segment(segment, shot["production"], 0)
+    assert result["characters_in_scene"] == ["景麒/兽形"]
+    assert result["utterances"][0] == {"kind": "dialogue", "speaker": "景麒/兽形", "text": "走吧"}

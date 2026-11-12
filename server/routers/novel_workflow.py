@@ -163,6 +163,7 @@ async def scene_batch_source(name: str, basis: str):
 
 
 class AssetIdentityRequest(SourceRequest):
+    appearance_context: Literal["current", "memory", "vision", "dream", "unclassified"] = "current"
     reading_basis: str
     entity_id: str = ""
     create_new: bool = False
@@ -188,6 +189,7 @@ async def resolve_asset_identity(name: str, mention_id: str, req: AssetIdentityR
             req.create_new,
             req.variant_kind,
             req.variant_name,
+            req.appearance_context,
         ),
     )
 
