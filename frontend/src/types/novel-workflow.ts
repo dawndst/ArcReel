@@ -5,6 +5,7 @@ export interface NoteChange extends ClaimStatus { id: string; character: string;
 export interface NoteDialogue extends ClaimStatus { id: string; speaker: string; quote: string; value: string; evidence: NoteEvidence }
 export interface NoteEvent extends ClaimStatus { id: string; title: string; cause: string; conflict: string; action: string; outcome: string; open_thread: string; dialogues: NoteDialogue[]; evidence: NoteEvidence }
 export interface ChapterNote {
+  edition?: Omit<ChapterEdition, "parts"> | null;
   svt_id?: string | null; svt_title?: string | null; svt_status?: string; svt_candidates?: SVTCandidate[];
   in_scope?: boolean;
   id: string; order: number; title: string; volume: string; chapter: string; chars: number; basis: string; needs_review?: boolean;
@@ -74,3 +75,8 @@ export interface ShotAssetBinding { kind: "character" | "scene" | "prop"; name: 
 export interface ShotProduction extends ShotDecisions { svt_id: string; assets: ShotAssetBinding[]; dialogue_sources: { segment: number; utterance: number; dialogue_id: string | null }[] }
 export interface ShotMoment { id: string; kind: "climaxes" | "payoffs"; svt_id: string; note_ids: string[]; event_ids: string[]; dialogues: NoteDialogue[]; partial: boolean; scene: string; reason: string }
 export interface ShotProductionContext { svt_id: string | null; events: NoteEvent[]; moments: ShotMoment[] }
+
+export interface ChapterEdition {
+  basis: string; created_at: string; original_chars: number; edited_chars: number;
+  parts: { source_file: string; start: number; end: number; passages: { unit: number; treatment: "retain" | "condense" | "omit" | "uncertain"; text: string; reason: string; original_quote: string; evidence: { source_file: string; start: number; end: number }; protected: boolean }[] }[];
+}

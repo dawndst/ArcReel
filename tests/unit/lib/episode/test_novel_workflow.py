@@ -26,6 +26,18 @@ class Reader:
         self.calls = 0
 
     async def generate(self, request, **kwargs):
+        if "# 章节精编与原文回读" in request.prompt:
+            payload = json.JSONDecoder().raw_decode(request.prompt[request.prompt.index('{"source_units":') :])[0]
+            return SimpleNamespace(
+                text=json.dumps(
+                    {
+                        "passages": [
+                            {"unit": u["unit"], "treatment": "retain", "text": u["text"], "reason": "测试保留原文"}
+                            for u in payload["source_units"]
+                        ]
+                    }
+                )
+            )
         self.calls += 1
         if "章节材料：" in request.prompt:
             nodes = json.loads(request.prompt.split("章节材料：", 1)[1].split("\n只输出 JSON", 1)[0])

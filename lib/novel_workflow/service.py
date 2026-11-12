@@ -180,7 +180,12 @@ async def read_notes(path: Path, generator, note_ids: list[str], expected: str) 
             await asyncio.to_thread(scope.require, path, notebook, [note["id"]])
             progress.update(phase="reading", done=index, note_id=note["id"], part=0, parts=0)
             await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
-            if await asyncio.to_thread(store.note_result, path, note):
+            existing_reading = await asyncio.to_thread(store.note_result, path, note)
+            if existing_reading:
+                from lib.novel_workflow.condensation import ensure
+
+                project = await asyncio.to_thread(load_json, path / "project.json")
+                await ensure(path, generator, note, existing_reading, project, expected)
                 continue
             context_basis = digest(await asyncio.to_thread(store.reading_context, path, note))
             project = await asyncio.to_thread(load_json, path / "project.json")
@@ -227,8 +232,10 @@ async def read_notes(path: Path, generator, note_ids: list[str], expected: str) 
             await asyncio.to_thread(scope.require, path, notebook, [note["id"]])
             await run_noninterruptible_sync(store.write, target, result)
             from lib.novel_workflow.assets import synchronize
+            from lib.novel_workflow.condensation import ensure
 
             await run_noninterruptible_sync(synchronize, path)
+            await ensure(path, generator, note, result, project, expected)
         from lib.novel_workflow.assets import synchronize
 
         await run_noninterruptible_sync(synchronize, path)
@@ -376,12 +383,29 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
         raise ValueError("Select existing Notes")
     events = []
     bases = {}
+    edition_bases = {}
     for note in notes:
         result = await asyncio.to_thread(store.note_result, path, note)
         if not result:
             raise ValueError("Read all selected Notes before generating SVTs")
         bases[note["id"]] = result["basis"]
-        events.extend(note_events(note, result))
+        from lib.novel_workflow.condensation import ensure
+
+        project = await asyncio.to_thread(load_json, path / "project.json")
+        edition = await ensure(path, generator, note, result, project, expected)
+        edition_bases[note["id"]] = edition["basis"]
+        for event in note_events(note, result):
+            ref = event["evidence"]
+            event["edition_context"] = [
+                p["text"]
+                for part in edition["parts"]
+                for p in part["passages"]
+                if p["text"]
+                and p["evidence"]["source_file"] == ref["source_file"]
+                and p["evidence"]["start"] < ref["end"]
+                and p["evidence"]["end"] > ref["start"]
+            ]
+            events.append(event)
     # Every event is retained; deduplicate only repeated extraction of the same exact source evidence.
     events = list({e["id"]: e for e in events}.values())
     rules = await asyncio.to_thread(store.rule, path, "svt")
@@ -410,7 +434,7 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
             previous.get("note_bases", {}).get(i) == context_bases.get(i) and i in context_bases for i in s["note_ids"]
         )
     ]
-    run_key = digest([bases, rules, prior_svts, 2])
+    run_key = digest([bases, rules, prior_svts, edition_bases, 2])
     run_file = store.root(path) / "svt_runs" / f"{run_key}.json"
     run = (
         await asyncio.to_thread(load_json, run_file)
@@ -477,6 +501,7 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
             allowed_dialogues = {d["id"] for i in available for d in by_event[i]["dialogues"]}
             prompt = (
                 rules
+                + "\n事件中的edition_context是精编转述，只用于理解，不作为原文事实或逐字台词依据；以事件证据及对白原句为准。"
                 + "\n本批事件："
                 + json.dumps(batch, ensure_ascii=False)
                 + "\n可续接SVT："

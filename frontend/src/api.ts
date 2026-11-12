@@ -2169,7 +2169,7 @@ class API {
   static async adoptNoteSVT(name: string, note_id: string, candidate_id: string, source_basis: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/notes/${encodeURIComponent(note_id)}/svt`, { method: "POST", body: JSON.stringify({ candidate_id, source_basis }) });
   }
-  static async runNoteWorkflow(name: string, action: "read" | "svt" | "review" | "understand" | "scenes" | "group_summary", note_ids: string[], source_basis: string, group_id?: string): Promise<unknown> {
+  static async runNoteWorkflow(name: string, action: "read" | "svt" | "review" | "understand" | "scenes" | "condense" | "group_summary", note_ids: string[], source_basis: string, group_id?: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action, note_ids, source_basis, group_id }) });
   }
   static async createNoteGroup(name: string, note_ids: string[], title: string, source_basis: string): Promise<unknown> {
@@ -2195,6 +2195,9 @@ class API {
   }
   static async dissolveNoteGroup(name: string, id: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/groups/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+  static async getChapterEdition(name: string, id: string): Promise<import("@/types/novel-workflow").ChapterEdition> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/notes/${encodeURIComponent(id)}/edition`);
   }
   static async getChapterNoteSource(name: string, id: string): Promise<{ text: string }> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/notes/${encodeURIComponent(id)}/source`);

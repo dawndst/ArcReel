@@ -2796,7 +2796,10 @@ async def _execute_queued_text_task(
             return await summarize(
                 path, generator, payload["note_ids"], payload["source_basis"], payload.get("group_id")
             )
+        from lib.novel_workflow.condensation import generate as condense_notes
+
         action = {
+            "condense": condense_notes,
             "read": read_notes,
             "svt": generate_svts,
             "review": review_scope,

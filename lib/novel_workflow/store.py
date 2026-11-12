@@ -169,6 +169,8 @@ def view(path: Path, project: dict) -> dict:
     allowed = scope.available_ids(path, current)
     notes = []
     readings = valid_readings(path, current) if not stale else {}
+    from lib.novel_workflow.condensation import metadata as load_edition
+
     for note in current["notes"]:
         result = readings.get(note["id"])
         older = any((root(path) / "notes" / note["id"]).glob("*.json")) if result is None else False
@@ -176,6 +178,7 @@ def view(path: Path, project: dict) -> dict:
             {
                 **note,
                 "reading": annotate(project, result),
+                "edition": load_edition(path, note, result),
                 "in_scope": note["id"] in allowed,
                 "status": "stale" if stale else "read" if result else "outdated" if older else "unread",
             }

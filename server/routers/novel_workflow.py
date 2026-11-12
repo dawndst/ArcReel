@@ -41,7 +41,7 @@ class SourceRequest(BaseModel):
 
 
 class ReadingRequest(SourceRequest):
-    action: Literal["read", "svt", "review", "understand", "scenes", "group_summary"]
+    action: Literal["read", "svt", "review", "understand", "scenes", "condense", "group_summary"]
     note_ids: list[str] = Field(min_length=1, max_length=10000)
 
     group_id: str | None = Field(default=None, max_length=100)
@@ -119,6 +119,26 @@ async def note_source(name: str, note_id: str):
         if note is None:
             raise ValueError("Note not found")
         return {"text": "".join(p["text"] for p in chapters.chunks(path, project, note)), "sections": note["sections"]}
+
+    return await invoke(name, read)
+
+
+@router.get("/projects/{name}/novel-workflow/notes/{note_id}/edition")
+async def note_edition(name: str, note_id: str):
+    def read(path, project):
+        from lib.novel_workflow.condensation import load
+
+        notebook = store.state(path)
+        if not notebook:
+            raise ValueError("No Notes")
+        store.require_current(path, project, notebook["source_basis"])
+        note = next((n for n in notebook["notes"] if n["id"] == note_id), None)
+        if not note:
+            raise ValueError("Note not found")
+        value = load(path, note, store.note_result(path, note))
+        if not value:
+            raise ValueError("请先生成当前版本的章节精编稿")
+        return value
 
     return await invoke(name, read)
 

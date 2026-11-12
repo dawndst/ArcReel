@@ -286,9 +286,12 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                 from lib.novel_workflow.shot_production import context
 
                 story_context = await asyncio.to_thread(context, path, reading, chunk)
+                from lib.novel_workflow.condensation import ensure, material
+
+                edition = await ensure(path, generator, note, reading, project, expected)
                 payload = {
                     "note_title": note["title"],
-                    "original": chunk["text"],
+                    "reading_material": material(edition, reading, chunk),
                     "assets": local_assets,
                     "known": known["links"],
                     "duration_options": durations,
