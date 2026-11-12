@@ -18,8 +18,8 @@ export function ChapterEditionPanel({ projectName, note, disabled, generate }: {
     catch (e) { setError(errMsg(e)); }
     finally { setLoading(false); }
   }
-  return <section className="space-y-3 rounded-xl border p-4">
-    <h3 className="font-semibold">{t("nw_edition_title")}</h3>
+  return <section className="space-y-3 rounded-xl border bg-card p-5 shadow-xs">
+    <h3 className="text-base font-bold">{t("nw_edition_title")}</h3>
     <p className="text-xs leading-relaxed text-muted-foreground">{t("nw_edition_hint")}</p>
     {note.edition ? <><p className="text-sm">{t("nw_edition_counts", { original: note.edition.original_chars, edited: note.edition.edited_chars })}</p><Button size="sm" variant="outline" disabled={loading} onClick={() => void show()}>{t(open ? "nw_edition_hide" : "nw_edition_show")}</Button></> : <Button size="sm" variant="outline" disabled={disabled} onClick={generate}>{t("nw_edition_generate")}</Button>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

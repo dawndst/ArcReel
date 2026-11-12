@@ -24,8 +24,8 @@ export function ReadingQuestions({ reading }: { reading: NonNullable<ChapterNote
   const classified = new Map((reading.reading_questions ?? []).map((q) => [q.text, q.kind]));
   const questions = [...new Set([...reading.questions, ...(reading.overview?.questions ?? []), ...classified.keys()])];
   if (!questions.length) return null;
-  return <section className="space-y-3 rounded-xl border p-4">
-    <h3 className="font-semibold">{t("nw_reading_questions")}</h3>
+  return <section className="space-y-3 rounded-xl border border-warn/30 bg-warn/5 p-5">
+    <h3 className="text-base font-bold">{t("nw_reading_questions")}</h3>
     <p className="text-xs leading-relaxed text-muted-foreground">{t("nw_reading_questions_hint")}</p>
     <ul className="space-y-3">{questions.map((q) => <li key={q} className="space-y-1 text-sm"><span className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{t(`nw_question_kind_${classified.get(q) ?? "unclassified"}`)}</span><p>{q}</p></li>)}</ul>
   </section>;
