@@ -3,6 +3,8 @@ import { SceneBatchSource, type SourceTarget } from "./SceneBatchSource";
 import { AssetIdentityResolver, type IdentityDecision } from "./AssetIdentityResolver";
 import { workflowProgress } from "./workflow-progress";
 import { ReadingQuestions } from "./ReadingAnnotations";
+import { NoteSourcePanel } from "./NoteSourcePanel";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ChapterEditionPanel } from "./ChapterEditionPanel";
 import { NoteProductionActions, noteProductionStatus } from "./NoteProductionActions";
 import { useProjectsStore } from "@/stores/projects-store";
@@ -43,10 +45,9 @@ function PrimarySvt({ note, busy, adopt }: { note: ChapterNote; busy: boolean; a
   const { t } = useTranslation("dashboard");
   return (
     <section className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-5"><h3 className="text-xs font-bold text-primary">{t("nw_note_primary_svt")}</h3><p className="text-lg font-semibold leading-relaxed">{note.svt_title ?? t("nw_svt_unassigned")}</p>{note.svt_id && <p className="text-xs text-muted-foreground">{t(note.svt_status === "complete" ? "nw_svt_complete" : "nw_svt_needs_details")}</p>}
-      <details className="border-t border-primary/15 pt-3"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">{t("nw_svt_candidates")} ({note.svt_candidates?.length ?? 0})</summary>
-      {(note.svt_candidates ?? []).length === 0 && <p className="text-sm text-muted-foreground">{t("nw_svt_no_candidates")}</p>}
+      {!!note.svt_candidates?.length && <details className="border-t border-primary/15 pt-3"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">{t("nw_svt_candidates")} ({note.svt_candidates?.length ?? 0})</summary>
       {(note.svt_candidates ?? []).map((candidate) => <article key={candidate.candidate_id} className="space-y-2 rounded border p-3 text-sm"><strong>{candidate.title}</strong><p>{candidate.summary}</p><p className="text-muted-foreground">{candidate.reason}</p><Button size="sm" variant="outline" disabled={busy} onClick={() => adopt(candidate.candidate_id)}>{t("nw_svt_adopt")}</Button></article>)}
-      </details>
+      </details>}
     </section>
   );
 }
@@ -54,25 +55,18 @@ function PrimarySvt({ note, busy, adopt }: { note: ChapterNote; busy: boolean; a
 function NoteDetails({ projectName, note, busy, adopt, condense, resolveAsset }: { projectName: string; note: ChapterNote; busy: boolean; adopt: (candidate: string) => void; condense: () => void; resolveAsset: (id: string, value: IdentityDecision) => Promise<void> }) {
   const { t } = useTranslation("dashboard");
   const [_location, navigate] = useLocation();
-  const [source, setSource] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  async function readSource() {
-    setLoading(true); setError("");
-    try { setSource((await API.getChapterNoteSource(projectName, note.id)).text); }
-    catch (reason) { setError(errMsg(reason)); }
-    finally { setLoading(false); }
-  }
+  const [view, setView] = useState("info");
   const reading = note.reading;
   return <article className="min-w-0 space-y-5 wrap-break-word">
-    <header className="space-y-2 border-b pb-5"><h2 className="text-2xl font-bold tracking-tight">{note.title}</h2><p className="mt-1 text-xs text-muted-foreground">{note.chars.toLocaleString()} {t("nw_chars")} · {t(`nw_${note.status === "read" ? "read_complete" : note.status ?? "unread"}`)}</p></header>
+    <header className="space-y-2 border-b pb-5"><h2 className="text-2xl font-bold tracking-tight">{note.title}</h2><div className="flex flex-wrap items-start gap-x-4 gap-y-2 text-xs text-muted-foreground"><p>{note.chars.toLocaleString()} {t("nw_chars")} · {t(`nw_${note.status === "read" ? "read_complete" : note.status ?? "unread"}`)}</p><details><summary className="cursor-pointer">{t("nw_sections")} ({note.sections.length})</summary>{note.sections.map((s) => <p key={`${s.source_file}:${s.start}`} className="mt-2">{s.title} · {s.start}–{s.end}</p>)}</details></div></header>
+    <Tabs value={view} onValueChange={(next) => setView(next as string)}>
+      <div className="sticky top-0 z-sticky rounded-lg border bg-card p-1"><div className="relative overflow-x-auto"><TabsList className="w-full min-w-max" aria-label={t("nw_note_views")}><TabsTrigger value="info">{t("nw_note_tab_info")}</TabsTrigger><TabsTrigger value="source">{t("nw_note_tab_source")}</TabsTrigger><TabsTrigger value="edition">{t("nw_note_tab_edition")}</TabsTrigger></TabsList></div></div>
+      <TabsContent value="info"><div className="space-y-5 pt-3">
     {!reading && <PrimarySvt note={note} busy={busy} adopt={adopt} />}
-    <details className="text-sm"><summary className="cursor-pointer">{t("nw_sections")} ({note.sections.length})</summary>{note.sections.map((s) => <p key={`${s.source_file}:${s.start}`} className="mt-1 text-xs text-muted-foreground">{s.title} · {s.start}–{s.end}</p>)}</details>
     {reading ? <>
       <Section title={t("nw_chapter_summary")} featured>{(reading.overview ? [reading.overview.summary] : reading.summaries).map((text, i) => <p key={`${i}:${text}`} className="mb-2 text-base leading-8">{text}</p>)}</Section>
       <PrimarySvt note={note} busy={busy} adopt={adopt} />
       {reading.overview && <Section title={t("nw_chapter_causality")}><dl className="space-y-2">{(["cause", "conflict", "action", "outcome"] as const).map((key) => <div key={key}><dt className="mr-1 text-xs font-bold text-muted-foreground">{t(`nw_${key}`)}：</dt><dd className="inline leading-7">{reading.overview![key]}</dd></div>)}</dl><p className="mt-2">{reading.overview.hook}</p></Section>}
-      <ChapterEditionPanel key={note.edition?.basis ?? "missing"} projectName={projectName} note={note} disabled={busy} generate={condense} />
       <ReadingEnrichment note={note} />
       {(["character", "scene", "prop"] as const).map((kind) => <Section key={kind} title={t(`nw_${kind}`)}>
         <div className="grid gap-2">{reading.assets.filter((a) => a.kind === kind).map((a) => <div key={a.id} className="rounded-lg border border-border/60 bg-muted/20 p-4"><button type="button" disabled={!a.asset_name || a.asset_missing} title={`${a.description}
@@ -87,9 +81,10 @@ ${a.evidence.quote}`} className="font-semibold text-primary underline decoration
       <Section title={t("nw_events")}>{reading.events.map((event) => <div key={event.id} className="mb-4 rounded-lg border bg-muted/15 p-4"><strong className="text-base">{event.title}</strong><ClaimBadge value={event} /><dl className="mt-2 space-y-2">{(["cause", "conflict", "action", "outcome", "open_thread"] as const).map((key) => event[key] && <div key={key}><dt className="mr-1 text-xs font-bold text-muted-foreground">{t(`nw_${key}`)}：</dt><dd className="inline leading-7">{event[key]}</dd></div>)}</dl><Evidence value={event.evidence} />{event.dialogues.map((d) => <blockquote key={d.id} className="mt-3 rounded-r-lg border-l-2 border-primary/40 bg-primary/5 p-3 leading-7"><strong>{d.speaker}：</strong>{d.quote}</blockquote>)}</div>)}</Section>
       <ReadingQuestions reading={reading} />
     </> : <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{t("nw_unread_hint")}</p>}
-    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    <Button variant="outline" size="sm" disabled={loading} onClick={() => source ? setSource(null) : void readSource()}>{loading && <Loader2 className="animate-spin" data-icon="inline-start" />}{t(source ? "nw_hide_source" : "nw_show_source")}</Button>
-    {source && <pre className="relative max-h-72 overflow-y-auto rounded-lg border bg-muted/20 p-4 font-editorial text-sm leading-relaxed whitespace-pre-wrap wrap-break-word [scrollbar-gutter:stable]">{source}</pre>}
+      </div></TabsContent>
+      <TabsContent value="source"><div className="pt-3"><NoteSourcePanel projectName={projectName} noteId={note.id} /></div></TabsContent>
+      <TabsContent value="edition"><div className="pt-3"><ChapterEditionPanel key={note.edition?.basis ?? "missing"} projectName={projectName} note={note} disabled={busy} generate={condense} /></div></TabsContent>
+    </Tabs>
   </article>;
 }
 

@@ -123,3 +123,27 @@ it("retains the scene library after the workbench remounts following an asset re
   render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
   expect(await screen.findByPlaceholderText("搜索场、镜头或对白")).toBeInTheDocument();
 });
+
+it("organizes Note information, original text and condensed text in lazy horizontal tabs without duplicate edition controls", async () => {
+  const edition = { basis: "edition-basis", created_at: "now", original_chars: 100, edited_chars: 20, parts: [{ source_file: "source/book.txt", start: 0, end: 100, passages: [{ unit: 0, treatment: "retain" as const, text: "本章精简后的文本", reason: "保留行动", original_quote: "原著完整正文", evidence: { source_file: "source/book.txt", start: 0, end: 100 }, protected: false }] }] };
+  vi.mocked(API.getNovelWorkflow).mockResolvedValue({ ...data, notes: [{ ...data.notes[0]!, edition, svt_candidates: [], status: "read", reading: { basis: "r", summaries: ["本章内容概况"], assets: [], changes: [], events: [], questions: [] } }] });
+  const source = vi.spyOn(API, "getChapterNoteSource").mockResolvedValue({ text: "原著完整正文" });
+  const condensed = vi.spyOn(API, "getChapterEdition").mockResolvedValue(edition);
+  render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  expect(await screen.findByText("本章内容概况")).toBeInTheDocument();
+  const tabs = screen.getByRole("tablist", { name: "章节阅读视图" });
+  expect(within(tabs).getAllByRole("tab")).toHaveLength(3);
+  expect(screen.getByRole("tab", { name: "Note信息" })).toHaveAttribute("aria-selected", "true");
+  expect(screen.queryByText(/SVT 备选/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/不为凑数/)).not.toBeInTheDocument();
+  expect(screen.queryByText("章节精编稿")).not.toBeInTheDocument();
+  expect(source).not.toHaveBeenCalled(); expect(condensed).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("tab", { name: "章节原文" }));
+  expect(await screen.findByText("原著完整正文")).toBeVisible();
+  expect(source).toHaveBeenCalledWith("demo", "note-1");
+  expect(condensed).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("tab", { name: "章节精简稿" }));
+  expect(await screen.findByText("本章精简后的文本")).toBeVisible();
+  expect(condensed).toHaveBeenCalledWith("demo", "note-1");
+  expect(screen.queryByText(/原文 100 字 · 精编 20 字/)).not.toBeInTheDocument();
+});

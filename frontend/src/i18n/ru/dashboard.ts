@@ -1,6 +1,20 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_ledger_views: "Character and foreshadowing ledger views",
+  nw_ledger_tab_characters: "Characters",
+  nw_ledger_tab_threads: "Foreshadowing and payoffs",
+  nw_ledger_changes: "Character changes",
+  nw_ledger_threads_empty: "No foreshadowing or payoff records in the current reading scope.",
+  nw_note_edition_prerequisite: "Generate this chapter Note before generating its condensed text.",
+  nw_note_views: "Chapter reading views",
+  nw_note_tab_info: "Note information",
+  nw_note_tab_source: "Original chapter",
+  nw_note_tab_edition: "Condensed chapter",
+  nw_note_text_loading: "Loading chapter…",
+  nw_note_text_retry: "Reload",
+  nw_note_edition_empty: "No condensed chapter yet",
+  nw_note_edition_generate: "Generate condensed chapter",
   nw_scene_shot_count: "{{count}} shots",
   review_source_text_explanation: "Original source for comparison, including dialogue and narration. This field is not voiced; spoken content comes from the ordered utterances. Repetition in the original is retained.",
   nw_exec_speaker_pending: "Provisional speaker; resolve or merge later",
