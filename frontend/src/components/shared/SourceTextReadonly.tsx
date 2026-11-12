@@ -1,3 +1,4 @@
+import { sourceExcerptDisplay } from "@/utils/source-excerpt";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "cn";
@@ -27,11 +28,11 @@ export function SourceTextReadonly({ text, className }: SourceTextReadonlyProps)
       </div>
       <p
         className={cn(
-          "border-l-2 border-border pl-3 text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground",
+          "relative max-h-48 overflow-y-auto rounded border border-dashed bg-muted/20 p-3 text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground",
           !hasContent && "italic",
         )}
       >
-        {hasContent ? content : t("detail_source_text_empty")}
+        {hasContent ? sourceExcerptDisplay(content) : t("detail_source_text_empty")}
       </p>
     </section>
   );

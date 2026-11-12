@@ -38,7 +38,7 @@ it("keeps unresolved dialogue visible and requires attribution before assembly",
   shot.segments[0].utterances = [{ kind: "dialogue", speaker: null, text: "不愧是班长。" }];
   const attribute = vi.fn();
   render(<SceneLibraryPanel batches={[draft]} notes={[]} disabled={false} selection={[shot.id]} setSelection={() => {}} title="验收" setTitle={() => {}} assemble={() => {}} source={() => {}} characters={["同学甲"]} attribute={attribute} />);
-  expect(screen.getByText("说话人待确认：不愧是班长。")).toBeInTheDocument();
+  expect(screen.getByText("不愧是班长。").closest("p")).toHaveTextContent("说话人待确认：不愧是班长。");
   expect(screen.getByRole("button", { name: "将所选场镜编排为一集" })).toBeDisabled();
   fireEvent.change(screen.getByRole("combobox", { name: "确认说话人" }), { target: { value: "同学甲" } });
   expect(attribute).toHaveBeenCalledWith(shot.id, 0, 0, "同学甲", "rev");
@@ -134,5 +134,5 @@ it("resolves one review question without hiding missing speakers", () => {
   fireEvent.change(screen.getByRole("textbox", { name: "说明为什么是误报，并引用原文依据（至少10字）" }), { target: { value: "动作与原文描写完全一致，此项为误报" } });
   fireEvent.click(screen.getByRole("button", { name: "确认这一项" }));
   expect(confirm).toHaveBeenCalledWith("b", "review-v1", "动作与原文描写完全一致，此项为误报", 1, "false_positive");
-  expect(screen.getByText(/说话人待确认：.*谁/)).toBeInTheDocument();
+  expect(screen.getByText(/谁/).closest("p")).toHaveTextContent(/说话人待确认：.*谁/);
 });

@@ -1,5 +1,7 @@
 
 export default {
+  nw_scene_shot_count: "{{count}} shots",
+  review_source_text_explanation: "Original source for comparison, including dialogue and narration. This field is not voiced; spoken content comes from the ordered utterances. Repetition in the original is retained.",
   nw_exec_speaker_pending: "Provisional speaker; resolve or merge later",
   nw_delivery_pending_speakers: "{{count}} lines have unresolved speakers. Creating the episode registers numbered provisional assets without guessing identities or blocking reference assembly.",
   nw_asset_pending_speaker: "Provisional speaker asset: preserves dialogue and source only. Identity and appearance are unconfirmed. Rebind the speaker or merge with a confirmed asset later; existing episodes remain.",
@@ -2489,7 +2491,7 @@ export default {
   'utterance_add_voiceover': 'Add voiceover',
   'utterance_empty': 'No spoken content in this scene yet.',
   'review_utterances_label': 'Spoken content (in order)',
-  'review_source_text_label': 'Source anchor (reference only, not voiced)',
+  'review_source_text_label': "Original source (comparison only, not voiced)",
   'review_source_text_placeholder': 'Verbatim source excerpt for traceability',
   'review_novel_text_label': 'Original text',
   'review_novel_text_placeholder': 'Verbatim source text, preserved for voiceover',

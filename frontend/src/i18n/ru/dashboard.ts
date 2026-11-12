@@ -1,6 +1,8 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_scene_shot_count: "{{count}} shots",
+  review_source_text_explanation: "Original source for comparison, including dialogue and narration. This field is not voiced; spoken content comes from the ordered utterances. Repetition in the original is retained.",
   nw_exec_speaker_pending: "Provisional speaker; resolve or merge later",
   nw_delivery_pending_speakers: "{{count}} lines have unresolved speakers. Creating the episode registers numbered provisional assets without guessing identities or blocking reference assembly.",
   nw_asset_pending_speaker: "Provisional speaker asset: preserves dialogue and source only. Identity and appearance are unconfirmed. Rebind the speaker or merge with a confirmed asset later; existing episodes remain.",
@@ -2547,7 +2549,7 @@ export default {
   'utterance_add_voiceover': 'Добавить закадровый голос',
   'utterance_empty': 'В этой сцене пока нет реплик.',
   'review_utterances_label': 'Озвучиваемый текст (по порядку)',
-  'review_source_text_label': 'Привязка к источнику (только для справки, не озвучивается)',
+  'review_source_text_label': "Исходный текст (для сравнения, не озвучивается)",
   'review_source_text_placeholder': 'Дословный фрагмент исходного текста для прослеживаемости',
   'review_novel_text_label': 'Исходный текст',
   'review_novel_text_placeholder': 'Дословный исходный текст, сохранённый для озвучки',

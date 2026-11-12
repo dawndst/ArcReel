@@ -1,3 +1,4 @@
+import { sourceExcerptDisplay } from "@/utils/source-excerpt";
 import { useShotHierarchyCode } from "@/hooks/useShotHierarchyCode";
 import { Input } from "@/components/ui/input";
 import { MAX_SEGMENT_SECONDS } from "@/utils/shot-hierarchy";
@@ -331,8 +332,9 @@ function DramaSceneCard({
       )}
 
       <SectionLabel className="mt-3">{t("review_source_text_label")}</SectionLabel>
+      <p className="mb-2 text-xs leading-6 text-muted-foreground">{t("review_source_text_explanation")}</p>
       {readOnly ? (
-        <ReadOnlyText text={scene.source_text} className="text-muted-foreground" />
+        <ReadOnlyText text={sourceExcerptDisplay(scene.source_text)} className="text-muted-foreground" />
       ) : (
         <Textarea
           value={scene.source_text}

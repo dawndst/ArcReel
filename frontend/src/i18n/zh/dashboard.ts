@@ -1,6 +1,8 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_scene_shot_count: "{{count}} 个镜头",
+  review_source_text_explanation: "用于对照小说出处，可能同时包含对白和叙述，不参与配音。实际发声以「发声内容（按时序）」中的台词为准，原文的重复表达会保留。",
   nw_exec_speaker_pending: "说话角色暂定，后续可人工确认或合并",
   nw_delivery_pending_speakers: "{{count}} 句对白尚未明确说话人。创建分集时将登记为带编号的待定说话资产，不阻止参考组集，也不猜测真实身份。",
   nw_asset_pending_speaker: "待定说话资产：仅用于保存对白及来源，不代表已确认身份或外观。可在镜头中改绑说话人，或与确认后的资产合并；已有分集保留。",
@@ -2488,7 +2490,7 @@ export default {
   'utterance_add_voiceover': '添加画外音',
   'utterance_empty': '本分镜暂无发声内容。',
   'review_utterances_label': '发声内容（按时序）',
-  'review_source_text_label': '原文锚（仅供追溯，不朗读）',
+  'review_source_text_label': "对应小说原文（仅供对照，不参与配音）",
   'review_source_text_placeholder': '逐字原文摘录，供追溯对照',
   'review_novel_text_label': '小说原文',
   'review_novel_text_placeholder': '逐字保留的小说原文，用于配音',
@@ -3053,7 +3055,7 @@ export default {
   'detail_section_source_and_refs': '对应原文与参考',
   'shot_list_label': '分镜列表',
   'shot_reorder': '调整「{{id}}」的顺序',
-  'detail_source_text_readonly_hint': '只读，供对照来源',
+  'detail_source_text_readonly_hint': '只读；实际发声以镜头台词为准',
   'detail_source_text_empty': '（无对应原文）',
   'detail_section_voiceover': '口播文案',
   'detail_voiceover_placeholder': '这一分镜的口播台词，照稿可配音；纯画面分镜留空…',

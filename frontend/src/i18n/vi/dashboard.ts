@@ -1,6 +1,8 @@
 import type enDashboard from "@/i18n/en/dashboard";
 
 export default {
+  nw_scene_shot_count: "{{count}} shots",
+  review_source_text_explanation: "Original source for comparison, including dialogue and narration. This field is not voiced; spoken content comes from the ordered utterances. Repetition in the original is retained.",
   nw_exec_speaker_pending: "Provisional speaker; resolve or merge later",
   nw_delivery_pending_speakers: "{{count}} lines have unresolved speakers. Creating the episode registers numbered provisional assets without guessing identities or blocking reference assembly.",
   nw_asset_pending_speaker: "Provisional speaker asset: preserves dialogue and source only. Identity and appearance are unconfirmed. Rebind the speaker or merge with a confirmed asset later; existing episodes remain.",
@@ -2480,7 +2482,7 @@ export default {
   'utterance_add_voiceover': 'Thêm lời dẫn',
   'utterance_empty': 'Cảnh này chưa có nội dung lời nói.',
   'review_utterances_label': 'Nội dung lời nói (theo thứ tự)',
-  'review_source_text_label': 'Neo nguồn (chỉ tham chiếu, không lồng tiếng)',
+  'review_source_text_label': "Nguyên văn (chỉ đối chiếu, không lồng tiếng)",
   'review_source_text_placeholder': 'Trích nguyên văn nguồn để truy vết',
   'review_novel_text_label': 'Nguyên văn',
   'review_novel_text_placeholder': 'Nguyên văn nguồn, giữ nguyên để lồng tiếng',
