@@ -51,7 +51,7 @@ function PrimarySvt({ note, busy, adopt }: { note: ChapterNote; busy: boolean; a
 
 function NoteDetails({ projectName, note, busy, adopt, condense, resolveAsset }: { projectName: string; note: ChapterNote; busy: boolean; adopt: (candidate: string) => void; condense: () => void; resolveAsset: (id: string, value: IdentityDecision) => Promise<void> }) {
   const { t } = useTranslation("dashboard");
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const [source, setSource] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -95,9 +95,12 @@ function Section({ title, children, featured = false }: { title: string; childre
   return <section className={`rounded-xl border bg-card p-5 text-sm shadow-xs ${featured ? "border-primary/25" : "border-border"}`}><h3 className={`mb-4 border-b pb-3 text-base font-bold ${featured ? "text-primary" : "text-foreground"}`}>{title}</h3>{children}</section>;
 }
 
+const WORKBENCH_TABS = ["notes", "svt", "groups", "ledger", "review", "understanding", "scenes"] as const;
+type WorkbenchTab = typeof WORKBENCH_TABS[number];
+
 export function NovelWorkbench({ projectName, onProduction }: { projectName: string; onProduction: () => void }) {
   const { t } = useTranslation(["dashboard", "common"]);
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const project = useProjectsStore((state) => state.currentProjectData);
   const [data, setData] = useState<NovelWorkflow | null>(null);
   const [revision, setRevision] = useState(0);
@@ -108,7 +111,22 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
   const search = useSearch();
   const requestedNote = new URLSearchParams(search).get("note");
   const [focused, setFocused] = useState<string | null>(requestedNote);
-  const [tab, setTab] = useState<"notes" | "svt" | "groups" | "ledger" | "review" | "understanding" | "scenes">("notes");
+  const [tab, setTabState] = useState<WorkbenchTab>(() => {
+    const requested = new URLSearchParams(search).get("workbench") as WorkbenchTab;
+    return WORKBENCH_TABS.includes(requested) ? requested : "notes";
+  });
+  function setTab(next: WorkbenchTab, shot?: string) {
+    setTabState(next);
+    const params = new URLSearchParams(search);
+    params.set("workbench", next);
+    if (shot) params.set("shot", shot);
+    else if (next !== "scenes") params.delete("shot");
+    navigate(`${location}?${params.toString()}`, { replace: true });
+  }
+  const requestedShot = new URLSearchParams(search).get("shot");
+  useEffect(() => {
+    if (tab === "scenes" && requestedShot && data) requestAnimationFrame(() => document.getElementById(`library-shot-${requestedShot}`)?.scrollIntoView({ block: "center" }));
+  }, [tab, requestedShot, data]);
   const [focusedBatch, setFocusedBatch] = useState<string | null>(null);
   useEffect(() => { if (tab === "scenes" && focusedBatch) document.getElementById(`scene-batch-${focusedBatch}`)?.scrollIntoView({ block: "start" }); }, [tab, focusedBatch]);
   const [focusedSvt, setFocusedSvt] = useState<string | null>(null);
@@ -230,7 +248,7 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
         characters={Object.keys(project?.characters ?? {})}
         confirmQuestions={(batch, revision, reason, index, resolution) => void act(async () => { await API.confirmSceneQuestions(projectName, batch, revision, reason, data.source_basis!, index, resolution); await refreshAfterWrite(projectName, t); })}
         adoptRevision={(batch, revision) => void act(async () => { await API.adoptSceneRevision(projectName, batch, revision, data.source_basis!); await refreshAfterWrite(projectName, t); })}
-        attribute={(shot, segment, utterance, speaker, revision) => void act(async () => { await API.attributeNoteDialogue(projectName, shot, segment, utterance, speaker, data.source_basis!, revision); await refreshAfterWrite(projectName, t); })}
+        attribute={(shot, segment, utterance, speaker, revision, registerRole) => { setTab("scenes", shot); void act(async () => { await API.attributeNoteDialogue(projectName, shot, segment, utterance, speaker, data.source_basis!, revision, registerRole); await refreshAfterWrite(projectName, t); }); }}
         batches={data.scene_batches ?? []} notes={data.notes} disabled={busy || working || data.stale}
         selection={shotSelection} setSelection={(ids) => { setShotSelection(ids); setAssemblyRequest(crypto.randomUUID()); }}
         title={episodeTitle} setTitle={(value) => { setEpisodeTitle(value); setAssemblyRequest(crypto.randomUUID()); }}

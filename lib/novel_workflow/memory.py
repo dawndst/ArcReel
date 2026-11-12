@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 from itertools import zip_longest
 
+from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest
 from lib.novel_workflow import store
+from lib.novel_workflow.assets import mentions
 
 BUCKETS = ("assets", "changes", "events", "aliases", "relations", "threads", "highlights")
 
@@ -17,6 +19,7 @@ def records(reading):
 
 def ledger(path, notebook, *, through=None, extra=(), readings=None):
     items = []
+    project = load_json(path / "project.json") if (path / "project.json").exists() else {}
     bases = {}
     readings = (
         readings
@@ -31,7 +34,8 @@ def ledger(path, notebook, *, through=None, extra=(), readings=None):
             bases[note["id"]] = reading["basis"]
             for key in BUCKETS:
                 items.extend(
-                    {**v, "bucket": key, "note_id": note["id"], "order": note["order"]} for v in reading.get(key, [])
+                    {**v, "bucket": key, "note_id": note["id"], "order": note["order"]}
+                    for v in (mentions(project, reading) if key == "assets" else reading.get(key, []))
                 )
     for reading in extra:
         for key in BUCKETS:

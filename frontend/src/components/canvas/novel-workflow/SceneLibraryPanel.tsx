@@ -20,7 +20,7 @@ export function SceneLibraryPanel({ batches, notes, disabled, selection, setSele
   selection: string[]; setSelection: (ids: string[]) => void; title: string; setTitle: (title: string) => void;
   confirmQuestions?: ConfirmQuestion;
   adoptRevision?: (batch: string, revision: string) => void;
-  characters?: string[]; attribute?: (shot: string, segment: number, utterance: number, speaker: string, revision: string) => void;
+  characters?: string[]; attribute?: (shot: string, segment: number, utterance: number, speaker: string, revision: string, registerRole?: boolean) => void;
   assemble: () => void; source: (note: string) => void;
 }) {
   const { t } = useTranslation("dashboard");

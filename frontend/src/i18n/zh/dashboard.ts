@@ -1,6 +1,9 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_speaker_role_proposal: "已识别未具名角色：{{role}}",
+  nw_speaker_register_role: "登记「{{role}}」并采用",
+
   nw_source_highlight_hint: "浅色标出镜头原文，深色标出对应对白；打开后自动定位。",
   nw_source_select_shot: "选择要定位的镜头",
   nw_source_no_dialogue_match: "对白未能逐字匹配，已标出镜头依据，请结合前后文核对。",

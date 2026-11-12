@@ -14,6 +14,7 @@ from lib.infra.async_thread import run_noninterruptible_sync
 from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import store
+from lib.novel_workflow.assets import mentions as source_mentions
 from lib.novel_workflow.assets import reference
 from lib.novel_workflow.models import StrictModel
 from lib.references.reference_catalog import split_derivative_reference
@@ -123,7 +124,7 @@ def asset_bindings(project, reading, shot):
         for name in dict.fromkeys(n for seg in shot["segments"] for n in seg.get(field, [])):
             base, explicit_variant = split_derivative_reference(name) if kind == "character" else (name, "")
             mentions = []
-            for mention in reading.get("assets", []):
+            for mention in source_mentions(project, reading):
                 ev = mention["evidence"]
                 if (
                     mention["kind"] != kind

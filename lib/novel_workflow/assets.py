@@ -231,6 +231,15 @@ def synchronize(path: Path) -> dict:
                         "blocking": False,
                         "reason": review["reason"],
                     }
+        for role in project.get("note_source_roles", {}).values():
+            note = next((n for n in notebook["notes"] if n["id"] == role["evidence"]["note_id"]), None)
+            if not note or readings.get(note["id"], {}).get("basis") != role["reading_basis"]:
+                continue
+            asset = next(
+                (a for a in project.get("characters", {}).values() if a.get("asset_id") == role["entity_id"]), None
+            )
+            if asset:
+                keep_first_note(asset, {"id": note["id"], "order": note["order"], "title": note["title"]})
         store.write(path / "project.json", project)
         return {"registered": registered, "linked": len(links)}
 
@@ -266,6 +275,13 @@ def reference(project: dict, mention: dict) -> dict:
     return {**link, **problem, "asset_missing": True}
 
 
+def mentions(project: dict, reading: dict) -> list[dict]:
+    return [
+        *reading.get("assets", []),
+        *(r for r in project.get("note_source_roles", {}).values() if r["reading_basis"] == reading.get("basis")),
+    ]
+
+
 def annotate(project: dict, reading: dict | None) -> dict | None:
     if reading is None:
         return None
@@ -277,7 +293,7 @@ def annotate(project: dict, reading: dict | None) -> dict | None:
             **reference(project, a),
             "variant": reference(project, a).get("variant", ""),
         }
-        for a in reading.get("assets", [])
+        for a in mentions(project, reading)
     ]
     return result
 

@@ -90,6 +90,9 @@ def merge_note_links(project: dict, discarded: dict, kept: dict, plan) -> None:
             if candidate not in candidates:
                 candidates.append(candidate)
         issue["candidates"] = candidates
+    for role in project.get("note_source_roles", {}).values():
+        if role.get("entity_id") == old_id:
+            role["entity_id"] = kept["asset_id"]
     for link in project.get("note_asset_links", {}).values():
         if link.get("asset_id") in replacements:
             asset = replacements[link["asset_id"]]

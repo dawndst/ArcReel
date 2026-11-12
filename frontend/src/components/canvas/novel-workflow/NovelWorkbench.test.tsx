@@ -10,6 +10,7 @@ const data: NovelWorkflow = {
   notes: [1, 2].map((i) => ({ id: `note-${i}`, order: i, title: `卷一 · 第${i}章`, volume: "卷一", chapter: `第${i}章`, chars: 100, basis: `basis-${i}`, status: "unread", sections: [{ title: `第${i}章`, source_file: "source/book.txt", start: i * 100, end: (i + 1) * 100 }] })),
 };
 beforeEach(() => {
+  window.history.replaceState({}, "", "/");
   vi.restoreAllMocks();
   useTasksStore.setState(useTasksStore.getInitialState(), true);
   vi.spyOn(useTasksStore.getState(), "refreshTasks").mockResolvedValue(undefined);
@@ -112,4 +113,13 @@ it("blocks scene generation for a changed primary SVT and explains the next acti
   expect(screen.getByRole("button", { name: "生成场与镜头" })).toBeDisabled();
   expect(screen.getByText(/主归属已调整：请选中相关 SVT/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "从所选 Note 提炼 SVT" })).toBeEnabled();
+});
+
+it("retains the scene library after the workbench remounts following an asset registration", async () => {
+  const first = render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  fireEvent.click(await screen.findByRole("button", { name: /^场镜素材库/ }));
+  expect(new URLSearchParams(window.location.search).get("workbench")).toBe("scenes");
+  first.unmount();
+  render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  expect(await screen.findByPlaceholderText("搜索场、镜头或对白")).toBeInTheDocument();
 });

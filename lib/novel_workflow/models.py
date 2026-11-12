@@ -44,7 +44,10 @@ class Mention(EvidencedClaim):
         description="visual=年龄形态伤势服装等可见外观；performance=笑声、语言诱惑、动作等表现，不创建图片变体；none=无变体。无法确认时unclassified。",
     )
     kind: Literal["character", "scene", "prop"]
-    name: str = Field(min_length=1)
+    name: str = Field(
+        min_length=1,
+        description="已具名对象使用原文名称；未具名但角色可明确区分时，用带行为或场景限定的标签，如借数学课本的女同学。出镜或发声的未具名配角也必须登记，不编造姓名，不把不同泛称人物混为一人。",
+    )
     identity_scope: str = Field(default="", description="Distinguish same-name entities; unknown stays unknown")
     variant: str = Field(
         default="",

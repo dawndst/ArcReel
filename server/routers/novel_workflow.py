@@ -256,6 +256,7 @@ async def get_rules(name: str):
 
 
 class AttributionRequest(SourceRequest):
+    register_role: bool = False
     segment_index: int = Field(ge=0)
     utterance_index: int = Field(ge=0)
     speaker: str = Field(min_length=1, max_length=200)
@@ -279,6 +280,7 @@ async def attribute_speaker(name: str, shot_id: str, req: AttributionRequest):
             req.speaker,
             req.source_basis,
             req.shot_basis,
+            req.register_role,
         ),
     )
 

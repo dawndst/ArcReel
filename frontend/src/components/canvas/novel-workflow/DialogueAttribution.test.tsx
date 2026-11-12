@@ -17,3 +17,10 @@ it("does not offer adoption for an unresolved attribution", () => {
   expect(screen.getByText("没有足够依据")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /^采用/ })).not.toBeInTheDocument();
 });
+it("offers registration for an identified unnamed role instead of treating it as unknown identity", () => {
+  const attribute = vi.fn();
+  const shot = { id: "sh", revision: "rev", speaker_suggestions: { items: [{ segment_index: 0, utterance_index: 0, speaker: null, proposed_role: "借课本的女同学", source_quote: "其中一名女学生跑来", reason: "原文明确借书者但没有姓名" }] } } as LibraryShot;
+  render(<DialogueAttribution shot={shot} segment={0} utterance={0} characters={[]} disabled={false} attribute={attribute} />);
+  fireEvent.click(screen.getByRole("button", { name: "登记「借课本的女同学」并采用" }));
+  expect(attribute).toHaveBeenCalledWith("sh", 0, 0, "借课本的女同学", "rev", true);
+});

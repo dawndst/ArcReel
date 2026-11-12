@@ -54,3 +54,15 @@ def test_readonly_suggestions_do_not_invalidate_shot_design():
     before = planning_inputs({}, "rules", {"sh": shot}, {}, {"assets": []})[2]
     shot["speaker_suggestions"] = {"items": []}
     assert planning_inputs({}, "rules", {"sh": shot}, {}, {"assets": []})[2] == before
+
+
+def test_missing_unnamed_role_is_a_grounded_proposal_not_an_existing_speaker():
+    value = suggestion(None)
+    value.items[0].proposed_role = "借课本的女同学"
+    result = validate(value, data())[0]
+    assert result["speaker"] is None
+    assert result["proposed_role"] == "借课本的女同学"
+    assert result["evidence"]["start"] == 100
+    value.items[0].speaker = "阳子"
+    with pytest.raises(ValueError, match="不能同时"):
+        validate(value, data())

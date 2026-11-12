@@ -6,7 +6,7 @@ import asyncio
 import json
 from uuid import uuid4
 
-from lib.artifacts.formal_write import project_metadata_lock
+from lib.artifacts.formal_write import formal_write_transaction, project_metadata_lock
 from lib.infra.async_thread import run_noninterruptible_sync
 from lib.infra.json_io import load_json
 from lib.novel_understanding.service import check_stop
@@ -187,7 +187,7 @@ def ground(value, chunk, assets, durations):
 
 
 async def generate(path, generator, note_ids, expected, *, durations=None):
-    from lib.novel_workflow.assets import reference
+    from lib.novel_workflow.assets import mentions, reference
     from lib.novel_workflow.service import ask, current
 
     notebook = await asyncio.to_thread(current, path, expected)
@@ -232,7 +232,7 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
             tags = await asyncio.to_thread(svt_event_tags, path, note["id"], reading)
             chunks = chunks_by_note[note["id"]]
             assets = []
-            for asset in reading["assets"]:
+            for asset in mentions(project, reading):
                 if asset.get("source_kind") == "annotation" or asset.get("claim_type") in {
                     "inference",
                     "statement",
@@ -432,9 +432,12 @@ def require_attributed(shot):
                 )
 
 
-def attribute_dialogue(path, project, shot_id, segment_index, utterance_index, speaker, expected, shot_basis):
+def attribute_dialogue(
+    path, project, shot_id, segment_index, utterance_index, speaker, expected, shot_basis, register_role=False
+):
     """Human attribution is local, versioned and guarded against stale edits."""
     with project_metadata_lock(path):
+        project = load_json(path / "project.json")
         notebook = store.require_current(path, project, expected)
         reading = store.valid_readings(path, notebook)
         library = catalog(path)
@@ -452,10 +455,50 @@ def attribute_dialogue(path, project, shot_id, segment_index, utterance_index, s
                         raise ValueError("对白位置不存在") from exc
                     if segment_index < 0 or utterance_index < 0 or utterance["kind"] != "dialogue":
                         raise ValueError("只能确认角色对白的说话人")
+                    from lib.novel_workflow.shot_production import asset_bindings, planning_inputs
+
+                    shots = {sh["id"]: sh for sc in batch["scenes"] for sh in sc["shots"]}
+                    rules = store.rule(path, "shot_production")
+                    ctx = batch.get("production_context")
+                    production_current = bool(
+                        ctx
+                        and batch.get("production_basis")
+                        == planning_inputs(ctx, rules, shots, project, reading[batch["note_id"]])[2]
+                    )
+                    proposal = None
+                    if register_role:
+                        from lib.novel_workflow.scene_source import batch_source
+                        from lib.novel_workflow.source_roles import register
+
+                        proposal = next(
+                            (
+                                x
+                                for x in shot.get("speaker_suggestions", {}).get("items", [])
+                                if x["segment_index"] == segment_index
+                                and x["utterance_index"] == utterance_index
+                                and x.get("proposed_role") == speaker
+                                and x.get("speaker") is None
+                            ),
+                            None,
+                        )
+                        if not proposal or not proposal.get("source_quote"):
+                            raise ValueError("新增角色必须采用当前镜头中有原文依据的角色建议")
+                        original = batch_source(path, project, batch["basis"])
+                        begin, end = locate(original["text"], proposal["source_quote"])
+                        note = next(n for n in notebook["notes"] if n["id"] == batch["note_id"])
+                        ev = {
+                            "note_id": note["id"],
+                            "source_file": original["source_file"],
+                            "start": original["start"] + begin,
+                            "end": original["start"] + end,
+                            "quote": original["text"][begin:end],
+                        }
+                        store.write(store.root(path) / "history" / f"source-role-project-{uuid4().hex}.json", project)
+                        speaker = register(project, note, reading[batch["note_id"]]["basis"], speaker, ev)
                     if speaker not in project.get("characters", {}):
                         raise ValueError("请选择项目中已登记的人物资产；未明确身份可建立无名角色资产")
                     store.write(store.root(path) / "history" / f"scene-attribution-{uuid4().hex}.json", batch)
-                    suggestion = next(
+                    suggestion = proposal or next(
                         (
                             x
                             for x in shot.get("speaker_suggestions", {}).get("items", [])
@@ -478,6 +521,15 @@ def attribute_dialogue(path, project, shot_id, segment_index, utterance_index, s
                             **({"ai_suggestion": suggestion} if suggestion else {}),
                         }
                     )
-                    store.write(store.root(path) / "scene_library.json", library)
-                    return {"shot_id": shot_id}
+                    if shot.get("production"):
+                        shot["production"]["assets"] = asset_bindings(project, reading[batch["note_id"]], shot)
+                    if production_current:
+                        batch["production_basis"] = planning_inputs(
+                            ctx, rules, shots, project, reading[batch["note_id"]]
+                        )[2]
+                    with formal_write_transaction(path / "project.json", store.root(path) / "scene_library.json"):
+                        if register_role:
+                            store.write(path / "project.json", project)
+                        store.write(store.root(path) / "scene_library.json", library)
+                    return {"shot_id": shot_id, "speaker": speaker}
         raise ValueError("镜头不存在")

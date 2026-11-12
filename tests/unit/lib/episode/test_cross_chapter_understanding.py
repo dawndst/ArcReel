@@ -58,6 +58,10 @@ class CrossReader:
         self.calls = []
 
     async def generate(self, request, **kwargs):
+        if "# 章节精编与原文回读" in request.prompt:
+            from tests.unit.lib.episode.test_novel_workflow import Reader
+
+            return await Reader().generate(request, **kwargs)
         self.calls.append(request.prompt)
         if "查询规划材料：" in request.prompt:
             return SimpleNamespace(text=json.dumps({"queries": ["紫衣陌生人 景麒 白玉"], "questions": ["陌生人是谁"]}))
@@ -101,7 +105,8 @@ async def test_rereads_unread_source_without_rewriting_notes_and_filters_future_
     assert link["story_start_note_id"] == first["id"]
     assert second["id"] in result["understanding"]["reports"][0]["unread_inspected_note_ids"]
     assert result["notes"][1]["status"] == "unread"
-    assert result["notes"][0]["reading"] == before
+    assert await asyncio.to_thread(store.note_result, tmp_path, first) == before
+    assert result["notes"][0]["reading"]["assets"][0]["name"] == before["assets"][0]["name"]
     early = await asyncio.to_thread(understanding.production_context, tmp_path, [first["id"]])
     later = await asyncio.to_thread(understanding.production_context, tmp_path, [third["id"]])
     assert early["links"] == []

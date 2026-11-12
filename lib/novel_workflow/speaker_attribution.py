@@ -13,7 +13,7 @@ from lib.infra.json_io import load_json
 from lib.novel_understanding.service import check_stop
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import store
-from lib.novel_workflow.assets import reference
+from lib.novel_workflow.assets import mentions, reference
 from lib.novel_workflow.evidence import locate
 from lib.novel_workflow.models import StrictModel
 from lib.novel_workflow.scene_library import catalog, valid_batch
@@ -24,6 +24,11 @@ class Suggestion(StrictModel):
     segment_index: int = Field(ge=0)
     utterance_index: int = Field(ge=0)
     speaker: str | None
+    proposed_role: str | None = Field(
+        default=None,
+        max_length=120,
+        description="原文已明确说话角色但资产中遗漏时，提出有场景/行为限定的角色标签，例如借数学课本的女同学；不是编造姓名。身份归属也不明确时为空。",
+    )
     source_quote: str = ""
     reason: str = Field(min_length=1, max_length=2000)
 
@@ -51,7 +56,7 @@ def snapshot(path, expected, note_ids, shot_id):
                 if u["kind"] == "dialogue" and not (u.get("speaker") or "").strip()
             ]
             candidates = []
-            for mention in readings[batch["note_id"]].get("assets", []):
+            for mention in mentions(project, readings[batch["note_id"]]):
                 if mention["kind"] != "character" or mention["evidence"]["start"] >= source["end"]:
                     continue
                 ref = reference(project, mention)
@@ -82,7 +87,13 @@ def validate(value, data):
         row = item.model_dump()
         if item.speaker is not None and item.speaker not in names:
             raise ValueError("说话人必须来自本次提供的已登记候选人物")
-        if item.speaker is not None and len(item.source_quote.strip()) < 2:
+        if item.proposed_role:
+            from lib.project.asset_types import validate_asset_name
+
+            validate_asset_name(item.proposed_role)
+            if item.speaker is not None:
+                raise ValueError("已有候选与新增角色建议不能同时填写")
+        if (item.speaker is not None or item.proposed_role) and len(item.source_quote.strip()) < 2:
             raise ValueError("确定说话人时必须提供原文归属依据")
         if item.source_quote:
             start, end = locate(data["source"]["text"], item.source_quote)

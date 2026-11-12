@@ -1,6 +1,9 @@
 import type enDashboard from "@/i18n/en/dashboard";
 
 export default {
+  nw_speaker_role_proposal: "Đã xác định vai chưa có tên: {{role}}",
+  nw_speaker_register_role: "Đăng ký {{role}} và chọn",
+
   nw_source_highlight_hint: "Màu nhạt đánh dấu căn cứ của cảnh quay, màu đậm đánh dấu lời thoại. Tự cuộn đến vị trí tương ứng.",
   nw_source_select_shot: "Chọn cảnh quay cần tìm",
   nw_source_no_dialogue_match: "Không khớp nguyên văn lời thoại. Hãy kiểm tra đoạn được đánh dấu và ngữ cảnh.",

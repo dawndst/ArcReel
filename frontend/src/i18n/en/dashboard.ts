@@ -1,5 +1,8 @@
 
 export default {
+  nw_speaker_role_proposal: "Unnamed role identified: {{role}}",
+  nw_speaker_register_role: "Register {{role}} and use",
+
   nw_source_highlight_hint: "Light highlights show shot evidence; darker highlights show dialogue. The view scrolls to the match.",
   nw_source_select_shot: "Choose a shot to locate",
   nw_source_no_dialogue_match: "No exact dialogue match. Shot evidence is highlighted; check the surrounding text.",

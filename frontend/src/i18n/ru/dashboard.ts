@@ -1,6 +1,9 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_speaker_role_proposal: "Определена безымянная роль: {{role}}",
+  nw_speaker_register_role: "Добавить {{role}} и выбрать",
+
   nw_source_highlight_hint: "Светлым выделено основание кадра, тёмным — реплики. Просмотр прокручивается к совпадению.",
   nw_source_select_shot: "Выберите кадр",
   nw_source_no_dialogue_match: "Точного совпадения реплики нет. Проверьте выделенный фрагмент и контекст.",
