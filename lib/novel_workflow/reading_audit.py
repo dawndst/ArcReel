@@ -39,6 +39,7 @@ async def audit(path, generator, extracted, part, seed_ids, identity_ids):
         ),
         lambda value: ground(value, part, seed_ids, identity_ids) if value.complete else reject_incomplete(),
         grow_output=True,
+        max_output_tokens=min(getattr(generator, "max_output_tokens", 24000), max(12000, len(part["text"]) * 4)),
     )
 
 

@@ -79,6 +79,11 @@ class Change(EvidencedClaim):
 
 
 class Dialogue(EvidencedClaim):
+    context_quote: str = Field(
+        default="",
+        max_length=5000,
+        description="对白在本块重复时必须填写：包含本次发言及前后归属叙述的连续原文，须唯一定位且该对白在其中只出现一次；quote仍只保留实际台词，不把上下文写进台词",
+    )
     speaker: str
     quote: str = Field(min_length=2)
     value: str

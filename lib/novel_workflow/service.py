@@ -37,6 +37,20 @@ def evidence(text: str, quote: str, part: dict) -> dict:
     }
 
 
+def dialogue_evidence(part, dialogue):
+    context = dialogue.get("context_quote", "")
+    if context:
+        start, end = locate(part["text"], context)
+        return evidence(part["text"][start:end], dialogue["quote"], {**part, "start": part["start"] + start})
+    try:
+        return evidence(part["text"], dialogue["quote"], part)
+    except ValueError as exc:
+        raise ValueError(
+            "对白可能重复或引句不精确；quote只保留原话，并填写context_quote：包含本次发言及前后叙述、能唯一定位的连续原文。对白："
+            + dialogue["quote"][:100]
+        ) from exc
+
+
 def ground(reading: Reading, part: dict, seed_ids=frozenset(), identity_ids=frozenset()) -> dict:
     data = reading.model_dump()
     data["questions"] = list(dict.fromkeys([*data["questions"], *(q["text"] for q in data["reading_questions"])]))
@@ -55,7 +69,7 @@ def ground(reading: Reading, part: dict, seed_ids=frozenset(), identity_ids=froz
             item["id"] = digest([bucket, item])[:24]
             if bucket == "events":
                 for dialogue in item["dialogues"]:
-                    dialogue["evidence"] = evidence(part["text"], dialogue["quote"], part)
+                    dialogue["evidence"] = dialogue_evidence(part, dialogue)
                     dialogue["quote"] = dialogue["evidence"]["quote"]
                     dialogue["id"] = digest(["dialogue", dialogue["evidence"]])[:24]
     return data
@@ -165,6 +179,10 @@ async def read_part(
                     Reading,
                     prompt,
                     lambda value: ground(value, part, seed_ids, identity_ids) if value.complete else None,
+                    grow_output=True,
+                    max_output_tokens=min(
+                        getattr(generator, "max_output_tokens", 24000), max(12000, len(part["text"]) * 4)
+                    ),
                 )
                 if data is not None:
                     await run_noninterruptible_sync(store.write, draft_file, data)

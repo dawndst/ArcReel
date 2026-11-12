@@ -264,3 +264,17 @@ def test_rule_change_keeps_historical_edition_browsable_without_reusing_it_for_p
     assert condensation.load(tmp_path, note, reading) is None
     assert condensation.load(tmp_path, note, reading, history=True) == old
     assert condensation.metadata(tmp_path, note, reading)["edited_chars"] == 80
+
+
+def test_repeated_short_dialogue_requires_unique_context_and_keeps_only_spoken_words():
+    from lib.novel_workflow.service import dialogue_evidence
+
+    text = "甲摇头说：『我不要。』乙随后喊：『我不要。』"
+    part = {"text": text, "start": 100, "source_file": "book", "note_id": "n1"}
+    with pytest.raises(ValueError, match="context_quote"):
+        dialogue_evidence(part, {"quote": "『我不要。』"})
+    resolved = dialogue_evidence(part, {"quote": "『我不要。』", "context_quote": "乙随后喊：『我不要。』"})
+    assert resolved["start"] == 100 + text.rindex("『我不要。』")
+    assert resolved["quote"] == "『我不要。』"
+    with pytest.raises(ValueError, match="唯一"):
+        dialogue_evidence(part, {"quote": "『我不要。』", "context_quote": text})
