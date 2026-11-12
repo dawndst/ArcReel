@@ -333,3 +333,60 @@ async def test_ambiguous_citation_uses_small_source_choice_and_keeps_extraction_
     assert utterance["evidence"]["start"] == text.rindex("『不要。』")
     assert result["events"][0]["action"] == "乙拒绝"
     assert generator.calls == 1
+
+
+async def test_parallel_reconciliation_preserves_completed_siblings_on_provider_failure(tmp_path):
+    from lib.novel_workflow import retrieval, understanding
+    from lib.novel_workflow.understanding_models import Findings
+    from lib.novel_workflow.understanding_reconcile import reconcile
+    from tests.unit.lib.episode.test_cross_chapter_understanding import FIRST, SECOND, setup
+
+    project, book = await asyncio.to_thread(setup, tmp_path)
+    corpus = await asyncio.to_thread(retrieval.index, tmp_path, project, book)
+    left, right = corpus["fragments"][:2]
+    links = []
+    for kind in ["identity", "state", "causal"]:
+        draft = {
+            "kind": kind,
+            "subject": "陌生人",
+            "description": "原文关联",
+            "status": "supported",
+            "claim_type": "fact",
+            "source_kind": "narrative",
+            "perspective": "",
+            "citations": [{"fragment_id": left["id"], "quote": FIRST}, {"fragment_id": right["id"], "quote": SECOND}],
+        }
+        link = understanding.ground(Findings(links=[draft]), [left, right], {left["note_id"]}, book)["links"][0]
+        links.extend([link, {**link, "description": "同组另一条待核对表述"}])
+
+    class Generator:
+        def __init__(self):
+            self.arrivals = 0
+            self.ready = asyncio.Event()
+            self.fail = True
+
+        async def generate(self, request, **kwargs):
+            self.arrivals += 1
+            if self.arrivals == 3:
+                self.ready.set()
+            await self.ready.wait()
+            data = json.loads(request.prompt.split("关联汇总材料：", 1)[1].split("\n只输出 JSON", 1)[0])
+            if data["drafts"][0]["kind"] == "identity" and self.fail:
+                self.fail = False
+                raise RuntimeError("provider unavailable")
+            original = data["drafts"][0]
+            value = {
+                k: original[k]
+                for k in ["kind", "subject", "description", "status", "claim_type", "source_kind", "perspective"]
+            }
+            value["citations"] = [{"fragment_id": f["id"], "quote": f["quote"]} for f in data["fragments"]]
+            return SimpleNamespace(text=json.dumps({"links": [value]}))
+
+    generator = Generator()
+    with pytest.raises(RuntimeError, match="provider unavailable"):
+        await reconcile(tmp_path, generator, links, book, {left["note_id"]})
+    caches = store.root(tmp_path) / "understanding/reconciliations"
+    assert len(await asyncio.to_thread(lambda: list(caches.glob("*.json")))) == 2
+    result, _ = await reconcile(tmp_path, generator, links, book, {left["note_id"]})
+    assert {v["kind"] for v in result} == {"identity", "state", "causal"}
+    assert generator.arrivals == 4
