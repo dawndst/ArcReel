@@ -242,6 +242,7 @@ def test_performance_inherits_visual_and_memory_does_not_replace_current(tmp_pat
     save_reading(tmp_path, note, rows)
     assets.synchronize(tmp_path)
     data = load_json(tmp_path / "project.json")
+    assert "variant" not in assets.reference(data, rows[2])
     assert assets.reference(data, rows[3])["variant"] == "男装"
     assert assets.reference(data, rows[3])["performance"] == "疲惫"
     # A deliberate base-appearance decision resets the current visual.

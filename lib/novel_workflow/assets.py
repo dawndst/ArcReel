@@ -167,9 +167,8 @@ def synchronize(path: Path) -> dict:
                     variant = ""
                 if variant_kind in {"performance", "none"}:
                     variant = ""
-                target = (
-                    active_visuals.get(asset["entity_id"], asset) if variant_kind in {"performance", "none"} else asset
-                )
+                visual_scope = (asset["entity_id"], context)
+                target = active_visuals.get(visual_scope, asset) if variant_kind in {"performance", "none"} else asset
                 if resolution.get("variant_kind") == "none":
                     target = asset
                 default_variant = project.get("note_asset_entity_variants", {}).get(key)
@@ -209,8 +208,8 @@ def synchronize(path: Path) -> dict:
                             target = table.setdefault(variant, {"description": mention["description"]})
                         ensure_asset_codes(project)
                         variants[variant_key] = target["asset_id"]
-                if context == "current" and variant_kind != "performance":
-                    active_visuals[asset["entity_id"]] = target
+                if context != "unclassified" and variant_kind != "performance":
+                    active_visuals[visual_scope] = target
                 first = {"id": note["id"], "order": note["order"], "title": note["title"]}
                 keep_first_note(asset, first)
                 keep_first_note(target, first)
