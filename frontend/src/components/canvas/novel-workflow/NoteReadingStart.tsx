@@ -4,14 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ChapterNote } from "@/types/novel-workflow";
 
-export function NoteReadingStart({ notes }: { notes: ChapterNote[] }) {
-  const { t } = useTranslation("dashboard");
-  const completed = notes.filter((note) => !!note.reading || note.status === "read").length;
-  return <section aria-label={t("nw_read_start")} className="shrink-0 border-b bg-primary/5 px-5 py-2">
-    <span className="text-sm font-medium">{t("nw_read_progress", { total: notes.length, completed })}</span>
-  </section>;
-}
-
 export function NoteReadingRange({ notes, selected, disabled, select, children }: { notes: ChapterNote[]; selected: string[]; disabled: boolean; select: (ids: string[]) => void; children?: (ids: string[], valid: boolean) => ReactNode }) {
   const { t } = useTranslation("dashboard");
   const initial = notes.filter((note) => selected.includes(note.id));
