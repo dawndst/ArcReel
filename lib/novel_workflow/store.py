@@ -67,7 +67,7 @@ def reading_key(path: Path, note: dict) -> str:
     return digest([note["basis"], rule(path, "read"), chapter_rule(path), 2])
 
 
-def valid_readings(path: Path, notebook=None, *, before=None) -> dict:
+def valid_readings(path: Path, notebook=None, *, before=None, respect_scope=True) -> dict:
     """Resolve cache validity once in reveal order, with bounded file reads."""
     notebook = notebook if notebook is not None else state(path)
     bases, readings = {}, {}
@@ -76,7 +76,11 @@ def valid_readings(path: Path, notebook=None, *, before=None) -> dict:
     read_rule, chapter_rule = rule(path, "read"), configured_chapter_rule(path)
     from lib.novel_workflow import scope
 
-    allowed = scope.available_ids(path, notebook) if notebook else set()
+    allowed = (
+        (scope.available_ids(path, notebook) if respect_scope else {n["id"] for n in notebook["notes"]})
+        if notebook
+        else set()
+    )
     for note in notebook["notes"] if notebook else []:
         if note["id"] not in allowed:
             continue
@@ -98,6 +102,14 @@ def reading_context(path: Path, note: dict) -> dict:
 
 def note_result(path: Path, note: dict) -> dict | None:
     return valid_readings(path, before=note["order"] + 1).get(note["id"])
+
+
+def display_note_result(path: Path, note: dict) -> dict | None:
+    """Reading material stays browsable outside the production/retrieval scope."""
+    active = note_result(path, note)
+    historical = valid_readings(path, before=note["order"] + 1, respect_scope=False).get(note["id"])
+    cached = root(path) / "notes" / note["id"] / f"{reading_key(path, note)}.json"
+    return active or historical or (load_json(cached) if cached.exists() else None)
 
 
 def require_current(path: Path, project: dict, expected: str) -> dict:
@@ -171,8 +183,13 @@ def view(path: Path, project: dict) -> dict:
     readings = valid_readings(path, current) if not stale else {}
     from lib.novel_workflow.condensation import metadata as load_edition
 
+    display_readings = {**valid_readings(path, current, respect_scope=False), **readings} if not stale else {}
     for note in current["notes"]:
-        result = readings.get(note["id"])
+        result = display_readings.get(note["id"])
+        if result is None and not stale:
+            cached = root(path) / "notes" / note["id"] / f"{reading_key(path, note)}.json"
+            result = load_json(cached) if cached.exists() else None
+        current_reading = note["id"] in (readings if note["id"] in allowed else display_readings)
         older = any((root(path) / "notes" / note["id"]).glob("*.json")) if result is None else False
         notes.append(
             {
@@ -180,7 +197,13 @@ def view(path: Path, project: dict) -> dict:
                 "reading": annotate(project, result),
                 "edition": load_edition(path, note, result),
                 "in_scope": note["id"] in allowed,
-                "status": "stale" if stale else "read" if result else "outdated" if older else "unread",
+                "status": "stale"
+                if stale
+                else "read"
+                if current_reading
+                else "outdated"
+                if result or older
+                else "unread",
             }
         )
     progress_file = root(path) / "progress.json"
@@ -198,9 +221,9 @@ def view(path: Path, project: dict) -> dict:
     )
     from lib.novel_workflow.svt_contract import assignments, valid_svts
 
-    active_svts = valid_svts(path, svts, readings)
-    primary = assignments(active_svts)
-    by_svt = {s["id"]: s for s in active_svts}
+    display_svts = valid_svts(path, svts, display_readings)
+    primary = assignments(display_svts)
+    by_svt = {s["id"]: s for s in display_svts}
     for note in notes:
         assigned = by_svt.get(primary.get(note["id"]))
         note["svt_id"] = assigned["id"] if assigned else None
@@ -209,11 +232,11 @@ def view(path: Path, project: dict) -> dict:
         note["svt_candidates"] = [
             c
             for c in (svts or {}).get("note_candidates", {}).get(note["id"], [])
-            if assigned and c.get("basis") == readings.get(note["id"], {}).get("basis")
+            if assigned and c.get("basis") == display_readings.get(note["id"], {}).get("basis")
         ]
     from lib.novel_workflow import memory, settings, understanding
 
-    book = memory.ledger(path, current, readings=readings) if not stale else None
+    book = memory.ledger(path, current, readings=display_readings) if not stale else None
     reviews = []
     for file in sorted((root(path) / "reviews").glob("*.json")):
         review = load_json(file)

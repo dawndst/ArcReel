@@ -59,13 +59,14 @@ function NoteDetails({ projectName, note, busy, adopt, condense, resolveAsset }:
   const reading = note.reading;
   return <article className="min-w-0 space-y-5 wrap-break-word">
     <header className="space-y-2 border-b pb-5"><h2 className="text-2xl font-bold tracking-tight">{note.title}</h2><div className="flex flex-wrap items-start gap-x-4 gap-y-2 text-xs text-muted-foreground"><p>{note.chars.toLocaleString()} {t("nw_chars")} · {t(`nw_${note.status === "read" ? "read_complete" : note.status ?? "unread"}`)}</p><details><summary className="cursor-pointer">{t("nw_sections")} ({note.sections.length})</summary>{note.sections.map((s) => <p key={`${s.source_file}:${s.start}`} className="mt-2">{s.title} · {s.start}–{s.end}</p>)}</details></div></header>
+    {note.in_scope === false && <p className="rounded border border-warn/30 bg-warn/5 p-3 text-sm">{t("nw_scope_browse_only")}</p>}
     <Tabs value={view} onValueChange={(next) => setView(next as string)}>
       <div className="sticky top-0 z-sticky rounded-lg border bg-card p-1"><div className="relative overflow-x-auto"><TabsList className="w-full min-w-max" aria-label={t("nw_note_views")}><TabsTrigger value="info">{t("nw_note_tab_info")}</TabsTrigger><TabsTrigger value="source">{t("nw_note_tab_source")}</TabsTrigger><TabsTrigger value="edition">{t("nw_note_tab_edition")}</TabsTrigger></TabsList></div></div>
       <TabsContent value="info"><div className="space-y-5 pt-3">
-    {!reading && <PrimarySvt note={note} busy={busy} adopt={adopt} />}
+    {!reading && <PrimarySvt note={note} busy={busy || note.in_scope === false} adopt={adopt} />}
     {reading ? <>
       <Section title={t("nw_chapter_summary")} featured>{(reading.overview ? [reading.overview.summary] : reading.summaries).map((text, i) => <p key={`${i}:${text}`} className="mb-2 text-base leading-8">{text}</p>)}</Section>
-      <PrimarySvt note={note} busy={busy} adopt={adopt} />
+      <PrimarySvt note={note} busy={busy || note.in_scope === false} adopt={adopt} />
       {reading.overview && <Section title={t("nw_chapter_causality")}><dl className="space-y-2">{(["cause", "conflict", "action", "outcome"] as const).map((key) => <div key={key}><dt className="mr-1 text-xs font-bold text-muted-foreground">{t(`nw_${key}`)}：</dt><dd className="inline leading-7">{reading.overview![key]}</dd></div>)}</dl><p className="mt-2">{reading.overview.hook}</p></Section>}
       <ReadingEnrichment note={note} />
       {(["character", "scene", "prop"] as const).map((kind) => <Section key={kind} title={t(`nw_${kind}`)}>
@@ -75,7 +76,7 @@ ${a.evidence.quote}`} className="font-semibold text-primary underline decoration
           const route = `/${{ character: "characters", scene: "scenes", prop: "props" }[a.kind]}`;
           useAppStore.getState().triggerScrollTo({ type: a.kind, id: a.asset_name!, route });
           navigate(`/app/projects/${encodeURIComponent(projectName)}${route}`);
-        }}>{a.asset_code && <span className="mr-2 rounded border bg-card px-1.5 py-0.5 font-mono text-xs font-medium text-muted-foreground">{a.asset_code}</span>}{a.asset_name || a.name}{a.variant && ` / ${a.variant}`}</button>{a.identity_scope && <span className="ml-2 text-xs text-muted-foreground">{a.identity_scope}</span>}<p className="mt-2 leading-7">{a.description}</p><Evidence value={a.evidence} />{a.state && <p className="mt-2 text-xs text-muted-foreground">{t("nw_asset_state")}：{a.state}</p>}{a.performance && <p className="mt-2 text-xs text-muted-foreground">{t("nw_asset_performance")}：{a.performance}</p>}{a.asset_issue && <AssetIdentityResolver key={`${a.id}:${a.asset_issue}`} asset={a} disabled={busy} save={(value) => resolveAsset(a.id, value)} />}</div>)}</div>
+        }}>{a.asset_code && <span className="mr-2 rounded border bg-card px-1.5 py-0.5 font-mono text-xs font-medium text-muted-foreground">{a.asset_code}</span>}{a.asset_name || a.name}{a.variant && ` / ${a.variant}`}</button>{a.identity_scope && <span className="ml-2 text-xs text-muted-foreground">{a.identity_scope}</span>}<p className="mt-2 leading-7">{a.description}</p><Evidence value={a.evidence} />{a.state && <p className="mt-2 text-xs text-muted-foreground">{t("nw_asset_state")}：{a.state}</p>}{a.performance && <p className="mt-2 text-xs text-muted-foreground">{t("nw_asset_performance")}：{a.performance}</p>}{a.asset_issue && <AssetIdentityResolver key={`${a.id}:${a.asset_issue}`} asset={a} disabled={busy || note.in_scope === false} save={(value) => resolveAsset(a.id, value)} />}</div>)}</div>
       </Section>)}
       <Section title={t("guide_changes")}>{reading.changes.map((c) => <div key={c.id} className="mb-3 rounded-lg bg-muted/40 p-3"><strong>{c.character}</strong><ClaimBadge value={c} /><p className="mt-1">{c.before} → {c.after}</p><p className="text-xs text-muted-foreground">{c.story_time}</p><Evidence value={c.evidence} /></div>)}</Section>
       <Section title={t("nw_events")}>{reading.events.map((event) => <div key={event.id} className="mb-4 rounded-lg border bg-muted/15 p-4"><strong className="text-base">{event.title}</strong><ClaimBadge value={event} /><dl className="mt-2 space-y-2">{(["cause", "conflict", "action", "outcome", "open_thread"] as const).map((key) => event[key] && <div key={key}><dt className="mr-1 text-xs font-bold text-muted-foreground">{t(`nw_${key}`)}：</dt><dd className="inline leading-7">{event[key]}</dd></div>)}</dl><Evidence value={event.evidence} />{event.dialogues.map((d) => <blockquote key={d.id} className="mt-3 rounded-r-lg border-l-2 border-primary/40 bg-primary/5 p-3 leading-7"><strong>{d.speaker}：</strong>{d.quote}</blockquote>)}</div>)}</Section>
@@ -83,7 +84,7 @@ ${a.evidence.quote}`} className="font-semibold text-primary underline decoration
     </> : <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{t("nw_unread_hint")}</p>}
       </div></TabsContent>
       <TabsContent value="source"><div className="pt-3"><NoteSourcePanel projectName={projectName} noteId={note.id} /></div></TabsContent>
-      <TabsContent value="edition"><div className="pt-3"><ChapterEditionPanel key={note.edition?.basis ?? "missing"} projectName={projectName} note={note} disabled={busy} generate={condense} /></div></TabsContent>
+      <TabsContent value="edition"><div className="pt-3"><ChapterEditionPanel key={note.edition?.basis ?? "missing"} projectName={projectName} note={note} disabled={busy || note.in_scope === false} generate={condense} /></div></TabsContent>
     </Tabs>
   </article>;
 }
@@ -95,7 +96,7 @@ function Section({ title, children, featured = false }: { title: string; childre
 const WORKBENCH_TABS = ["notes", "svt", "groups", "ledger", "review", "understanding", "scenes"] as const;
 type WorkbenchTab = typeof WORKBENCH_TABS[number];
 
-export function NovelWorkbench({ projectName, onProduction }: { projectName: string; onProduction: () => void }) {
+export function NovelWorkbench({ projectName }: { projectName: string }) {
   const { t } = useTranslation(["dashboard", "common"]);
   const [location, navigate] = useLocation();
   const project = useProjectsStore((state) => state.currentProjectData);
@@ -178,13 +179,15 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
   }); }
   const selectedNotes = data?.notes.filter((n) => selected.includes(n.id)) ?? [];
   const note = data?.notes.find((n) => n.id === (focused ?? requestedNote)) ?? data?.notes[0];
-  const canRun = !!data?.source_basis && selectedNotes.length > 0 && !data.stale && !working && !busy;
+  const canRead = !!data?.source_basis && selectedNotes.length > 0 && !data.stale && !working && !busy;
+  const canRun = canRead && selectedNotes.every((n) => n.in_scope !== false);
   const understoodIds = new Set(data?.understanding?.reports.filter((r) => !r.stale).flatMap((r) => r.selected_note_ids) ?? []);
   const needsUnderstanding = data?.settings?.understanding_enabled !== false && selectedNotes.some((n) => !understoodIds.has(n.id));
   const needsSvtReview = selectedNotes.some((n) => n.svt_status === "needs_review");
   const referenceOnly = data?.groups.some((g) => g.usage === "reference" && g.note_ids.some((id) => selected.includes(id)));
   const outputStatus = noteProductionStatus(data, selectedNotes);
   const nextStep = selectedNotes.length === 0 ? "nw_next_select"
+    : selectedNotes.some((n) => n.in_scope === false) ? "nw_scope_add_first"
     : selectedNotes.some((n) => n.status !== "read") ? "nw_next_read"
     : needsUnderstanding ? "nw_understanding_required"
     : selectedNotes.some((n) => !n.svt_id) ? "nw_next_svt"
@@ -194,11 +197,11 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
     : "nw_next_scenes";
   const progress = data?.progress;
   const progressView = workflowProgress(progress ?? null);
-  const renderNotes = (items: ChapterNote[]) => <ul>{items.map((n) => <li key={n.id} className={`flex items-start gap-2 border-b border-l-4 p-3 ${note?.id === n.id ? "border-l-primary bg-primary/10" : "border-l-transparent hover:bg-muted/50"}`}><input type="checkbox" aria-label={t("dashboard:nw_select_note", { title: n.title })} checked={selected.includes(n.id)} onChange={(event) => setSelected((prev) => event.target.checked ? [...prev, n.id] : prev.filter((id) => id !== n.id))} className="mt-1" /><button className="focus-ring min-w-0 text-left text-sm wrap-break-word" onClick={() => setFocused(n.id)}><span className="font-semibold">{n.order}. {n.title}</span><span className="mt-1 block text-xs text-muted-foreground">{n.in_scope === false ? t("dashboard:nw_scope_outside") : t(`dashboard:nw_${n.status === "read" ? "read_complete" : n.status ?? "unread"}`)} · {n.chars.toLocaleString()}</span>{n.reading && <span className="block text-xs text-muted-foreground">{t("dashboard:nw_assets_count", { count: n.reading.assets.length })}</span>}{n.needs_review && <span className="block text-xs text-destructive">{t("dashboard:nw_review_heading")}</span>}</button></li>)}</ul>;
+  const renderNotes = (items: ChapterNote[]) => <ul>{items.map((n) => <li key={n.id} className={`flex items-start gap-2 border-b border-l-4 p-3 ${note?.id === n.id ? "border-l-primary bg-primary/10" : "border-l-transparent hover:bg-muted/50"}`}><input type="checkbox" aria-label={t("dashboard:nw_select_note", { title: n.title })} checked={selected.includes(n.id)} onChange={(event) => setSelected((prev) => event.target.checked ? [...prev, n.id] : prev.filter((id) => id !== n.id))} className="mt-1" /><button className="focus-ring min-w-0 text-left text-sm wrap-break-word" onClick={() => setFocused(n.id)}><span className="font-semibold">{n.order}. {n.title}</span><span className="mt-1 block text-xs text-muted-foreground">{n.in_scope === false ? t(n.reading ? "dashboard:nw_scope_outside_saved" : "dashboard:nw_scope_outside") : t(`dashboard:nw_${n.status === "read" ? "read_complete" : n.status ?? "unread"}`)} · {n.chars.toLocaleString()}</span>{n.reading && <span className="block text-xs text-muted-foreground">{t("dashboard:nw_assets_count", { count: n.reading.assets.length })}</span>}{n.needs_review && <span className="block text-xs text-destructive">{t("dashboard:nw_review_heading")}</span>}</button></li>)}</ul>;
   return <div className="flex min-h-0 min-w-0 flex-1 flex-col">
     <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b bg-card px-5 py-3">
-      <div><h1 className="text-lg font-bold tracking-tight">{t("dashboard:nw_title")}</h1><p className="mt-1 text-xs text-muted-foreground">{t("dashboard:nw_flow")}</p></div>
-      <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={working || busy} onClick={() => setReadingSettings(true)}>{t("dashboard:nw_read_settings")}</Button><Button variant="ghost" size="sm" onClick={() => setUpload(true)}><Upload data-icon="inline-start" />{t("dashboard:nw_upload")}</Button><Button variant="outline" size="sm" onClick={onProduction}>{t("dashboard:nw_production")}</Button></div>
+      <div className="flex min-w-0 flex-1 items-center gap-3"><h1 className="shrink-0 text-lg font-bold tracking-tight">{t("dashboard:nw_title")}</h1><p className="min-w-0 truncate text-xs text-muted-foreground" title={t("dashboard:nw_flow")}>{t("dashboard:nw_flow")}</p></div>
+      <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={working || busy} onClick={() => setReadingSettings(true)}>{t("dashboard:nw_read_settings")}</Button><Button variant="ghost" size="sm" onClick={() => setUpload(true)}><Upload data-icon="inline-start" />{t("dashboard:nw_upload")}</Button></div>
     </header>
     {error && <p role="alert" className="border-b px-5 py-3 text-sm text-destructive">{error}</p>}
     {working && <div role="status" className="flex shrink-0 flex-wrap items-center gap-3 border-b bg-primary/10 px-5 py-3 text-sm"><Loader2 className="size-4 animate-spin" />{t(`dashboard:${progressView.label}`)}{progressView.showCounts && <> · {progress?.done ?? 0}/{progress?.total ?? 0}{progress?.parts ? ` · ${progress.part}/${progress.parts}` : ""}</>}<Button variant="outline" size="sm" disabled={busy} onClick={() => void act(() => API.stopNoteWorkflow(projectName))}>{t("dashboard:nw_stop")}</Button></div>}
@@ -207,14 +210,15 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
     {!data?.initialized ? <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center"><BookOpen className="size-8 text-primary" /><h2 className="font-semibold">{t("dashboard:nw_start")}</h2><p className="max-w-xl text-sm text-muted-foreground">{t("dashboard:nw_start_hint")}</p><Button disabled={busy || !data} onClick={() => void act(async () => setPreview(await API.previewChapterNotes(projectName)))}>{t("dashboard:nw_preview")}</Button></div> : <>
       <nav aria-label={t("dashboard:nw_title")} className="flex shrink-0 flex-wrap gap-2 border-b px-5 py-2">{(["notes", "groups", "ledger", "understanding", "svt", "review", "scenes"] as const).map((key) => <Button key={key} size="sm" variant={tab === key ? "default" : "ghost"} onClick={() => setTab(key)}>{t(`dashboard:nw_tab_${key}`)} ({key === "scenes" ? (data.scene_batches ?? []).reduce((n, b) => n + b.scenes.length, 0) : key === "notes" ? data.notes.length : key === "svt" ? data.svts.length : key === "understanding" ? data.understanding?.links.length ?? 0 : key === "ledger" ? data.ledger?.characters.length ?? 0 : key === "review" ? data.reviews?.length ?? 0 : data.groups.length})</Button>)}<Button size="sm" variant="ghost" disabled={busy || working} onClick={() => void act(async () => setPreview(await API.previewChapterNotes(projectName)))}>{t("dashboard:nw_preview")}</Button></nav>
       {tab === "notes" && <>
-      <NoteReadingStart notes={data.notes} selected={selected} disabled={busy || working || data.stale || !data.source_basis} select={setSelected} read={() => void act(() => API.runNoteWorkflow(projectName, "read", selected, data.source_basis!))}>
-      <ReadingScopePanel scope={data.scope} selected={selected} disabled={busy || working || data.stale} save={() => void act(() => API.setNoteScope(projectName, selected, data.source_basis!))} />
+      <NoteReadingStart notes={data.notes} disabled={busy || working || data.stale || !data.source_basis} select={setSelected}>
+      <ReadingScopePanel scope={data.scope} notes={data.notes} selected={selected} disabled={busy || working || data.stale} save={(extend) => void act(() => API.setNoteScope(projectName, selected, data.source_basis!, extend))} />
       </NoteReadingStart>
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-5 py-2">
         <span className="mr-2 text-xs text-muted-foreground">{t("dashboard:nw_selected", { count: selectedNotes.length })}</span>
         <Button size="sm" variant="outline" onClick={() => setSelected(data.notes.map((n) => n.id))}>{t("dashboard:nw_select_all")}</Button>
         <Button size="sm" variant="ghost" onClick={() => setSelected([])}>{t("dashboard:nw_clear")}</Button>
-        <Button size="sm" variant="outline" disabled={!canRun || data.settings?.understanding_enabled === false || selectedNotes.some((n) => n.status !== "read")} onClick={() => void act(async () => { await API.runNoteWorkflow(projectName, "understand", selected, data.source_basis!); setTab("understanding"); })}>{t("dashboard:nw_understand")}</Button>
+        <div className="flex max-w-full flex-wrap items-center gap-2"><Button size="sm" disabled={!canRead} onClick={() => void act(() => API.runNoteWorkflow(projectName, "read", selected, data.source_basis!))}>{t("dashboard:nw_read")} · {t("dashboard:nw_selected", { count: selected.length })}</Button>
+        <Button size="sm" variant="outline" title={t("dashboard:nw_understand_single_hint")} disabled={!canRun || data.settings?.understanding_enabled === false || selectedNotes.some((n) => n.status !== "read")} onClick={() => void act(async () => { await API.runNoteWorkflow(projectName, "understand", selected, data.source_basis!); setTab("understanding"); })}>{t("dashboard:nw_understand")}</Button></div>
         <NoteProductionActions data={data} notes={selectedNotes} busy={busy || working}
           canSvt={canRun && !needsUnderstanding && !selectedNotes.some((n) => n.status !== "read")}
           canScenes={canRun && !needsUnderstanding && !selectedNotes.some((n) => n.status !== "read" || !n.svt_id) && !needsSvtReview && !referenceOnly}

@@ -19,7 +19,7 @@ beforeEach(() => {
 it("opens chapter Notes without starting reading or merging and shows unread state", async () => {
   const run = vi.spyOn(API, "runNoteWorkflow");
   const merge = vi.spyOn(API, "createNoteGroup");
-  render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  render(<NovelWorkbench projectName="demo" />);
   expect(await screen.findByRole("heading", { name: "卷一 · 第1章" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "从所选 Note 提炼 SVT" })).toBeDisabled();
   expect(screen.getByText(/尚未生成本章 Note/)).toBeInTheDocument();
@@ -32,7 +32,7 @@ it("requires human confirmation to group selected Notes and preserves source Not
     vi.mocked(API.getNovelWorkflow).mockResolvedValue({ ...data, groups: [merged] });
     return merged;
   });
-  render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  render(<NovelWorkbench projectName="demo" />);
   fireEvent.click(await screen.findByRole("checkbox", { name: "选择 卷一 · 第1章" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "选择 卷一 · 第2章" }));
   fireEvent.click(screen.getByRole("button", { name: "人工合并 Note" }));
@@ -53,7 +53,7 @@ it("shows a consolidated chapter summary and lets review suggestions select sour
   } }], reviews: [{ id: "review", note_ids: ["note-1"], stale: false, created_at: "2026-11-09T10:00:00Z", scope_kind: "selected", evidence: { fact: { id: "fact", evidence } }, sections: [], overview: [{ theme: "求生", mainline: "寻找出路", questions: [], advice: [{ action: "keep", note_ids: ["note-1"], evidence_ids: ["fact"], reason: "保留因果", character_impact: "建立主动性", thread_impact: "保留剑的来历", dialogue_impact: "无对白", preserve: "取剑行动" }] }] }] };
   vi.mocked(API.getNovelWorkflow).mockResolvedValue(enriched);
   const merge = vi.spyOn(API, "createNoteGroup");
-  render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  render(<NovelWorkbench projectName="demo" />);
   expect(await screen.findByText("为了脱身，甲取剑应对阻力，最终找到出路。")).toBeInTheDocument();
   expect(screen.queryByText("分块内部摘要，不应冒充整章概况")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "改编收敛建议 (1)" }));
@@ -67,7 +67,7 @@ it("shows a consolidated chapter summary and lets review suggestions select sour
 it("saves independent summary and understanding settings without starting a model task", async () => {
   const save = vi.spyOn(API, "updateNoteSettings").mockResolvedValue({ summary_max_chars: 2400, understanding_enabled: false });
   const run = vi.spyOn(API, "runNoteWorkflow");
-  render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  render(<NovelWorkbench projectName="demo" />);
   fireEvent.click(await screen.findByRole("button", { name: "阅读设置" }));
   const dialog = screen.getByRole("dialog");
   fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "2400" } });
@@ -82,7 +82,7 @@ it("shows one primary SVT and several alternatives and replaces only on explicit
   const enriched = { ...data, notes: [{ ...data.notes[0]!, svt_id: "primary", svt_title: "主线目标", svt_status: "needs_details", svt_candidates: [1, 2].map((i) => ({ candidate_id: `c${i}`, existing_id: null, title: `备选${i}`, summary: "当前章节的另一种解读", reason: "强调不同目标" })) }] };
   vi.mocked(API.getNovelWorkflow).mockResolvedValue(enriched);
   const adopt = vi.spyOn(API, "adoptNoteSVT").mockResolvedValue({ svt_id: "new" });
-  render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  render(<NovelWorkbench projectName="demo" />);
   expect(await screen.findByText("主线目标")).toBeInTheDocument();
   expect(screen.getByText("备选1")).toBeInTheDocument();
   expect(screen.getByText("备选2")).toBeInTheDocument();
@@ -93,7 +93,7 @@ it("shows one primary SVT and several alternatives and replaces only on explicit
 
 it("selects a chapter range and generates only those Notes on explicit click", async () => {
   const run = vi.spyOn(API, "runNoteWorkflow").mockResolvedValue({});
-  render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  render(<NovelWorkbench projectName="demo" />);
   await screen.findByText("阅读范围与设置");
   const range = screen.getByText("阅读范围与设置");
   if (!range.closest("details")!.open) fireEvent.click(range);
@@ -108,7 +108,7 @@ it("selects a chapter range and generates only those Notes on explicit click", a
 
 it("blocks scene generation for a changed primary SVT and explains the next action", async () => {
   vi.mocked(API.getNovelWorkflow).mockResolvedValue({ ...data, settings: { summary_max_chars: 1200, understanding_enabled: false }, notes: [{ ...data.notes[0]!, status: "read", svt_id: "primary", svt_status: "needs_review" }] });
-  render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  render(<NovelWorkbench projectName="demo" />);
   fireEvent.click(await screen.findByRole("checkbox", { name: /卷一 · 第1章/ }));
   expect(screen.getByRole("button", { name: "生成场与镜头" })).toBeDisabled();
   expect(screen.getByText(/主归属已调整：请选中相关 SVT/)).toBeInTheDocument();
@@ -116,11 +116,11 @@ it("blocks scene generation for a changed primary SVT and explains the next acti
 });
 
 it("retains the scene library after the workbench remounts following an asset registration", async () => {
-  const first = render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  const first = render(<NovelWorkbench projectName="demo" />);
   fireEvent.click(await screen.findByRole("button", { name: /^场镜素材库/ }));
   expect(new URLSearchParams(window.location.search).get("workbench")).toBe("scenes");
   first.unmount();
-  render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  render(<NovelWorkbench projectName="demo" />);
   expect(await screen.findByPlaceholderText("搜索场、镜头或对白")).toBeInTheDocument();
 });
 
@@ -129,7 +129,7 @@ it("organizes Note information, original text and condensed text in lazy horizon
   vi.mocked(API.getNovelWorkflow).mockResolvedValue({ ...data, notes: [{ ...data.notes[0]!, edition, svt_candidates: [], status: "read", reading: { basis: "r", summaries: ["本章内容概况"], assets: [], changes: [], events: [], questions: [] } }] });
   const source = vi.spyOn(API, "getChapterNoteSource").mockResolvedValue({ text: "原著完整正文" });
   const condensed = vi.spyOn(API, "getChapterEdition").mockResolvedValue(edition);
-  render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
+  render(<NovelWorkbench projectName="demo" />);
   expect(await screen.findByText("本章内容概况")).toBeInTheDocument();
   const tabs = screen.getByRole("tablist", { name: "章节阅读视图" });
   expect(within(tabs).getAllByRole("tab")).toHaveLength(3);

@@ -2156,8 +2156,8 @@ class API {
   static async initializeChapterNotes(name: string, source_basis: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/initialize`, { method: "POST", body: JSON.stringify({ source_basis }) });
   }
-  static async setNoteScope(name: string, note_ids: string[], source_basis: string): Promise<unknown> {
-    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/scope`, { method: "PUT", body: JSON.stringify({ note_ids, source_basis }) });
+  static async setNoteScope(name: string, note_ids: string[], source_basis: string, extend = true): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/scope`, { method: "PUT", body: JSON.stringify({ note_ids, source_basis, extend }) });
   }
   static async updateNoteSettings(name: string, values: { summary_max_chars: number; understanding_enabled: boolean; delivery_checks_enabled?: boolean }): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/settings`, { method: "PATCH", body: JSON.stringify(values) });

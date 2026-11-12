@@ -4,17 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ChapterNote } from "@/types/novel-workflow";
 
-export function NoteReadingStart({ notes, selected, disabled, select, read, children }: { notes: ChapterNote[]; selected: string[]; disabled: boolean; select: (ids: string[]) => void; read: () => void; children?: ReactNode }) {
+export function NoteReadingStart({ notes, disabled, select, children }: { notes: ChapterNote[]; disabled: boolean; select: (ids: string[]) => void; children?: ReactNode }) {
   const { t } = useTranslation("dashboard");
   const [from, setFrom] = useState("1");
   const [to, setTo] = useState("1");
   const start = Number(from), end = Number(to);
   const valid = Number.isInteger(start) && Number.isInteger(end) && start >= 1 && end >= start && end <= notes.length;
-  const completed = notes.filter((note) => note.status === "read").length;
+  const completed = notes.filter((note) => !!note.reading || note.status === "read").length;
   return <section aria-label={t("nw_read_start")} className="shrink-0 border-b bg-primary/5">
     <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-2">
       <span className="text-sm font-medium">{t("nw_read_progress", { total: notes.length, completed })}</span>
-      <Button size="sm" disabled={disabled || selected.length === 0} onClick={read}>{t("nw_read")} · {t("nw_selected", { count: selected.length })}</Button>
     </div>
     <details open={completed === 0 ? true : undefined} className="group px-5 pb-2">
       <summary className="cursor-pointer text-sm text-muted-foreground">{t("nw_read_range")}</summary>

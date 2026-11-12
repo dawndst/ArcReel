@@ -1,6 +1,7 @@
 """The released/available chapters of an unfinished book, independent of task selection."""
 
 from pathlib import Path
+from uuid import uuid4
 
 from lib.artifacts.formal_write import project_metadata_lock
 from lib.infra.json_io import load_json
@@ -42,6 +43,8 @@ def configure(path, project, note_ids, expected, *, extend=False):
             "updated_at": now(),
             "mode": "ongoing",
         }
+        if previous is not None and previous["note_ids"] != value["note_ids"]:
+            store.write(path / "novel_workflow" / "history" / f"scope-{uuid4().hex}.json", previous)
         store.write(path / "novel_workflow" / "scope.json", value)
         return value
 
