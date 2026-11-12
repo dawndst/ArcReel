@@ -1,3 +1,4 @@
+import { NoteProductionActions, noteProductionStatus } from "./NoteProductionActions";
 import { useProjectsStore } from "@/stores/projects-store";
 import { ClaimBadge } from "./ClaimBadge";
 import { NoteReadingStart } from "./NoteReadingStart";
@@ -17,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { SourceUploadDialog } from "@/components/canvas/episodes/SourceUploadDialog";
-import { useActiveResourceIds, useTasksStore } from "@/stores/tasks-store";
+import { isResourceBusy, useActiveResourceIds, useTasksStore } from "@/stores/tasks-store";
 import { NOVEL_WORKFLOW_SLOTS } from "@/actions/generation";
 import { errMsg } from "@/utils/async";
 import type { ChapterNote, ChapterPreview, NoteEvidence, NovelWorkflow } from "@/types/novel-workflow";
@@ -92,6 +93,8 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
   const requestedNote = new URLSearchParams(search).get("note");
   const [focused, setFocused] = useState<string | null>(requestedNote);
   const [tab, setTab] = useState<"notes" | "svt" | "groups" | "ledger" | "review" | "understanding" | "scenes">("notes");
+  const [focusedBatch, setFocusedBatch] = useState<string | null>(null);
+  useEffect(() => { if (tab === "scenes" && focusedBatch) document.getElementById(`scene-batch-${focusedBatch}`)?.scrollIntoView({ block: "start" }); }, [tab, focusedBatch]);
   const [focusedSvt, setFocusedSvt] = useState<string | null>(null);
   useEffect(() => { if (tab === "svt" && focusedSvt) document.getElementById(`svt-${focusedSvt}`)?.scrollIntoView({ block: "start" }); }, [tab, focusedSvt]);
   const [readingSettings, setReadingSettings] = useState(false);
@@ -131,12 +134,15 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
   const needsUnderstanding = data?.settings?.understanding_enabled !== false && selectedNotes.some((n) => !understoodIds.has(n.id));
   const needsSvtReview = selectedNotes.some((n) => n.svt_status === "needs_review");
   const referenceOnly = data?.groups.some((g) => g.usage === "reference" && g.note_ids.some((id) => selected.includes(id)));
+  const outputStatus = noteProductionStatus(data, selectedNotes);
   const nextStep = selectedNotes.length === 0 ? "nw_next_select"
     : selectedNotes.some((n) => n.status !== "read") ? "nw_next_read"
     : needsUnderstanding ? "nw_understanding_required"
     : selectedNotes.some((n) => !n.svt_id) ? "nw_next_svt"
     : needsSvtReview ? "nw_svt_review_required"
-    : referenceOnly ? "nw_reference_block" : "nw_next_scenes";
+    : referenceOnly ? "nw_reference_block"
+    : outputStatus.batches.length ? outputStatus.scenesStale ? "nw_next_update_scenes" : !outputStatus.scenesForAll ? "nw_next_partial_scenes" : "nw_next_review_assemble"
+    : "nw_next_scenes";
   const progress = data?.progress;
   const renderNotes = (items: ChapterNote[]) => <ul>{items.map((n) => <li key={n.id} className={`flex items-start gap-2 border-b p-3 ${note?.id === n.id ? "bg-primary/10" : ""}`}><input type="checkbox" aria-label={t("dashboard:nw_select_note", { title: n.title })} checked={selected.includes(n.id)} onChange={(event) => setSelected((prev) => event.target.checked ? [...prev, n.id] : prev.filter((id) => id !== n.id))} className="mt-1" /><button className="focus-ring min-w-0 text-left text-sm wrap-break-word" onClick={() => setFocused(n.id)}><span className="font-semibold">{n.order}. {n.title}</span><span className="mt-1 block text-xs text-muted-foreground">{n.in_scope === false ? t("dashboard:nw_scope_outside") : t(`dashboard:nw_${n.status === "read" ? "read_complete" : n.status ?? "unread"}`)} · {n.chars.toLocaleString()}</span>{n.reading && <span className="block text-xs text-muted-foreground">{t("dashboard:nw_assets_count", { count: n.reading.assets.length })}</span>}{n.needs_review && <span className="block text-xs text-destructive">{t("dashboard:nw_review_heading")}</span>}</button></li>)}</ul>;
   return <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -159,9 +165,16 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
         <Button size="sm" variant="outline" onClick={() => setSelected(data.notes.map((n) => n.id))}>{t("dashboard:nw_select_all")}</Button>
         <Button size="sm" variant="ghost" onClick={() => setSelected([])}>{t("dashboard:nw_clear")}</Button>
         <Button size="sm" variant="outline" disabled={!canRun || data.settings?.understanding_enabled === false || selectedNotes.some((n) => n.status !== "read")} onClick={() => void act(async () => { await API.runNoteWorkflow(projectName, "understand", selected, data.source_basis!); setTab("understanding"); })}>{t("dashboard:nw_understand")}</Button>
-        <Button size="sm" variant="outline" disabled={!canRun || needsUnderstanding || selectedNotes.some((n) => n.status !== "read")} onClick={() => void act(async () => { await API.runNoteWorkflow(projectName, "svt", selected, data.source_basis!); setTab("svt"); })}>{t("dashboard:nw_generate_svt")}</Button>
+        <NoteProductionActions data={data} notes={selectedNotes} busy={busy || working}
+          canSvt={canRun && !needsUnderstanding && !selectedNotes.some((n) => n.status !== "read")}
+          canScenes={canRun && !needsUnderstanding && !selectedNotes.some((n) => n.status !== "read" || !n.svt_id) && !needsSvtReview && !referenceOnly}
+          viewSvt={(id) => { setFocusedSvt(id); setTab("svt"); }}
+          viewScenes={(id) => { setFocusedBatch(id); setTab("scenes"); }}
+          run={async (action, ids) => {
+            if (busy || working || NOVEL_WORKFLOW_SLOTS.some((slot) => isResourceBusy("text_novel_workflow", projectName, slot))) return;
+            await act(async () => { await API.runNoteWorkflow(projectName, action, ids, data.source_basis!); setTab(action === "svt" ? "svt" : "scenes"); });
+          }} />
         <Button size="sm" variant="outline" disabled={!canRun || needsUnderstanding || selectedNotes.some((n) => n.status !== "read")} onClick={() => void act(async () => { await API.runNoteWorkflow(projectName, "review", selected, data.source_basis!); setTab("review"); })}>{t("dashboard:nw_review")}</Button>
-        <Button size="sm" disabled={!canRun || needsUnderstanding || selectedNotes.some((n) => n.status !== "read" || !n.svt_id) || needsSvtReview || data.groups.some((g) => g.usage === "reference" && g.note_ids.some((id) => selected.includes(id)))} onClick={() => void act(async () => { await API.runNoteWorkflow(projectName, "scenes", selected, data.source_basis!); setTab("scenes"); })}>{t("dashboard:nw_generate_scenes")}</Button>
         <Button size="sm" variant="outline" disabled={busy || selectedNotes.length < 1 || data.stale} onClick={() => { setTitle(""); setMerging(true); }}><Layers data-icon="inline-start" />{t("dashboard:nw_merge")}</Button>
       </div>
       {!working && <div role="status" className="shrink-0 space-y-1 border-b px-5 py-1 text-xs text-muted-foreground"><p>{t(`dashboard:${nextStep}`)}</p>{selectedNotes.some((n) => n.svt_status === "needs_details") && <p className="text-warn">{t("dashboard:nw_svt_incomplete_hint")}</p>}</div>}
