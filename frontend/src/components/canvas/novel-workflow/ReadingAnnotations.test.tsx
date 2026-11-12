@@ -24,3 +24,12 @@ it("deduplicates reading questions and leaves old questions unclassified", () =>
   expect(screen.getByText("抽取待核实")).toBeInTheDocument();
   expect(screen.getByText("尚未分类")).toBeInTheDocument();
 });
+
+it("hides bare family and school roles but keeps changes and identity revelations", async () => {
+  const { storyRelations } = await import("./ReadingAnnotations");
+  const teacher = { ...relation, id: "teacher", subject: "女老师", target: "阳子", relation: "老师" };
+  const loyalty = { ...relation, id: "loyalty", relation: "效忠者" };
+  const adoption = { ...relation, id: "adoption", record_kind: "established" as const };
+  const change = { ...teacher, id: "change", previous: "陌生人", record_kind: "changed" as const };
+  expect(storyRelations([relation, teacher, loyalty, adoption, change]).map((r) => r.id)).toEqual(["loyalty", "adoption", "change"]);
+});

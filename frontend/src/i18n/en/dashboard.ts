@@ -94,7 +94,8 @@ export default {
   nw_claim_inference: "Inference",
   nw_claim_vision: "Dream / vision",
   nw_claim_adaptation: "Adaptation suggestion",
-  nw_claim_unverified: "Certainty unverified",
+  nw_claim_unverified_hint: "This record does not distinguish source fact, character statement, inference or vision. This is not an error finding or factual confirmation.",
+  nw_claim_unverified: "Claim type not recorded",
   nw_claim_annotation: "Annotation, not narrative fact",
 
   nw_first_note: "First appearance: Note {{number}} · {{title}}",
@@ -142,7 +143,7 @@ export default {
   nw_review: "Generate adaptation decision support",
   nw_review_running: "Reviewing adaptation choices",
   nw_highlights: "Chapter highlights & visual moments",
-  nw_relations: "Relationships & changes",
+  nw_relations: "Story relationships and changes",
   nw_threads: "Seeds & resolutions",
   nw_seed: "Seed",
   nw_resolution: "Resolution",

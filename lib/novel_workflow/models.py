@@ -193,7 +193,10 @@ class Reading(StrictModel):
     changes: list[Change] = Field(default_factory=list)
     events: list[Event] = Field(default_factory=list)
     aliases: list[Alias] = Field(default_factory=list)
-    relations: list[Relation] = Field(default_factory=list)
+    relations: list[Relation] = Field(
+        default_factory=list,
+        description="只记录对冲突、信任、权力、效忠或身份揭示有作用的关系及其变化。老师是老师、女儿是女儿等无触发事件的基础身份不重复列出；亲属身份揭晓或新建立关系须保留。",
+    )
     threads: list[Thread] = Field(default_factory=list)
     highlights: list[Highlight] = Field(default_factory=list)
     questions: list[str] = Field(default_factory=list)

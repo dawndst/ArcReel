@@ -95,7 +95,8 @@ export default {
   nw_claim_inference: "Inference",
   nw_claim_vision: "Dream / vision",
   nw_claim_adaptation: "Adaptation suggestion",
-  nw_claim_unverified: "Certainty unverified",
+  nw_claim_unverified_hint: "Bản ghi chưa phân biệt sự thật, lời nhân vật, suy đoán và giấc mơ. Đây không phải kết luận có lỗi hay đã xác minh.",
+  nw_claim_unverified: "Chưa ghi loại thông tin",
   nw_claim_annotation: "Annotation, not narrative fact",
 
   nw_first_note: "First appearance: Note {{number}} · {{title}}",
@@ -144,7 +145,7 @@ export default {
   nw_review: "Generate adaptation decision support",
   nw_review_running: "Đang phân tích chuyển thể",
   nw_highlights: "Điểm nhấn và cảnh đáng nhớ",
-  nw_relations: "Quan hệ và thay đổi",
+  nw_relations: "Quan hệ và thay đổi trong cốt truyện",
   nw_threads: "Gieo và giải đáp manh mối",
   nw_seed: "Gieo manh mối",
   nw_resolution: "Giải đáp",

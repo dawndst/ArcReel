@@ -95,7 +95,8 @@ export default {
   nw_claim_inference: "推测",
   nw_claim_vision: "梦境／幻象",
   nw_claim_adaptation: "改编建议",
-  nw_claim_unverified: "确定性未判定",
+  nw_claim_unverified_hint: "本条未标注属于正文事实、人物说法、推测或梦境，不代表已经发现错误，也不能直接当作已确认事实。",
+  nw_claim_unverified: "信息性质未标注",
   nw_claim_annotation: "批注，非剧情事实",
 
   nw_first_note: "首次出现：Note {{number}} · {{title}}",
@@ -143,7 +144,7 @@ export default {
   nw_review: "生成改编决策辅助",
   nw_review_running: "正在分析改编取舍",
   nw_highlights: "章节看点与名场面",
-  nw_relations: "关系确立与变化",
+  nw_relations: "剧情关系与变化",
   nw_threads: "伏笔与回收",
   nw_seed: "埋设",
   nw_resolution: "回收",
