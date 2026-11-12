@@ -1,6 +1,11 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_assembly_next_hint: "选好镜头后，填写本集标题，点击「组集参考与制作资料」。在预览里可保存为一集参考编排，也可直接导出参考包。",
+  nw_assembly_title_needed: "先填写本集标题，即可打开下一步",
+  nw_exec_optional: "制作参考建议 · {{count}}（可选，不影响组集）",
+  nw_exec_frame_help: "用于后续制作时衔接前后画面。可在「编辑镜头执行方案」中按需补充；不用先填完才能组集。",
+  nw_exec_background_help: "尚未关联场景资产参考，并不表示小说中没有场景。确定制作方案后再按需关联，不影响组集。",
   nw_delivery_assemble_reference: "保存为一集参考编排",
   nw_exec_draft_stale: "候选依据已变化，重新生成建议",
   nw_delivery_missing_reference_image: "参考图尚未确认",

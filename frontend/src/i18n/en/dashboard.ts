@@ -1,5 +1,10 @@
 
 export default {
+  nw_assembly_next_hint: "Enter an episode title, then open Assembly reference and production information to save the selection or export a reference package.",
+  nw_assembly_title_needed: "Enter an episode title to continue",
+  nw_exec_optional: "Optional production suggestions · {{count}} (assembly is available)",
+  nw_exec_frame_help: "Start and end frames help continuity during production. Add them in the shot editor as needed; they are not required for assembly.",
+  nw_exec_background_help: "No scene asset is linked. This does not mean the story has no setting. Link references later as needed; assembly remains available.",
   nw_delivery_assemble_reference: "Save episode reference assembly",
   nw_exec_draft_stale: "Candidate is outdated. Generate a new suggestion.",
   nw_delivery_missing_reference_image: "Reference image not approved",
