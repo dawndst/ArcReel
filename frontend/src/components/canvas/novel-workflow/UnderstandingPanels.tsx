@@ -27,7 +27,7 @@ export function LedgerPanel({ ledger, notes, select }: { ledger?: NovelLedger | 
   const [view, setView] = useState("characters");
   return <div className="min-w-0 space-y-5 text-sm"><p className="text-muted-foreground">{t("nw_ledger_hint")}</p>
     <Tabs value={view} onValueChange={(next) => setView(next as string)}>
-      <div className="sticky top-0 z-sticky rounded-lg border bg-card p-1"><TabsList aria-label={t("nw_ledger_views")}><TabsTrigger value="characters">{t("nw_ledger_tab_characters")}</TabsTrigger><TabsTrigger value="threads">{t("nw_ledger_tab_threads")}</TabsTrigger></TabsList></div>
+      <div className="rounded-lg border bg-card p-1"><TabsList aria-label={t("nw_ledger_views")}><TabsTrigger value="characters">{t("nw_ledger_tab_characters")}</TabsTrigger><TabsTrigger value="threads">{t("nw_ledger_tab_threads")}</TabsTrigger></TabsList></div>
       <TabsContent value="characters"><div className="pt-3">
         {!ledger?.characters.length && <p className="rounded-lg border border-dashed p-5 text-muted-foreground">{t("nw_ledger_empty")}</p>}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,17rem),1fr))] items-start gap-4">{ledger?.characters.map((person) => {
