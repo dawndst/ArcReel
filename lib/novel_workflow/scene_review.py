@@ -71,6 +71,7 @@ async def review(path, generator, scenes, original):
         "缺少明确依据的设定应删除或保持不确定，不填入外部小说知识。"
         "对白允许摘取连续的部分原句，不要求复述完整发言，摘录外层引号差异不算错误。\n"
         "无法通过这些字段安全修复的对白归属、事件缺失或结构问题放入 unresolved。"
+        "疑点用工作人员能理解的中文描述，写出本片段第几场、第几镜、镜头标题及相关原句；输入没有镜头ID时不得编造编号；用台词、说话人，不使用utterances等字段名。"
         "不要将没有把握的猜测写为修订。只审核，不替导演组集。\n"
         + json.dumps({"source": original, "scenes": scenes}, ensure_ascii=False),
         validate,
@@ -114,8 +115,8 @@ def require_reviewed(batch, shot):
             raise ValueError(f"{shot['id']} 有未采纳的原文一致性修订，请先在场镜素材库处理")
 
 
-def confirm_questions(path, project, batch_basis, expected, review_basis, reason):
-    """A human may resolve reviewer false positives; retain the questions and rationale."""
+def confirm_questions(path, project, batch_basis, expected, review_basis, reason, question_index, resolution):
+    """Resolve exactly one version-checked question without changing production content."""
     from lib.novel_workflow.scene_library import catalog, valid_batch
 
     if len(reason.strip()) < 10:
@@ -129,15 +130,32 @@ def confirm_questions(path, project, batch_basis, expected, review_basis, reason
         review = batch.get("review", {})
         if digest(review) != review_basis:
             raise ValueError("审核结果已变化，请刷新后核对")
+        questions = review.get("unresolved", [])
+        if question_index < 0 or question_index >= len(questions):
+            raise ValueError("疑点不存在，请刷新")
+        if resolution not in {"repaired", "false_positive"}:
+            raise ValueError("请选择已修复或误报")
+        if resolution == "repaired":
+            if any(
+                u["kind"] == "dialogue" and not (u.get("speaker") or "").strip()
+                for scene in batch["scenes"]
+                for shot in scene["shots"]
+                for segment in shot["segments"]
+                for u in segment["utterances"]
+            ):
+                raise ValueError("本片段仍有台词缺少说话人，请先在对应台词中确认；填写说明不会修复台词")
+            if any(not r.get("applied") for r in review.get("revisions", [])):
+                raise ValueError("本片段仍有未采用的修订，请先处理后确认已修复")
         store.write(store.root(path) / "history" / f"scene-review-{uuid4().hex}.json", batch)
         review.setdefault("resolved_questions", []).append(
             {
-                "questions": review.get("unresolved", []),
+                "questions": [questions[question_index]],
+                "resolution": resolution,
                 "reason": reason.strip(),
                 "confirmed_by": "human",
                 "created_at": now(),
             }
         )
-        review["unresolved"] = []
+        review["unresolved"] = questions[:question_index] + questions[question_index + 1 :]
         store.write(store.root(path) / "scene_library.json", library)
         return {"confirmed": True}

@@ -119,3 +119,20 @@ it("opens an accessible design editor without marking untouched fields dirty", (
   expect(screen.getByRole("textbox", { name: "景别" })).toHaveValue("近景");
   fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "取消" }));
 });
+
+it("resolves one review question without hiding missing speakers", () => {
+  const draft = structuredClone(batch);
+  draft.review_revision = "review-v1";
+  draft.review = { revisions: [], unresolved: ["utterances 缺少归属", "动作需要核对"] };
+  draft.scenes[0]!.shots[0]!.segments[0]!.utterances = [{ kind: "dialogue", speaker: null, text: "谁？" }];
+  const confirm = vi.fn();
+  render(<SceneLibraryPanel batches={[draft]} notes={[]} disabled={false} selection={[]} setSelection={() => {}} title="" setTitle={() => {}} assemble={() => {}} source={() => {}} confirmQuestions={confirm} />);
+  fireEvent.click(screen.getByText("原文一致性检查 (2)"));
+  expect(screen.getByText("1. 台词 缺少归属")).toBeInTheDocument();
+  expect(screen.getAllByRole("button", { name: "已完成修复" })[0]).toBeDisabled();
+  fireEvent.click(screen.getAllByRole("button", { name: "这是误报" })[1]!);
+  fireEvent.change(screen.getByRole("textbox", { name: "说明为什么是误报，并引用原文依据（至少10字）" }), { target: { value: "动作与原文描写完全一致，此项为误报" } });
+  fireEvent.click(screen.getByRole("button", { name: "确认这一项" }));
+  expect(confirm).toHaveBeenCalledWith("b", "review-v1", "动作与原文描写完全一致，此项为误报", 1, "false_positive");
+  expect(screen.getByText(/说话人待确认：.*谁/)).toBeInTheDocument();
+});

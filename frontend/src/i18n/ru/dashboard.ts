@@ -1,6 +1,17 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_question_dialogue: "dialogue",
+  nw_question_locate: "Set speaker in this excerpt: {{shot}}",
+  nw_question_hint: "Resolve each question individually. Set speakers under the corresponding dialogue; do not guess.",
+  nw_question_repaired: "Repaired",
+  nw_question_false_positive: "False positive",
+  nw_question_repair_blocked: "This excerpt still has missing speakers or pending revisions. Repair them before confirming.",
+  nw_question_repair_reason: "Describe the repair and source evidence (at least 10 characters)",
+  nw_question_false_reason: "Explain the false positive with source evidence (at least 10 characters)",
+  nw_question_confirm_hint: "Records only this question’s resolution. Does not edit dialogue, call AI, or bypass assembly checks.",
+  nw_question_confirm_one: "Confirm this question",
+  nw_question_history: "Resolution history",
   nw_complete_production: "Complete production details",
   nw_shot_moments: "Story and dramatic moments",
   nw_open_svt: "View main story event",

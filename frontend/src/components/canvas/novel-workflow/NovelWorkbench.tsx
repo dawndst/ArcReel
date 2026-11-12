@@ -195,7 +195,7 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
           navigate(`/app/projects/${encodeURIComponent(projectName)}${route}`);
         }}
         characters={Object.keys(project?.characters ?? {})}
-        confirmQuestions={(batch, revision, reason) => void act(async () => { await API.confirmSceneQuestions(projectName, batch, revision, reason, data.source_basis!); await refreshAfterWrite(projectName, t); })}
+        confirmQuestions={(batch, revision, reason, index, resolution) => void act(async () => { await API.confirmSceneQuestions(projectName, batch, revision, reason, data.source_basis!, index, resolution); await refreshAfterWrite(projectName, t); })}
         adoptRevision={(batch, revision) => void act(async () => { await API.adoptSceneRevision(projectName, batch, revision, data.source_basis!); await refreshAfterWrite(projectName, t); })}
         attribute={(shot, segment, utterance, speaker, revision) => void act(async () => { await API.attributeNoteDialogue(projectName, shot, segment, utterance, speaker, data.source_basis!, revision); await refreshAfterWrite(projectName, t); })}
         batches={data.scene_batches ?? []} notes={data.notes} disabled={busy || working || data.stale}

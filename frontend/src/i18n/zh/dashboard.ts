@@ -1,6 +1,17 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_question_dialogue: "台词",
+  nw_question_locate: "处理本片段 {{shot}} 的说话人",
+  nw_question_hint: "逐条处理疑点。说话人须在对应台词下选择；没有依据时不要猜测。",
+  nw_question_repaired: "已完成修复",
+  nw_question_false_positive: "这是误报",
+  nw_question_repair_blocked: "本片段还有未确认说话人或待采用修订，暂不能确认已修复。",
+  nw_question_repair_reason: "说明已修改的位置与原文依据（至少10字）",
+  nw_question_false_reason: "说明为什么是误报，并引用原文依据（至少10字）",
+  nw_question_confirm_hint: "仅记录这一条疑点的处理结论，不修改台词、不调用 AI，也不跳过组集校验。",
+  nw_question_confirm_one: "确认这一项",
+  nw_question_history: "已处理记录",
   nw_complete_production: "完善素材制作信息",
   nw_shot_moments: "主线与爆点",
   nw_open_svt: "查看主线事件",

@@ -240,6 +240,8 @@ async def adopt_scene_revision(name: str, req: AdoptSceneRevision):
 
 
 class ConfirmSceneQuestions(SourceRequest):
+    question_index: int = Field(ge=0)
+    resolution: Literal["repaired", "false_positive"]
     batch_basis: str
     review_basis: str
     reason: str = Field(min_length=10, max_length=3000)
@@ -254,7 +256,14 @@ async def confirm_scene_questions(name: str, req: ConfirmSceneQuestions):
     return await invoke(
         name,
         lambda path, project: confirm_questions(
-            path, project, req.batch_basis, req.source_basis, req.review_basis, req.reason
+            path,
+            project,
+            req.batch_basis,
+            req.source_basis,
+            req.review_basis,
+            req.reason,
+            req.question_index,
+            req.resolution,
         ),
     )
 

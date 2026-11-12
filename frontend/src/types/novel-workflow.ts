@@ -62,7 +62,7 @@ export interface LibrarySegment { duration_seconds: number; scene_description: s
 export interface LibraryShot { production?: ShotProduction; issues?: { code: string; blocking: boolean; segment?: number }[]; revision?: string; id: string; title: string; segments: LibrarySegment[]; evidence: NoteEvidence }
 export interface LibraryScene { id: string; title: string; location: string; time: string; purpose: string; shots: LibraryShot[] }
 export interface SceneRevision { id: string; scene_index: number; shot_index: number; segment_index: number | null; field: string; before: string; after: string; reason: string; source_quote: string; applied: boolean }
-export interface SceneLibraryBatch { production_stale?: boolean; production_context?: ShotProductionContext; note_order?: number; part?: number; review_revision?: string; review?: { revisions: SceneRevision[]; unresolved: string[] }; basis: string; note_id: string; stale: boolean; scenes: LibraryScene[]; skipped_reason: string }
+export interface SceneLibraryBatch { production_stale?: boolean; production_context?: ShotProductionContext; note_order?: number; part?: number; review_revision?: string; review?: { revisions: SceneRevision[]; unresolved: string[]; resolved_questions?: { questions: string[]; reason: string; resolution?: "repaired" | "false_positive"; created_at: string }[] }; basis: string; note_id: string; stale: boolean; scenes: LibraryScene[]; skipped_reason: string }
 
 export interface SVTCandidate { candidate_id: string; existing_id: string | null; title: string; summary: string; reason: string }
 export interface SVTMoment { scene: string; reason: string; note_ids: string[]; dialogue_ids: string[]; dialogues: NoteDialogue[]; evidence: NoteEvidence[] }
