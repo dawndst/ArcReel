@@ -7,6 +7,7 @@ from lib.novel_workflow import settings, store
 from lib.prompts.prompt_templates.builtin import builtin_templates
 
 TITLES = {
+    "speaker_attribution": ("单镜对白说话人补判", "读取当前原文和相邻镜头，提供有证据的建议；采用后才填写说话人"),
     "condense": ("章节精编与原文回读", "逐段保留因果与原文索引，省略可追溯，待定内容保留原文"),
     "fidelity": ("事实、推测与对白归属", "保留认知边界、梦境与批注性质；无法确认的对白先留待确认"),
     "overview": ("故事设定：Note 归纳", "只汇总当前可用范围的精读成果，不重新读取全书"),

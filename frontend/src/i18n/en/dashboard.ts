@@ -1,5 +1,16 @@
 
 export default {
+  nw_source_highlight_hint: "Light highlights show shot evidence; darker highlights show dialogue. The view scrolls to the match.",
+  nw_source_select_shot: "Choose a shot to locate",
+  nw_source_no_dialogue_match: "No exact dialogue match. Shot evidence is highlighted; check the surrounding text.",
+  nw_dialogue_source: "View this dialogue in the source",
+  nw_shot_source: "View this shot in the source",
+  nw_speaker_ai: "Ask AI to identify speakers",
+  nw_speaker_ai_running: "Checking speakers against the source",
+  nw_speaker_ai_proposal: "AI suggests: {{speaker}}",
+  nw_speaker_ai_unknown: "AI cannot safely identify the speaker",
+  nw_speaker_ai_adopt: "Use {{speaker}}",
+
   nw_question_dialogue: "dialogue",
   nw_question_locate: "Locate {{shot}}: assign dialogue speaker",
   nw_question_hint: "Below are all shots in this excerpt with missing speakers; they are not necessarily linked to this individual question. Locate a shot, then choose the speaker under its dialogue.",

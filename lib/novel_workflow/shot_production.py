@@ -351,7 +351,8 @@ def require_ready(shot, project):
 
 def planning_inputs(ctx, rules, shots, project, reading):
     clean = {
-        key: {k: v for k, v in sh.items() if k not in ("production", "revision", "issues")} for key, sh in shots.items()
+        key: {k: v for k, v in sh.items() if k not in ("production", "revision", "issues", "speaker_suggestions")}
+        for key, sh in shots.items()
     }
     bindings = {key: asset_bindings(project, reading, sh) for key, sh in shots.items()}
     return clean, bindings, digest([ctx, rules, clean, bindings])

@@ -1,6 +1,17 @@
 import type enDashboard from "@/i18n/en/dashboard";
 
 export default {
+  nw_source_highlight_hint: "Màu nhạt đánh dấu căn cứ của cảnh quay, màu đậm đánh dấu lời thoại. Tự cuộn đến vị trí tương ứng.",
+  nw_source_select_shot: "Chọn cảnh quay cần tìm",
+  nw_source_no_dialogue_match: "Không khớp nguyên văn lời thoại. Hãy kiểm tra đoạn được đánh dấu và ngữ cảnh.",
+  nw_dialogue_source: "Xem nguyên văn lời thoại này",
+  nw_shot_source: "Xem nguyên văn cảnh quay",
+  nw_speaker_ai: "Nhờ AI xác định người nói",
+  nw_speaker_ai_running: "Đang xác định người nói theo nguyên văn",
+  nw_speaker_ai_proposal: "AI đề xuất: {{speaker}}",
+  nw_speaker_ai_unknown: "AI chưa thể xác định người nói chắc chắn",
+  nw_speaker_ai_adopt: "Chọn: {{speaker}}",
+
   nw_question_dialogue: "dialogue",
   nw_question_locate: "Đến {{shot}}: xác định người nói",
   nw_question_hint: "Danh sách gồm mọi cảnh quay thiếu người nói trong đoạn này, không nhất thiết liên quan đến nghi vấn hiện tại. Chọn cảnh quay rồi chỉ định người nói.",

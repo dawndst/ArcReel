@@ -455,6 +455,16 @@ def attribute_dialogue(path, project, shot_id, segment_index, utterance_index, s
                     if speaker not in project.get("characters", {}):
                         raise ValueError("请选择项目中已登记的人物资产；未明确身份可建立无名角色资产")
                     store.write(store.root(path) / "history" / f"scene-attribution-{uuid4().hex}.json", batch)
+                    suggestion = next(
+                        (
+                            x
+                            for x in shot.get("speaker_suggestions", {}).get("items", [])
+                            if x["segment_index"] == segment_index
+                            and x["utterance_index"] == utterance_index
+                            and x.get("speaker") == speaker
+                        ),
+                        None,
+                    )
                     utterance["speaker"] = speaker
                     if speaker not in segment["characters_in_scene"]:
                         segment["characters_in_scene"].append(speaker)
@@ -465,6 +475,7 @@ def attribute_dialogue(path, project, shot_id, segment_index, utterance_index, s
                             "speaker": speaker,
                             "confirmed_by": "human",
                             "created_at": now(),
+                            **({"ai_suggestion": suggestion} if suggestion else {}),
                         }
                     )
                     store.write(store.root(path) / "scene_library.json", library)

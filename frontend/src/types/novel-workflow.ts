@@ -60,7 +60,7 @@ export interface UnderstandingReport {
 }
 
 export interface LibrarySegment { duration_seconds: number; scene_description: string; characters_in_scene: string[]; scenes: string[]; props: string[]; utterances: { kind: string; speaker: string | null; text: string }[] }
-export interface LibraryShot { production?: ShotProduction; issues?: { code: string; blocking: boolean; segment?: number }[]; revision?: string; id: string; title: string; segments: LibrarySegment[]; evidence: NoteEvidence }
+export interface LibraryShot { speaker_suggestions?: { items: { segment_index: number; utterance_index: number; speaker: string | null; source_quote: string; reason: string }[] }; production?: ShotProduction; issues?: { code: string; blocking: boolean; segment?: number }[]; revision?: string; id: string; title: string; segments: LibrarySegment[]; evidence: NoteEvidence }
 export interface LibraryScene { id: string; title: string; location: string; time: string; purpose: string; shots: LibraryShot[] }
 export interface SceneRevision { id: string; scene_index: number; shot_index: number; segment_index: number | null; field: string; before: string; after: string; reason: string; source_quote: string; applied: boolean }
 export interface SceneLibraryBatch { production_stale?: boolean; production_context?: ShotProductionContext; note_order?: number; part?: number; review_revision?: string; review?: { revisions: SceneRevision[]; unresolved: string[]; resolved_questions?: { questions: string[]; reason: string; resolution?: "repaired" | "false_positive"; created_at: string }[] }; basis: string; note_id: string; stale: boolean; scenes: LibraryScene[]; skipped_reason: string }
@@ -80,3 +80,5 @@ export interface ChapterEdition {
   basis: string; created_at: string; original_chars: number; edited_chars: number;
   parts: { source_file: string; start: number; end: number; passages: { unit: number; treatment: "retain" | "condense" | "omit" | "uncertain"; text: string; reason: string; original_quote: string; evidence: { source_file: string; start: number; end: number }; protected: boolean }[] }[];
 }
+
+export interface SceneSource { text: string; source_file: string; start: number; end: number; note_title: string; part: number; shots: { id: string; title: string; start: number; end: number; dialogues: { segment: number; utterance: number; text: string; ranges: { start: number; end: number }[] }[] }[] }

@@ -2196,7 +2196,10 @@ class API {
   static async dissolveNoteGroup(name: string, id: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/groups/${encodeURIComponent(id)}`, { method: "DELETE" });
   }
-  static async getSceneBatchSource(name: string, basis: string): Promise<{ text: string; source_file: string; start: number; end: number; note_title: string; part: number }> {
+  static async suggestShotSpeakers(name: string, note_id: string, shot_id: string, source_basis: string): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action: "speaker_attribution", note_ids: [note_id], shot_ids: [shot_id], source_basis }) });
+  }
+  static async getSceneBatchSource(name: string, basis: string): Promise<import("@/types/novel-workflow").SceneSource> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/scene-batches/${encodeURIComponent(basis)}/source`);
   }
   static async resolveNoteAsset(name: string, id: string, values: { source_basis: string; reading_basis: string; entity_id: string; create_new: boolean; variant_kind: "visual" | "performance" | "none"; variant_name: string; appearance_context: "current" | "memory" | "vision" | "dream" | "unclassified" }): Promise<unknown> {

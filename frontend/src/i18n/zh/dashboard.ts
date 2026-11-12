@@ -1,6 +1,17 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_source_highlight_hint: "浅色标出镜头原文，深色标出对应对白；打开后自动定位。",
+  nw_source_select_shot: "选择要定位的镜头",
+  nw_source_no_dialogue_match: "对白未能逐字匹配，已标出镜头依据，请结合前后文核对。",
+  nw_dialogue_source: "查看这句对白原文",
+  nw_shot_source: "查看该镜头原文",
+  nw_speaker_ai: "AI 补判本镜说话人",
+  nw_speaker_ai_running: "正在结合原文补判说话人",
+  nw_speaker_ai_proposal: "AI 建议：{{speaker}}",
+  nw_speaker_ai_unknown: "AI 仍无法安全归属",
+  nw_speaker_ai_adopt: "采用：{{speaker}}",
+
   nw_question_dialogue: "台词",
   nw_question_locate: "定位 {{shot}}：确认台词说话人",
   nw_question_hint: "下方列出本片段所有缺少说话人的镜头，并不表示每个镜头都对应这一条疑点。点击定位后，在台词下选择说话人。",

@@ -2798,6 +2798,13 @@ async def _execute_queued_text_task(
             )
         from lib.novel_workflow.condensation import generate as condense_notes
 
+        if payload["action"] == "speaker_attribution":
+            from lib.novel_workflow.speaker_attribution import generate as suggest_speakers
+
+            return await suggest_speakers(
+                path, generator, payload["note_ids"], payload["source_basis"], payload.get("shot_ids", [])
+            )
+
         action = {
             "condense": condense_notes,
             "read": read_notes,

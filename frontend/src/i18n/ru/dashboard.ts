@@ -1,6 +1,17 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_source_highlight_hint: "Светлым выделено основание кадра, тёмным — реплики. Просмотр прокручивается к совпадению.",
+  nw_source_select_shot: "Выберите кадр",
+  nw_source_no_dialogue_match: "Точного совпадения реплики нет. Проверьте выделенный фрагмент и контекст.",
+  nw_dialogue_source: "Реплика в оригинале",
+  nw_shot_source: "Кадр в оригинале",
+  nw_speaker_ai: "Определить говорящих с ИИ",
+  nw_speaker_ai_running: "Проверка говорящих по оригиналу",
+  nw_speaker_ai_proposal: "ИИ предлагает: {{speaker}}",
+  nw_speaker_ai_unknown: "ИИ не может достоверно определить говорящего",
+  nw_speaker_ai_adopt: "Выбрать: {{speaker}}",
+
   nw_question_dialogue: "dialogue",
   nw_question_locate: "Кадр {{shot}}: указать говорящего",
   nw_question_hint: "Ниже показаны все кадры отрывка без указания говорящего. Не все они относятся к этому вопросу. Перейдите к кадру и выберите говорящего.",

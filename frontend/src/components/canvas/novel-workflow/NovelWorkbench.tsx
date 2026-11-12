@@ -1,4 +1,5 @@
-import { SceneBatchSource } from "./SceneBatchSource";
+import { sceneLibraryOrder } from "./scene-library-order";
+import { SceneBatchSource, type SourceTarget } from "./SceneBatchSource";
 import { AssetIdentityResolver, type IdentityDecision } from "./AssetIdentityResolver";
 import { workflowProgress } from "./workflow-progress";
 import { ReadingQuestions } from "./ReadingAnnotations";
@@ -114,7 +115,7 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
   useEffect(() => { if (tab === "svt" && focusedSvt) document.getElementById(`svt-${focusedSvt}`)?.scrollIntoView({ block: "start" }); }, [tab, focusedSvt]);
   const [readingSettings, setReadingSettings] = useState(false);
   const [upload, setUpload] = useState(false);
-  const [sourceBatch, setSourceBatch] = useState<string | null>(null);
+  const [sourceBatch, setSourceBatch] = useState<SourceTarget | null>(null);
   const [shotSelection, setShotSelection] = useState<string[]>([]);
   const [episodeTitle, setEpisodeTitle] = useState("");
   const [assemblyRequest, setAssemblyRequest] = useState(() => crypto.randomUUID());
@@ -224,7 +225,8 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
           useAppStore.getState().triggerScrollTo({ type: asset.kind, id: asset.name, route });
           navigate(`/app/projects/${encodeURIComponent(projectName)}${route}`);
         }}
-        batchSource={setSourceBatch}
+        batchSource={(basis, shotId, segment, utterance) => setSourceBatch({ basis, shotId, segment, utterance })}
+        suggestSpeakers={(note, shot) => void act(() => API.suggestShotSpeakers(projectName, note, shot, data.source_basis!))}
         characters={Object.keys(project?.characters ?? {})}
         confirmQuestions={(batch, revision, reason, index, resolution) => void act(async () => { await API.confirmSceneQuestions(projectName, batch, revision, reason, data.source_basis!, index, resolution); await refreshAfterWrite(projectName, t); })}
         adoptRevision={(batch, revision) => void act(async () => { await API.adoptSceneRevision(projectName, batch, revision, data.source_basis!); await refreshAfterWrite(projectName, t); })}
@@ -240,7 +242,7 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
         })} />}
 
     </>}
-    {sourceBatch && <SceneBatchSource projectName={projectName} basis={sourceBatch} close={() => setSourceBatch(null)} />}
+    {sourceBatch && <SceneBatchSource key={`${sourceBatch.basis}:${sourceBatch.shotId}:${sourceBatch.segment}:${sourceBatch.utterance}`} projectName={projectName} {...sourceBatch} shotLabels={sceneLibraryOrder(data?.scene_batches ?? [], data?.notes ?? []).shotLabels} close={() => setSourceBatch(null)} />}
     <Dialog open={preview !== null} onOpenChange={(open) => { if (!open && !busy) setPreview(null); }}><DialogContent><DialogTitle>{t("dashboard:nw_preview")}</DialogTitle><DialogDescription>{t("dashboard:nw_preview_hint", { count: preview?.notes.length ?? 0 })}</DialogDescription><div className="relative max-h-80 overflow-y-auto text-sm">{preview?.notes.map((n) => <p key={n.id} className="py-1">{n.order}. {n.title} · {n.sections.length} {t("dashboard:nw_sections")}{n.needs_review && ` · ${t("dashboard:nw_review_heading")}`}</p>)}</div><DialogFooter><Button variant="outline" disabled={busy} onClick={() => setPreview(null)}>{t("common:cancel")}</Button><Button disabled={busy || working || !preview} onClick={() => void act(async () => { await API.initializeChapterNotes(projectName, preview!.source_basis); setPreview(null); setSelected([]); })}>{t("dashboard:nw_initialize")}</Button></DialogFooter></DialogContent></Dialog>
     <Dialog open={merging} onOpenChange={(open) => { if (!busy) setMerging(open); }}><DialogContent><DialogTitle>{t("dashboard:nw_merge")}</DialogTitle><DialogDescription>{t("dashboard:nw_manual_only")}</DialogDescription><Input aria-label={t("dashboard:nw_group_title")} placeholder={t("dashboard:nw_group_title")} value={title} onChange={(e) => setTitle(e.target.value)} /><ul className="relative max-h-64 list-disc overflow-y-auto pl-5 text-sm">{selectedNotes.map((n) => <li key={n.id}>{n.title}</li>)}</ul><DialogFooter><Button variant="outline" disabled={busy} onClick={() => setMerging(false)}>{t("common:cancel")}</Button><Button disabled={busy || !data?.source_basis} onClick={() => void act(async () => { await API.createNoteGroup(projectName, selected, title, data!.source_basis!); setMerging(false); setTab("groups"); })}>{t("dashboard:nw_confirm_merge")}</Button></DialogFooter></DialogContent></Dialog>
 

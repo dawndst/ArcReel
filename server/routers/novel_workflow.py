@@ -41,10 +41,11 @@ class SourceRequest(BaseModel):
 
 
 class ReadingRequest(SourceRequest):
-    action: Literal["read", "svt", "review", "understand", "scenes", "condense", "group_summary"]
+    action: Literal["read", "svt", "review", "understand", "scenes", "condense", "group_summary", "speaker_attribution"]
     note_ids: list[str] = Field(min_length=1, max_length=10000)
 
     group_id: str | None = Field(default=None, max_length=100)
+    shot_ids: list[str] = Field(default_factory=list, max_length=1)
 
 
 class GroupRequest(SourceRequest):
@@ -145,21 +146,9 @@ async def note_edition(name: str, note_id: str):
 
 @router.get("/projects/{name}/novel-workflow/scene-batches/{basis}/source")
 async def scene_batch_source(name: str, basis: str):
-    def read(path, project):
-        from lib.novel_workflow.scene_library import catalog, valid_batch
+    from lib.novel_workflow.scene_source import batch_source
 
-        notebook = store.state(path)
-        if not notebook:
-            raise ValueError("No Notes")
-        store.require_current(path, project, notebook["source_basis"])
-        batch = next((b for b in catalog(path)["batches"].values() if b["basis"] == basis), None)
-        if not batch or not valid_batch(path, batch, notebook, store.valid_readings(path, notebook)):
-            raise ValueError("场镜依据已变化，请刷新后查看原文")
-        note = next(n for n in notebook["notes"] if n["id"] == batch["note_id"])
-        chunk = chapters.chunks(path, project, note)[batch["part"]]
-        return {**chunk, "note_title": note["title"], "part": batch["part"] + 1}
-
-    return await invoke(name, read)
+    return await invoke(name, lambda path, project: batch_source(path, project, basis))
 
 
 class AssetIdentityRequest(SourceRequest):
