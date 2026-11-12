@@ -103,6 +103,10 @@ def ground(value, supplied, anchor_note_ids, notebook):
 
 
 def understanding_rules(path):
+    return _source_rules(path) + "\n跨章引文修复规则版本：" + digest(store.effective_rule(path, "understand_citations"))
+
+
+def _source_rules(path):
     return (
         store.effective_rule(path, "understand")
         + "\n关联汇总规则版本："
@@ -195,7 +199,9 @@ async def understand_notes(path, generator, note_ids, expected):
     rules = await asyncio.to_thread(understanding_rules, path)
     scope_rule = await asyncio.to_thread(store.effective_rule, path, "scope")
     scope_hint = "\n" + scope_rule.strip()
-    legacy_key = digest([expected, bases, rules, scope_basis, scope_hint, 2])
+    source_rules = await asyncio.to_thread(_source_rules, path)
+    legacy_key = digest([expected, bases, source_rules, scope_basis, scope_hint, 2])
+    previous_key = digest([expected, bases, source_rules, scope_basis, scope_hint, "compact-source-index-v1"])
     key = digest([expected, bases, rules, scope_basis, scope_hint, "compact-source-index-v1"])
     target = store.root(path) / "understanding" / "reports" / f"{key}.json"
     if await asyncio.to_thread(target.exists):
@@ -215,12 +221,16 @@ async def understand_notes(path, generator, note_ids, expected):
             for batch in synthesis.packs([inquiry_record(record) for record in records], INQUIRY_INDEX_BUDGET)
         )
     checkpoint = store.root(path) / "understanding" / "runs" / f"{key}.json"
+    previous_checkpoint = store.root(path) / "understanding" / "runs" / f"{previous_key}.json"
+    existing_checkpoint = checkpoint
+    if not await asyncio.to_thread(checkpoint.exists) and await asyncio.to_thread(previous_checkpoint.exists):
+        existing_checkpoint = previous_checkpoint
     run = (
-        await asyncio.to_thread(load_json, checkpoint)
-        if await asyncio.to_thread(checkpoint.exists)
+        await asyncio.to_thread(load_json, existing_checkpoint)
+        if await asyncio.to_thread(existing_checkpoint.exists)
         else {"cursor": 0, "links": [], "unresolved": [], "inspections": []}
     )
-    if not await asyncio.to_thread(checkpoint.exists):
+    if not await asyncio.to_thread(existing_checkpoint.exists):
         # Reuse only completed units from the identical source, rules, Note bases and scope.
         # Every compact unit is still inspected; reconciliation deduplicates overlapping links.
         run["reused_units"] = 0
@@ -241,11 +251,18 @@ async def understand_notes(path, generator, note_ids, expected):
             raise ValueError("可用章节范围已变化，请重新进行跨章理解")
         unit = units[unit_index]
         unit_key = digest([key, unit_index])
+        previous_unit_key = digest([previous_key, unit_index])
         unit_file = store.root(path) / "understanding" / "units" / f"{unit_key}.json"
         if await asyncio.to_thread(unit_file.exists):
             return await asyncio.to_thread(load_json, unit_file)
+        previous_unit_file = unit_file.with_name(f"{previous_unit_key}.json")
+        if await asyncio.to_thread(previous_unit_file.exists):
+            return await asyncio.to_thread(load_json, previous_unit_file)
         result = {"links": [], "unresolved": [], "inspections": []}
         inquiry_file = store.root(path) / "understanding" / "inquiries" / f"{unit_key}.json"
+        previous_inquiry_file = inquiry_file.with_name(f"{previous_unit_key}.json")
+        if not await asyncio.to_thread(inquiry_file.exists) and await asyncio.to_thread(previous_inquiry_file.exists):
+            inquiry_file = previous_inquiry_file
         if await asyncio.to_thread(inquiry_file.exists):
             inquiry = await asyncio.to_thread(load_json, inquiry_file)
         else:
@@ -276,11 +293,19 @@ async def understand_notes(path, generator, note_ids, expected):
                 previous_matches = matches
                 round_key = digest([unit_key, supplied, queries, round_number])
                 round_file = store.root(path) / "understanding" / "rounds" / f"{round_key}.json"
+                previous_round = round_file.with_name(
+                    f"{digest([previous_unit_key, supplied, queries, round_number])}.json"
+                )
+                if not await asyncio.to_thread(round_file.exists) and await asyncio.to_thread(previous_round.exists):
+                    round_file = previous_round
                 if await asyncio.to_thread(round_file.exists):
                     findings = await asyncio.to_thread(load_json, round_file)
                 else:
 
-                    def validate(value, supplied=supplied, note_id=unit["note_id"]):
+                    async def validate(value, supplied=supplied, note_id=unit["note_id"]):
+                        from lib.novel_workflow.citation_repair import repair
+
+                        value = await repair(path, generator, value, supplied)
                         return ground(value, supplied, {note_id}, notebook)
 
                     findings = await ask(

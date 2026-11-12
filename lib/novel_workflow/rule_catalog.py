@@ -8,6 +8,7 @@ from lib.prompts.prompt_templates.builtin import builtin_templates
 
 TITLES = {
     "quote_locations": ("重复引句定位", "根据原文候选上下文定位重复台词或短引句，不猜选位置、不改写台词"),
+    "understand_citations": ("跨章引文修复", "从连续原文候选中修复非逐字引用，不改写关联结论或提升确定程度"),
     "read_review": ("Note 抽取原文审核", "保存前核对信息性质、说话人、因果和状态变化；仅修订抽取结果，不改原文"),
     "understand_reconcile": ("跨章关联汇总核对", "核对同类跨章结论的重复和冲突，保留原文揭示边界"),
     "shot_execution": ("单镜执行方案修订", "原文对照、发声方式、关键资产、起止状态和剪辑切点；人工采用"),

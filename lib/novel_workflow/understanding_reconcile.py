@@ -39,6 +39,13 @@ async def reconcile(path, generator, links, notebook, anchors):
             if await asyncio.to_thread(cache.exists):
                 value = await asyncio.to_thread(load_json, cache)
             else:
+
+                async def validate(draft, supplied=supplied):
+                    from lib.novel_workflow.citation_repair import repair
+
+                    draft = await repair(path, generator, draft, supplied)
+                    return ground(draft, supplied, anchors, notebook)
+
                 value = await ask(
                     path,
                     generator,
@@ -46,7 +53,7 @@ async def reconcile(path, generator, links, notebook, anchors):
                     rules
                     + "\n关联汇总材料："
                     + json.dumps({"drafts": batch, "fragments": supplied}, ensure_ascii=False),
-                    lambda draft, supplied=supplied: ground(draft, supplied, anchors, notebook),
+                    validate,
                     grow_output=True,
                 )
                 await run_noninterruptible_sync(store.write, cache, value)
