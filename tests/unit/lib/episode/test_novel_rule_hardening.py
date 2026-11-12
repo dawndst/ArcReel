@@ -105,9 +105,12 @@ async def test_svt_first_batch_receives_whole_chapter_context(tmp_path):
 
     class DirectionReader(SVTReader):
         async def generate(self, request, **kwargs):
-            direction = json.loads(request.prompt.split("整章方向材料：", 1)[1].split("\n必须覆盖的本批事件ID", 1)[0])
-            assert direction["overview"]["summary"]
-            assert direction["index"]["events"][0]["title"] == "甲拿起古剑。"
+            if "整章方向材料：" in request.prompt:
+                direction = json.loads(
+                    request.prompt.split("整章方向材料：", 1)[1].split("\n必须覆盖的本批事件ID", 1)[0]
+                )
+                assert direction["overview"]["summary"]
+                assert direction["index"]["events"][0]["title"] == "甲拿起古剑。"
             return await super().generate(request, **kwargs)
 
     await generate_svts(tmp_path, DirectionReader(), [note["id"]], book["source_basis"])

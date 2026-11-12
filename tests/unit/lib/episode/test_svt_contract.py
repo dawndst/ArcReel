@@ -67,6 +67,10 @@ async def test_note_batches_keep_single_primary_and_alternatives_can_replace_it(
         calls = 0
 
         async def generate(self, request, **kwargs):
+            from tests.unit.lib.episode.test_novel_workflow import synopsis_response
+
+            if response := synopsis_response(request):
+                return response
             self.calls += 1
             events = json.loads(request.prompt.split("本批事件：", 1)[1].split("\n可续接SVT：", 1)[0])
             old = json.loads(request.prompt.split("\n可续接SVT：", 1)[1].split("\n只输出 JSON", 1)[0])

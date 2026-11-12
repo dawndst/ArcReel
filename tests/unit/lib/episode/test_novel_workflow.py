@@ -98,8 +98,26 @@ class Reader:
         )
 
 
+def synopsis_response(request):
+    if "SVT累计概况材料：" not in request.prompt:
+        return None
+    material = json.loads(request.prompt.split("SVT累计概况材料：", 1)[1].split("\n只输出 JSON", 1)[0])
+    return SimpleNamespace(
+        text=json.dumps(
+            {
+                "title": material["direction"]["title"],
+                "summary": "；".join(v["summary"] for v in material["sources"]),
+                "mainline_reason": "覆盖全部章节的行动",
+                "note_ids": list(dict.fromkeys(i for v in material["sources"] for i in v["note_ids"])),
+            }
+        )
+    )
+
+
 class SVTReader:
     async def generate(self, request, **kwargs):
+        if response := synopsis_response(request):
+            return response
         events = json.loads(request.prompt.split("本批事件：", 1)[1].split("\n可续接SVT：", 1)[0])
         return SimpleNamespace(
             text=json.dumps(
@@ -168,6 +186,8 @@ class ContinuingSVTReader:
         self.supplied = []
 
     async def generate(self, request, **kwargs):
+        if response := synopsis_response(request):
+            return response
         events = json.loads(request.prompt.split("本批事件：", 1)[1].split("\n可续接SVT：", 1)[0])
         old = json.loads(request.prompt.split("\n可续接SVT：", 1)[1].split("\n只输出 JSON", 1)[0])
         self.supplied.append(old)

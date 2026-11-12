@@ -548,7 +548,10 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
             previous.get("note_bases", {}).get(i) == context_bases.get(i) and i in context_bases for i in s["note_ids"]
         )
     ]
-    run_key = digest([bases, rules, prior_svts, edition_bases, await asyncio.to_thread(understanding.view, path), 3])
+    summary_rules = await asyncio.to_thread(store.effective_rule, path, "svt_summary")
+    run_key = digest(
+        [bases, rules, prior_svts, edition_bases, await asyncio.to_thread(understanding.view, path), summary_rules, 3]
+    )
     run_file = store.root(path) / "svt_runs" / f"{run_key}.json"
     run = (
         await asyncio.to_thread(load_json, run_file)
@@ -703,7 +706,12 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
             await run_noninterruptible_sync(store.write, run_file, run)
             progress["done"] = run["cursor"]
             await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
+        from lib.novel_workflow.svt_summary import finalize
+
+        run["svts"] = await finalize(path, generator, run["svts"], notebook)
         await asyncio.to_thread(current, path, expected)
+        if await asyncio.to_thread(store.effective_rule, path, "svt_summary") != summary_rules:
+            raise ValueError("SVT 累计概况规则已变化，请重新生成")
         if await asyncio.to_thread(store.effective_rule, path, "svt") != rules:
             raise ValueError("SVT rules changed; rerun with current rules")
         for note in notebook["notes"]:
@@ -749,6 +757,8 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
                     raise ValueError("SVT 主归属在生成期间已变化，请刷新后重新运行")
                 if store.effective_rule(path, "svt") != rules:
                     raise ValueError("SVT 规则已变化，请使用当前规则重新拆分")
+                if store.effective_rule(path, "svt_summary") != summary_rules:
+                    raise ValueError("SVT 累计概况规则已变化，请重新生成")
                 if live_svt:
                     store.write(store.root(path) / "history" / f"svt-{uuid4().hex}.json", live_svt)
                 store.write(target, combined)
