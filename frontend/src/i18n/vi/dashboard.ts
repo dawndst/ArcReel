@@ -4292,6 +4292,8 @@ export default {
   "nw_overview_generate": "Generate story settings from Notes",
   "nw_overview_reading": "Summarizing Notes in the current scope…",
   "nw_overview_hint": "Select available chapters and complete Note reading first. Settings use that scope only and never trigger full-book reading.",
+  "nw_read_range": "Phạm vi đọc và cài đặt",
+  "nw_read_progress": "Notes đã tạo: {{completed}} / {{total}} chương",
   "nw_read_start": "01 · Select chapters and generate Notes",
   "nw_read_start_hint": "Select a chapter range or tick chapters. AI reads only these chapters and produces summaries, assets, changes and event clues. Cross-chapter close reading is a separate step.",
   "nw_from_chapter": "First chapter number",

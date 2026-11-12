@@ -115,7 +115,7 @@ it("opens an accessible design editor without marking untouched fields dirty", (
   render(<LeaveGuardProvider><SceneLibraryPanel batches={[draft]} notes={[]} disabled={false} selection={[]} setSelection={() => {}} title="" setTitle={() => {}} assemble={() => {}} source={() => {}} saveProduction={async () => {}} /></LeaveGuardProvider>);
   fireEvent.click(screen.getByText("镜头设计 · 改编决定"));
   fireEvent.click(screen.getByRole("button", { name: "编辑镜头设计与关联" }));
-  expect(screen.getByRole("textbox", { name: "镜头目的", exact: true })).toHaveValue("建立压迫");
-  expect(screen.getByRole("textbox", { name: "景别", exact: true })).toHaveValue("近景");
+  expect(screen.getByRole("textbox", { name: "镜头目的" })).toHaveValue("建立压迫");
+  expect(screen.getByRole("textbox", { name: "景别" })).toHaveValue("近景");
   fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "取消" }));
 });

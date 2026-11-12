@@ -4290,6 +4290,8 @@ export default {
   "nw_overview_generate": "从已生成 Notes 汇总故事设定",
   "nw_overview_reading": "正在汇总当前范围的 Notes…",
   "nw_overview_hint": "先在小说工作台选择可用章节并生成 Notes，再汇总故事设定。不读取范围外章节，也不自动读取全书。",
+  "nw_read_range": "阅读范围与设置",
+  "nw_read_progress": "已生成 {{completed}} / {{total}} 章 Notes",
   "nw_read_start": "01 · 指定章节，AI 泛读生成 Notes",
   "nw_read_start_hint": "填写起止章节并选择此范围，或直接勾选章节。AI 只读所选章节，逐章生成梗概、场景、人物、道具、变化与事件线索。理解层开启时自动继续跨章精读回查，无需重复点击。",
   "nw_from_chapter": "起始章节序号",

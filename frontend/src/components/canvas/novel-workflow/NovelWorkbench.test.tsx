@@ -93,8 +93,10 @@ it("shows one primary SVT and several alternatives and replaces only on explicit
 it("selects a chapter range and generates only those Notes on explicit click", async () => {
   const run = vi.spyOn(API, "runNoteWorkflow").mockResolvedValue({});
   render(<NovelWorkbench projectName="demo" onProduction={() => {}} />);
-  await screen.findByRole("heading", { name: "01 · 指定章节，AI 泛读生成 Notes" });
-  expect(screen.getByText(/目录共 2 章 · 已生成 0 条 Notes/)).toBeInTheDocument();
+  await screen.findByText("阅读范围与设置");
+  const range = screen.getByText("阅读范围与设置");
+  if (!range.closest("details")!.open) fireEvent.click(range);
+  expect(screen.getByText(/已生成 0 \/ 2 章 Notes/)).toBeInTheDocument();
   fireEvent.change(screen.getByRole("spinbutton", { name: "起始章节序号" }), { target: { value: "2" } });
   fireEvent.change(screen.getByRole("spinbutton", { name: "结束章节序号" }), { target: { value: "2" } });
   fireEvent.click(screen.getByRole("button", { name: "选择此范围" }));
