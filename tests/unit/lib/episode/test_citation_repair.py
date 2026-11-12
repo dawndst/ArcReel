@@ -83,3 +83,62 @@ async def test_repair_refuses_unsupported_or_invented_candidates(tmp_path):
                 {"id": "b", "text": "未看清人影。"},
             ],
         )
+
+
+async def test_unverifiable_link_becomes_pending_without_losing_verified_sibling(tmp_path):
+    import asyncio
+
+    from lib.novel_workflow import store
+    from lib.novel_workflow.citation_repair import verify
+
+    class NoModel:
+        async def generate(self, request, **kwargs):
+            raise AssertionError("Literal grounding and unavailable source IDs do not need model calls")
+
+    fragments = [
+        {"id": "a", "note_id": "n1", "source_file": "book", "start": 20, "text": "紫衣人站在门边。"},
+        {"id": "b", "note_id": "n2", "source_file": "book", "start": 100, "text": "紫衣人就是景麒。"},
+    ]
+    valid = {
+        "kind": "identity",
+        "subject": "紫衣人",
+        "description": "身份已揭示",
+        "status": "supported",
+        "claim_type": "fact",
+        "perspective": "",
+        "source_kind": "narrative",
+        "citations": [
+            {"fragment_id": "typo", "quote": "紫衣人站在门边。"},
+            {"fragment_id": "b", "quote": "紫衣人就是景麒。"},
+        ],
+    }
+    invalid = {
+        **valid,
+        "description": "原文未提供的身份说法",
+        "citations": [
+            {"fragment_id": "unavailable", "quote": "虚构的身份依据。"},
+            {"fragment_id": "b", "quote": "紫衣人就是景麒。"},
+        ],
+    }
+    result = await verify(
+        tmp_path,
+        NoModel(),
+        Findings(links=[valid, invalid]),
+        fragments,
+        {"n1"},
+        {
+            "notes": [{"id": "n1", "order": 1}, {"id": "n2", "order": 2}],
+        },
+    )
+    assert len(result["links"]) == 1
+    assert result["links"][0]["status"] == "supported"
+    assert result["links"][0]["evidence"][0]["start"] == 20
+    assert any("原文未提供的身份说法" in q for q in result["unresolved"])
+    files = await asyncio.to_thread(
+        lambda: list((store.root(tmp_path) / "understanding/citation_reviews").glob("*.json"))
+    )
+    assert len(files) == 1
+    pending = json.loads(await asyncio.to_thread(files[0].read_text))
+    assert pending["claim"]["description"] == "原文未提供的身份说法"
+    assert pending["source_fragments"] == fragments
+    assert pending["status"] == "unresolved"

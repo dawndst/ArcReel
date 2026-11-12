@@ -38,9 +38,9 @@ def ground(value, supplied, anchor_note_ids, notebook):
         evidence = []
         for citation in draft.citations:
             fragment = by_id.get(citation.fragment_id)
-            if not fragment:
-                raise ValueError("Citation is outside the source fragments actually reread")
             try:
+                if not fragment:
+                    raise ValueError("Citation is outside the source fragments actually reread")
                 pos, end = locate(fragment["text"], citation.quote)
             except ValueError as exc:
                 matches = {}
@@ -303,10 +303,9 @@ async def understand_notes(path, generator, note_ids, expected):
                 else:
 
                     async def validate(value, supplied=supplied, note_id=unit["note_id"]):
-                        from lib.novel_workflow.citation_repair import repair
+                        from lib.novel_workflow.citation_repair import verify
 
-                        value = await repair(path, generator, value, supplied)
-                        return ground(value, supplied, {note_id}, notebook)
+                        return await verify(path, generator, value, supplied, {note_id}, notebook)
 
                     findings = await ask(
                         path,

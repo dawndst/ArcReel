@@ -104,3 +104,34 @@ def _literal(text, quote):
         return True
     except ValueError:
         return False
+
+
+async def verify(path, generator, findings, supplied, anchors, notebook):
+    """Unverifiable hypotheses stay unresolved, with their complete draft preserved for review."""
+    from lib.novel_workflow.understanding import ground
+
+    links, unresolved = [], list(findings.unresolved)
+    for original in findings.links:
+        single = findings.model_copy(update={"links": [original.model_copy(deep=True)], "unresolved": []})
+        try:
+            # Try strict grounding first: a mistyped ID can still have a unique literal span.
+            try:
+                verified = ground(single, supplied, anchors, notebook)
+            except ValueError:
+                single = await repair(path, generator, single, supplied)
+                verified = ground(single, supplied, anchors, notebook)
+            links.extend(verified["links"])
+            unresolved.extend(verified["unresolved"])
+        except ValueError as exc:
+            error = str(exc)
+            pending = {
+                "claim": original.model_dump(),
+                "source_fragments": supplied,
+                "anchor_note_ids": sorted(anchors),
+                "error": error,
+                "status": "unresolved",
+            }
+            target = store.root(path) / "understanding" / "citation_reviews" / f"{digest(pending)}.json"
+            await run_noninterruptible_sync(store.write, target, pending)
+            unresolved.append("关联证据待核对：" + original.subject + "；" + original.description + "；" + error[:300])
+    return {"links": links, "unresolved": list(dict.fromkeys(unresolved)), "next_queries": findings.next_queries}

@@ -14,7 +14,6 @@ from lib.novel_workflow.understanding_models import Findings
 
 async def reconcile(path, generator, links, notebook, anchors):
     from lib.novel_workflow.service import ask
-    from lib.novel_workflow.understanding import ground
 
     rules = await asyncio.to_thread(store.effective_rule, path, "understand_reconcile")
     groups = defaultdict(list)
@@ -43,10 +42,9 @@ async def reconcile(path, generator, links, notebook, anchors):
                 return await asyncio.to_thread(load_json, cache)
 
             async def validate(draft):
-                from lib.novel_workflow.citation_repair import repair
+                from lib.novel_workflow.citation_repair import verify
 
-                draft = await repair(path, generator, draft, supplied)
-                return ground(draft, supplied, anchors, notebook)
+                return await verify(path, generator, draft, supplied, anchors, notebook)
 
             value = await ask(
                 path,
