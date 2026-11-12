@@ -1,6 +1,6 @@
 
 export default {
-  nw_scope_outside_saved: "Note saved · outside production scope",
+  nw_scope_outside_saved: "Note saved · outside retrieval and production scope",
   nw_scope_add: "Add selected chapters to available scope",
   nw_scope_replace: "Use only selected chapters…",
   nw_scope_replace_preview: "Limit availability to {{selected}} selected chapters; {{excluded}} chapters will be excluded from production and retrieval",
@@ -4477,7 +4477,7 @@ export default {
   "nw_scope_end": "End chapter position",
   "nw_scope_select": "Select range",
   "nw_scope_set": "Set scope to selected chapters",
-  "nw_scope_hint": "Checkboxes select the current task. This setting controls project-wide production and AI retrieval availability. Add retains existing scope; Use only restricts it. Existing Notes and condensed text remain readable.",
+  "nw_scope_hint": "Checkboxes select the current task. This setting controls project-wide production and AI retrieval availability. Add retains existing scope; Use only restricts it. Excluded chapter titles are struck through in the sidebar and skipped by cross-chapter retrieval and rereading. Existing Notes and condensed text remain readable.",
   "nw_scope_outside": "Outside production scope",
   "nw_arrange_single": "Arrange this chapter",
   "nw_group_management_hint": "Groups organize Notes and summarize their content. They are not episodes. Directors select scenes and shots to assemble episodes.",

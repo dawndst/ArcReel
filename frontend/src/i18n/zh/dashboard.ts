@@ -1,7 +1,7 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
-  nw_scope_outside_saved: "Note 已生成 · 暂不参与制作",
+  nw_scope_outside_saved: "Note 已生成 · 范围外，不参与检索与制作",
   nw_scope_add: "将所选章节加入可用范围",
   nw_scope_replace: "仅使用所选章节…",
   nw_scope_replace_preview: "将可用范围限定为所选 {{selected}} 章，{{excluded}} 章将暂不参与制作与检索",
@@ -4476,7 +4476,7 @@ export default {
   "nw_scope_end": "结束章节序号",
   "nw_scope_select": "选择此范围",
   "nw_scope_set": "以所选章节设定可用范围",
-  "nw_scope_hint": "勾选章节只决定本次操作；这里控制全项目可供 AI 回查和制作的章节。“加入”保留已有范围；“仅使用所选”才会缩小范围。范围外的 Note 和精简稿仍保留可读。",
+  "nw_scope_hint": "勾选章节只决定本次操作；这里控制全项目可供 AI 回查和制作的章节。“加入”保留已有范围；“仅使用所选”才会缩小范围。范围外章节在侧边栏以删除线标记，不参与跨章检索与回读；已有 Note 和精简稿仍可查看。",
   "nw_scope_outside": "暂不参与制作",
   "nw_arrange_single": "建立资料组",
   "nw_group_management_hint": "资料组合只用于管理章节和重新归纳梗概，不对应成片集。场与镜生成后，由导演选择并编排成集。",
