@@ -31,6 +31,14 @@ class EvidencedClaim(StrictModel):
 
 
 class Mention(EvidencedClaim):
+    same_entity_as: str = Field(
+        default="",
+        description="当前原文明确延续已读资产时，引用memory中同一实体的既有资产记录id；不得使用未来记录，不因同名猜同一身份。没有可信同指依据时为空。",
+    )
+    variant_kind: Literal["visual", "performance", "none", "unclassified"] = Field(
+        default="unclassified",
+        description="visual=年龄形态伤势服装等可见外观；performance=笑声、语言诱惑、动作等表现，不创建图片变体；none=无变体。无法确认时unclassified。",
+    )
     kind: Literal["character", "scene", "prop"]
     name: str = Field(min_length=1)
     identity_scope: str = Field(default="", description="Distinguish same-name entities; unknown stays unknown")

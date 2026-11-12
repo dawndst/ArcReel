@@ -50,6 +50,8 @@ def synchronize(path: Path) -> dict:
         links = project.setdefault("note_asset_links", {})
         entities = project.setdefault("note_asset_entities", {})
         variants = project.setdefault("note_asset_variants", {})
+        issues = project.setdefault("note_asset_issues", {})
+        resolutions = project.setdefault("note_asset_resolutions", {})
         ensure_asset_codes(project)
         for bucket in BUCKETS.values():
             for asset in project.get(bucket, {}).values():
@@ -65,13 +67,48 @@ def synchronize(path: Path) -> dict:
                     "adaptation",
                 }:
                     continue
+                previous_issue = issues.pop(mention["id"], None)
+                resolution = resolutions.get(mention["id"], {})
                 key = entity_key(mention, note["id"])
                 bucket = project.setdefault(BUCKETS[mention["kind"]], {})
-                entity = entities.get(key)
+                anchor = links.get(mention.get("same_entity_as", ""))
+                prior_link = links.get(mention["id"], {})
+                blocking = (
+                    previous_issue.get("blocking", not bool(prior_link)) if previous_issue else not bool(prior_link)
+                )
+                entity = resolution.get("entity_id") or (
+                    None
+                    if resolution.get("create_new")
+                    else (anchor["entity_id"] if anchor else prior_link.get("entity_id") or entities.get(key))
+                )
+                if anchor and not any(a.get("asset_id") == anchor["entity_id"] for a in bucket.values()):
+                    issues[mention["id"]] = {"code": "identity_anchor_invalid", "candidates": [], "blocking": True}
+                    continue
+                if entity:
+                    entities[key] = entity
                 entry = next(((n, a) for n, a in bucket.items() if entity and a.get("asset_id") == entity), None)
                 if entity and entry is None:
                     # A creator removed/merged this asset; reading must not resurrect it.
                     continue
+                if entry is not None:
+                    entities[key] = entry[1]["asset_id"]
+                if entry is None and not entity and not resolution.get("create_new") and mention["name"] not in GENERIC:
+                    candidates = [
+                        {"entity_id": a["asset_id"], "name": n, "asset_code": a["asset_code"]}
+                        for n, a in bucket.items()
+                        if any(
+                            asset_name_comparison_key(raw) == asset_name_comparison_key(mention["name"])
+                            for raw in [n, *a.get("note_source_names", [])]
+                        )
+                        and a.get("asset_id") in entities.values()
+                    ]
+                    if candidates:
+                        issues[mention["id"]] = {
+                            "code": "identity_ambiguous",
+                            "candidates": candidates,
+                            "blocking": True,
+                        }
+                        continue
                 # Reuse an unclaimed native asset only on exact name, without a conflicting scope.
                 if entry is None and not mention.get("identity_scope") and mention["name"] not in GENERIC:
                     match = next(
@@ -107,19 +144,43 @@ def synchronize(path: Path) -> dict:
                     entities[key] = entry[1]["asset_id"]
                     registered += 1
                 name, asset = entry
+                if resolution.get("create_new"):
+                    resolution["entity_id"] = asset["asset_id"]
+                names = asset.setdefault("note_source_names", [])
+                if mention["name"] not in names:
+                    names.append(mention["name"])
                 variant = mention.get("variant", "").strip() if mention["kind"] == "character" else ""
+                variant_kind = resolution.get("variant_kind", mention.get("variant_kind", "unclassified"))
+                variant = resolution.get("variant_name", variant)
+                performance = variant if variant_kind == "performance" else ""
+                if variant_kind in {"performance", "none"}:
+                    variant = ""
                 target = asset
                 default_variant = project.get("note_asset_entity_variants", {}).get(key)
-                if default_variant and not variant:
+                if (
+                    default_variant
+                    and not variant
+                    and variant_kind != "performance"
+                    and resolution.get("variant_kind") not in {"performance", "none"}
+                ):
                     target = next(
                         (v for v in asset.get("derivatives", {}).values() if v.get("asset_id") == default_variant), None
                     )
                     if target is None:
                         continue
+                if (
+                    variant
+                    and variant_kind == "unclassified"
+                    and digest([key, variant]) not in variants
+                    and variant not in asset.get("derivatives", {})
+                ):
+                    issues[mention["id"]] = {"code": "variant_classification", "candidates": [], "blocking": blocking}
+                    variant = ""
                 if variant:
                     try:
                         validate_asset_name(variant)
                     except ValueError:
+                        issues[mention["id"]] = {"code": "variant_invalid", "candidates": [], "blocking": blocking}
                         variant = ""
                     if variant:
                         variant_key = digest([key, variant])
@@ -140,6 +201,7 @@ def synchronize(path: Path) -> dict:
                     "entity_id": asset["entity_id"],
                     "asset_code": target["asset_code"],
                     "note_id": note["id"],
+                    "performance": performance,
                 }
         store.write(path / "project.json", project)
         return {"registered": registered, "linked": len(links)}
@@ -147,21 +209,81 @@ def synchronize(path: Path) -> dict:
 
 def reference(project: dict, mention: dict) -> dict:
     link = project.get("note_asset_links", {}).get(mention["id"])
+    issue = project.get("note_asset_issues", {}).get(mention["id"])
+    problem = (
+        {
+            "asset_issue": issue["code"],
+            "identity_candidates": issue["candidates"],
+            "asset_issue_blocking": issue.get("blocking", True),
+        }
+        if issue
+        else {}
+    )
     if not link:
-        return {}
+        return {**problem, "asset_missing": True} if issue else {}
     for bucket in BUCKETS.values():
         for name, asset in project.get(bucket, {}).items():
             if asset.get("asset_id") == link["asset_id"]:
-                return {**link, "asset_name": name, "first_note": asset.get("first_note")}
+                return {**link, **problem, "asset_name": name, "first_note": asset.get("first_note")}
             for variant, value in asset.get("derivatives", {}).items():
                 if value.get("asset_id") == link["asset_id"]:
-                    return {**link, "asset_name": name, "variant": variant, "first_note": value.get("first_note")}
-    return {**link, "asset_missing": True}
+                    return {
+                        **link,
+                        **problem,
+                        "asset_name": name,
+                        "variant": variant,
+                        "first_note": value.get("first_note"),
+                    }
+    return {**link, **problem, "asset_missing": True}
 
 
 def annotate(project: dict, reading: dict | None) -> dict | None:
     if reading is None:
         return None
     result = deepcopy(reading)
-    result["assets"] = [{**a, **reference(project, a)} for a in reading.get("assets", [])]
+    result["assets"] = [
+        {
+            **a,
+            "source_variant": a.get("variant", ""),
+            **reference(project, a),
+            "variant": reference(project, a).get("variant", ""),
+        }
+        for a in reading.get("assets", [])
+    ]
     return result
+
+
+def resolve(path, project, mention_id, expected, reading_basis, entity_id, create_new, variant_kind, variant_name):
+    """Explicit identity/variant decision; source readings remain immutable."""
+    with project_metadata_lock(path):
+        project = load_json(path / "project.json")
+        notebook = store.require_current(path, project, expected)
+        readings = store.valid_readings(path, notebook)
+        found = next(((r, a) for r in readings.values() for a in r.get("assets", []) if a["id"] == mention_id), None)
+        if not found or found[0]["basis"] != reading_basis:
+            raise ValueError("资产依据已变化，请刷新后处理")
+        mention = found[1]
+        if not create_new and not any(
+            a.get("asset_id") == entity_id for a in project.get(BUCKETS[mention["kind"]], {}).values()
+        ):
+            raise ValueError("请选择该类型已存在的本体资产，或明确另建资产")
+        if variant_kind == "visual":
+            variant_name = validate_asset_name(variant_name)
+        elif variant_kind not in {"performance", "none"}:
+            raise ValueError("请明确选择视觉变体、表现或无变体")
+        live = load_json(path / "project.json")
+        previous = deepcopy(live)
+        live.setdefault("note_asset_resolutions", {})[mention_id] = {
+            "entity_id": entity_id if not create_new else None,
+            "create_new": create_new,
+            "variant_kind": variant_kind,
+            "variant_name": variant_name,
+        }
+        store.write(
+            store.root(path)
+            / "history"
+            / f"asset-resolution-{digest([mention_id, live['note_asset_resolutions'][mention_id]])}.json",
+            previous,
+        )
+        store.write(path / "project.json", live)
+    return synchronize(path)

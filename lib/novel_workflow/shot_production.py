@@ -142,7 +142,8 @@ def asset_bindings(project, reading, shot):
                     "asset_code": latest.get("asset_code", asset.get("asset_code")),
                     "variant": latest.get("variant"),
                     "segments": [i for i, seg in enumerate(shot["segments"]) if name in seg.get(field, [])],
-                    "missing": not bool(latest.get("asset_id", asset.get("asset_id"))),
+                    "missing": not bool(latest.get("asset_id", asset.get("asset_id")))
+                    or bool(latest.get("asset_issue") and latest.get("asset_issue_blocking", True)),
                 }
             )
     return result

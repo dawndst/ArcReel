@@ -2196,6 +2196,12 @@ class API {
   static async dissolveNoteGroup(name: string, id: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/groups/${encodeURIComponent(id)}`, { method: "DELETE" });
   }
+  static async getSceneBatchSource(name: string, basis: string): Promise<{ text: string; source_file: string; start: number; end: number; note_title: string; part: number }> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/scene-batches/${encodeURIComponent(basis)}/source`);
+  }
+  static async resolveNoteAsset(name: string, id: string, values: { source_basis: string; reading_basis: string; entity_id: string; create_new: boolean; variant_kind: "visual" | "performance" | "none"; variant_name: string }): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/assets/${encodeURIComponent(id)}/identity`, { method: "POST", body: JSON.stringify(values) });
+  }
   static async getChapterEdition(name: string, id: string): Promise<import("@/types/novel-workflow").ChapterEdition> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/notes/${encodeURIComponent(id)}/edition`);
   }

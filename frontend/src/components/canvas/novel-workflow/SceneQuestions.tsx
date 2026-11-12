@@ -20,7 +20,7 @@ export function SceneQuestions({ batch, disabled, confirm, locate, source, shotL
   return <div className="space-y-3">
     {review.unresolved.map((question, index) => <article key={index} className="space-y-3 rounded border border-warn/40 p-3">
       <p className="text-sm font-medium">{index + 1}. {question.replace(/utterances/gi, t("nw_question_dialogue"))}</p>
-      <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={source}>{t("nw_evidence")}</Button>{missing.map((shot) => <Button key={shot.id} size="sm" variant="outline" onClick={() => locate(shot.id)}>{t("nw_question_locate", { shot: shotLabels.get(shot.id) ?? shot.id })}</Button>)}</div>
+      <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={source}>{t("nw_batch_source")}</Button>{missing.map((shot) => <Button key={shot.id} size="sm" variant="outline" onClick={() => locate(shot.id)}>{t("nw_question_locate", { shot: shotLabels.get(shot.id) ?? shot.id })}</Button>)}</div>
       <p className="text-xs text-muted-foreground">{t("nw_question_hint")}</p>
       {confirm && <>
         <div className="flex flex-wrap gap-2">

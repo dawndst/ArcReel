@@ -143,6 +143,55 @@ async def note_edition(name: str, note_id: str):
     return await invoke(name, read)
 
 
+@router.get("/projects/{name}/novel-workflow/scene-batches/{basis}/source")
+async def scene_batch_source(name: str, basis: str):
+    def read(path, project):
+        from lib.novel_workflow.scene_library import catalog, valid_batch
+
+        notebook = store.state(path)
+        if not notebook:
+            raise ValueError("No Notes")
+        store.require_current(path, project, notebook["source_basis"])
+        batch = next((b for b in catalog(path)["batches"].values() if b["basis"] == basis), None)
+        if not batch or not valid_batch(path, batch, notebook, store.valid_readings(path, notebook)):
+            raise ValueError("场镜依据已变化，请刷新后查看原文")
+        note = next(n for n in notebook["notes"] if n["id"] == batch["note_id"])
+        chunk = chapters.chunks(path, project, note)[batch["part"]]
+        return {**chunk, "note_title": note["title"], "part": batch["part"] + 1}
+
+    return await invoke(name, read)
+
+
+class AssetIdentityRequest(SourceRequest):
+    reading_basis: str
+    entity_id: str = ""
+    create_new: bool = False
+    variant_kind: Literal["visual", "performance", "none"]
+    variant_name: str = Field(default="", max_length=200)
+
+
+@router.post(
+    "/projects/{name}/novel-workflow/assets/{mention_id}/identity", dependencies=[Depends(require_project_migration_ok)]
+)
+async def resolve_asset_identity(name: str, mention_id: str, req: AssetIdentityRequest):
+    from lib.novel_workflow.assets import resolve
+
+    return await invoke(
+        name,
+        lambda path, project: resolve(
+            path,
+            project,
+            mention_id,
+            req.source_basis,
+            req.reading_basis,
+            req.entity_id,
+            req.create_new,
+            req.variant_kind,
+            req.variant_name,
+        ),
+    )
+
+
 class GroupUsageRequest(SourceRequest):
     usage: Literal["reference", "candidate"]
 

@@ -37,9 +37,12 @@ def evidence(text: str, quote: str, part: dict) -> dict:
     }
 
 
-def ground(reading: Reading, part: dict, seed_ids=frozenset()) -> dict:
+def ground(reading: Reading, part: dict, seed_ids=frozenset(), identity_ids=frozenset()) -> dict:
     data = reading.model_dump()
     data["questions"] = list(dict.fromkeys([*data["questions"], *(q["text"] for q in data["reading_questions"])]))
+    for mention in data["assets"]:
+        if mention.get("same_entity_as") and mention["same_entity_as"] not in identity_ids:
+            raise ValueError("Asset identity anchor must refer to a supplied earlier asset record")
     for thread in data["threads"]:
         if thread["kind"] == "seed" and thread["seed_id"] is not None:
             raise ValueError("A new seed cannot resolve another seed")
@@ -112,7 +115,9 @@ async def ask(
     raise ValueError("模型输出未通过原文或结构校验，已保留响应及完成片段，可修正后重试。" + error)
 
 
-async def read_part(path, generator, note, part, rules, rolling, expected, seed_ids=frozenset()):
+async def read_part(
+    path, generator, note, part, rules, rolling, expected, seed_ids=frozenset(), identity_ids=frozenset()
+):
     key = digest([note["basis"], rules, part["source_file"], part["start"], part["end"], rolling])
     target = store.root(path) / "parts" / f"{key}.json"
     if await asyncio.to_thread(target.exists):
@@ -127,7 +132,7 @@ async def read_part(path, generator, note, part, rules, rolling, expected, seed_
                 generator,
                 Reading,
                 prompt,
-                lambda value: ground(value, part, seed_ids) if value.complete else None,
+                lambda value: ground(value, part, seed_ids, identity_ids) if value.complete else None,
             )
             await asyncio.to_thread(current, path, expected)
             if data is not None:
@@ -146,12 +151,17 @@ async def read_part(path, generator, note, part, rules, rolling, expected, seed_
         child_context = rolling + "\n" + "\n".join(v["summary"] for v in results[-2:])[-2500:]
         extra_records = []
         for previous in results:
-            for record in previous["threads"] + previous["aliases"]:
+            for record in previous["threads"] + previous["aliases"] + previous["assets"]:
                 if len(json.dumps([*extra_records, record], ensure_ascii=False)) <= 5000:
                     extra_records.append(record)
         child_context += "\n已读子块台账：" + json.dumps(extra_records, ensure_ascii=False)
         child_seeds = seed_ids | {v["id"] for v in extra_records if v.get("kind") == "seed"}
-        results.extend(await read_part(path, generator, note, child, rules, child_context, expected, child_seeds))
+        child_identities = identity_ids | {
+            v["id"] for v in extra_records if v.get("kind") in {"character", "scene", "prop"}
+        }
+        results.extend(
+            await read_part(path, generator, note, child, rules, child_context, expected, child_seeds, child_identities)
+        )
     return results
 
 
@@ -203,7 +213,10 @@ async def read_notes(path: Path, generator, note_ids: list[str], expected: str) 
                 )
                 supplied = memory.context(book, part["text"])
                 seed_ids = {v["id"] for v in supplied["records"] if v.get("kind") == "seed"}
-                extracted.extend(await read_part(path, generator, note, part, rules, rolling, expected, seed_ids))
+                identity_ids = {v["id"] for v in supplied["records"] if v.get("kind") in {"character", "scene", "prop"}}
+                extracted.extend(
+                    await read_part(path, generator, note, part, rules, rolling, expected, seed_ids, identity_ids)
+                )
             await asyncio.to_thread(current, path, expected)
             progress.update(phase="summarizing", part=0, parts=0)
             await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)

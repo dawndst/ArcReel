@@ -178,3 +178,23 @@ def test_scene_excerpt_expansion_restores_omitted_source_and_rejects_ambiguity()
         expand_scene_excerpt(source + "乙离开。", "甲开门。……乙离开。")
     with pytest.raises(ValueError, match="唯一"):
         locate(source, "甲开门。……乙离开。")
+
+
+def test_asset_identity_anchor_cannot_reference_unsupplied_or_future_records():
+    value = Reading(
+        summary="阳子回头",
+        complete=True,
+        assets=[
+            {
+                "kind": "character",
+                "name": "阳子",
+                "description": "回头",
+                "quote": "阳子回头",
+                "same_entity_as": "earlier-asset",
+            }
+        ],
+    )
+    part = {"text": "阳子回头", "start": 0, "note_id": "n", "source_file": "book"}
+    with pytest.raises(ValueError, match="supplied earlier asset"):
+        ground(value, part)
+    assert ground(value, part, identity_ids={"earlier-asset"})["assets"][0]["same_entity_as"] == "earlier-asset"

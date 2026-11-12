@@ -240,6 +240,8 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                 }:
                     continue
                 ref = reference(project, asset)
+                if ref.get("asset_issue") and ref.get("asset_issue_blocking", True):
+                    raise ValueError("Note中有待确认的资产身份或视觉变体，请先处理资产关联")
                 if ref.get("asset_missing"):
                     raise ValueError("原文关联资产已删除，请先处理资产引用")
                 name = ref.get("asset_name", asset["name"])
@@ -248,7 +250,8 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                         "name": name,
                         "raw_name": asset["name"],
                         "kind": asset["kind"],
-                        "variant": asset.get("variant"),
+                        "variant": ref.get("variant", ""),
+                        "performance": ref.get("performance", ""),
                         "evidence": asset["evidence"],
                     }
                 )
@@ -293,6 +296,7 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                     "note_title": note["title"],
                     "reading_material": material(edition, reading, chunk),
                     "assets": local_assets,
+                    "asset_usage_policy": "performance仅为声音或行为说明，不是视觉形态；只闻其声不代表人物在画面中，不得据此制造图片变体。",
                     "known": known["links"],
                     "duration_options": durations,
                     "mainline_links": [

@@ -16,6 +16,7 @@ def mention(note, record="m1", name="景麒", scope="", variant=""):
         "identity_scope": scope,
         "description": "本章的人物外观",
         "variant": variant,
+        "variant_kind": "visual" if variant else "none",
         "evidence": {"note_id": note["id"], "quote": "原文依据"},
     }
 
@@ -54,6 +55,9 @@ def test_variants_scopes_and_deletion(tmp_path):
     a, b, c = mention(note), mention(note, "beast", variant="兽形"), mention(note, "other", scope="另一个同名人物")
     save_reading(tmp_path, note, [a, b, c])
     assets.synchronize(tmp_path)
+    data = load_json(tmp_path / "project.json")
+    assert assets.reference(data, c)["asset_issue"] == "identity_ambiguous"
+    assets.resolve(tmp_path, data, c["id"], book["source_basis"], note["basis"], "", True, "none", "")
     data = load_json(tmp_path / "project.json")
     refs = [assets.reference(data, item) for item in [a, b, c]]
     assert len({r["asset_code"] for r in refs}) == 3
@@ -162,3 +166,61 @@ def test_first_appearance_uses_source_order_and_tracks_variant_separately(tmp_pa
     saved = load_json(tmp_path / "project.json")["characters"]["景麒"]
     assert saved["first_note"] == {"id": first["id"], "order": first["order"], "title": first["title"]}
     assert saved["derivatives"]["兽形"]["first_note"]["id"] == later["id"]
+
+
+def test_identity_anchor_ignores_descriptive_scope_changes(tmp_path):
+    _, book = project(tmp_path)
+    note = book["notes"][0]
+    a = mention(note, scope="怪物")
+    b = {**mention(note, "m2", scope="未知妖魔"), "same_entity_as": a["id"]}
+    save_reading(tmp_path, note, [a, b])
+    assets.synchronize(tmp_path)
+    data = load_json(tmp_path / "project.json")
+    assert len(data["characters"]) == 1
+    assert assets.reference(data, a)["entity_id"] == assets.reference(data, b)["entity_id"]
+
+
+def test_sound_is_not_visual_and_invalid_variant_is_not_silently_lost(tmp_path):
+    _, book = project(tmp_path)
+    note = book["notes"][0]
+    a = {**mention(note, variant="幻听/笑声"), "variant_kind": "performance"}
+    save_reading(tmp_path, note, [a])
+    assets.synchronize(tmp_path)
+    data = load_json(tmp_path / "project.json")
+    assert not data["characters"]["景麒"].get("derivatives")
+    assert assets.reference(data, a)["performance"] == "幻听/笑声"
+    b = {**a, "id": "invalid", "variant_kind": "visual"}
+    save_reading(tmp_path, note, [b])
+    assets.synchronize(tmp_path)
+    data = load_json(tmp_path / "project.json")
+    assert assets.reference(data, b)["asset_issue"] == "variant_invalid"
+    assets.resolve(
+        tmp_path,
+        data,
+        b["id"],
+        book["source_basis"],
+        note["basis"],
+        data["characters"]["景麒"]["asset_id"],
+        False,
+        "performance",
+        "只闻笑声",
+    )
+    assets.synchronize(tmp_path)
+    data = load_json(tmp_path / "project.json")
+    assert not assets.reference(data, b).get("asset_issue")
+    assert assets.reference(data, b)["performance"] == "只闻笑声"
+    assert len(data["characters"]) == 1
+
+
+def test_new_unclassified_variant_stays_pending_until_explicit_resolution(tmp_path):
+    _, book = project(tmp_path)
+    note = book["notes"][0]
+    a = {**mention(note, variant="言语诱惑"), "variant_kind": "unclassified"}
+    save_reading(tmp_path, note, [a])
+    assets.synchronize(tmp_path)
+    assets.synchronize(tmp_path)
+    data = load_json(tmp_path / "project.json")
+    ref = assets.reference(data, a)
+    assert ref["asset_issue"] == "variant_classification"
+    assert ref["asset_issue_blocking"] is True
+    assert not data["characters"]["景麒"].get("derivatives")
