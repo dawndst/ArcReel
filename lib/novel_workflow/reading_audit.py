@@ -20,6 +20,15 @@ async def audit(path, generator, extracted, part, seed_ids, identity_ids):
     from lib.novel_workflow.service import ask, ground
 
     rules = await asyncio.to_thread(store.effective_rule, path, "read_review")
+
+    async def validate(value):
+        from lib.novel_workflow.quote_locations import resolve
+
+        if not value.complete:
+            return reject_incomplete()
+        value = await resolve(path, generator, value, part)
+        return ground(value, part, seed_ids, identity_ids)
+
     return await ask(
         path,
         generator,
@@ -37,7 +46,7 @@ async def audit(path, generator, extracted, part, seed_ids, identity_ids):
             },
             ensure_ascii=False,
         ),
-        lambda value: ground(value, part, seed_ids, identity_ids) if value.complete else reject_incomplete(),
+        validate,
         grow_output=True,
         max_output_tokens=min(getattr(generator, "max_output_tokens", 24000), max(12000, len(part["text"]) * 4)),
     )

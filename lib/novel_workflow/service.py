@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from functools import partial
+from inspect import isawaitable
 from pathlib import Path
 from uuid import uuid4
 
@@ -37,7 +38,7 @@ def evidence(text: str, quote: str, part: dict) -> dict:
     }
 
 
-def dialogue_evidence(part, dialogue):
+def claim_evidence(part, dialogue):
     context = dialogue.get("context_quote", "")
     if context:
         start, end = locate(part["text"], context)
@@ -46,7 +47,7 @@ def dialogue_evidence(part, dialogue):
         return evidence(part["text"], dialogue["quote"], part)
     except ValueError as exc:
         raise ValueError(
-            "对白可能重复或引句不精确；quote只保留原话，并填写context_quote：包含本次发言及前后叙述、能唯一定位的连续原文。对白："
+            "引句可能重复或不精确；逐项检查所有记录和对白的重复quote，并填写context_quote：包含本次引用及前后叙述、能唯一定位的连续原文。quote仍保留原句。当前引句："
             + dialogue["quote"][:100]
         ) from exc
 
@@ -64,12 +65,12 @@ def ground(reading: Reading, part: dict, seed_ids=frozenset(), identity_ids=froz
             raise ValueError("Resolution references a seed outside the supplied past evidence")
     for bucket in memory.BUCKETS:
         for item in data[bucket]:
-            item["evidence"] = evidence(part["text"], item["quote"], part)
+            item["evidence"] = claim_evidence(part, item)
             item["quote"] = item["evidence"]["quote"]
             item["id"] = digest([bucket, item])[:24]
             if bucket == "events":
                 for dialogue in item["dialogues"]:
-                    dialogue["evidence"] = dialogue_evidence(part, dialogue)
+                    dialogue["evidence"] = claim_evidence(part, dialogue)
                     dialogue["quote"] = dialogue["evidence"]["quote"]
                     dialogue["id"] = digest(["dialogue", dialogue["evidence"]])[:24]
     return data
@@ -137,9 +138,10 @@ async def ask(
             {"text": response.text, "created_at": now()},
         )
         try:
-            return validate(
+            result = validate(
                 schema.model_validate_json(strip_json_code_fences(response.text), context={"model_output": True})
             )
+            return await result if isawaitable(result) else result
         except (ValidationError, ValueError) as exc:
             validation_failures += 1
             error = "\n修正上次输出中的问题，不删掉原始事实：" + str(exc)[:2200]
@@ -170,20 +172,50 @@ async def read_part(
         }
         try:
             draft_file = store.root(path) / "reading_drafts" / f"{key}.json"
+            candidate_file = store.root(path) / "reading_candidates" / f"{key}.json"
+
+            async def validate_reading(value):
+                if not value.complete:
+                    return None
+                from lib.novel_workflow.quote_locations import resolve
+
+                await run_noninterruptible_sync(store.write, candidate_file, value.model_dump())
+                value = await resolve(path, generator, value, part)
+                return ground(value, part, seed_ids, identity_ids)
+
             if await asyncio.to_thread(draft_file.exists):
                 data = await asyncio.to_thread(load_json, draft_file)
             else:
-                data = await ask(
-                    path,
-                    generator,
-                    Reading,
-                    prompt,
-                    lambda value: ground(value, part, seed_ids, identity_ids) if value.complete else None,
-                    grow_output=True,
-                    max_output_tokens=min(
-                        getattr(generator, "max_output_tokens", 24000), max(12000, len(part["text"]) * 4)
-                    ),
-                )
+                if await asyncio.to_thread(candidate_file.exists):
+                    candidate = Reading.model_validate(
+                        await asyncio.to_thread(load_json, candidate_file), context={"model_output": True}
+                    )
+                    try:
+                        data = await validate_reading(candidate)
+                    except ValueError as exc:
+                        data = await ask(
+                            path,
+                            generator,
+                            Reading,
+                            {**prompt, "repair": str(exc), "draft": candidate.model_dump()},
+                            validate_reading,
+                            grow_output=True,
+                            max_output_tokens=min(
+                                getattr(generator, "max_output_tokens", 24000), max(12000, len(part["text"]) * 4)
+                            ),
+                        )
+                else:
+                    data = await ask(
+                        path,
+                        generator,
+                        Reading,
+                        prompt,
+                        validate_reading,
+                        grow_output=True,
+                        max_output_tokens=min(
+                            getattr(generator, "max_output_tokens", 24000), max(12000, len(part["text"]) * 4)
+                        ),
+                    )
                 if data is not None:
                     await run_noninterruptible_sync(store.write, draft_file, data)
             await asyncio.to_thread(current, path, expected)

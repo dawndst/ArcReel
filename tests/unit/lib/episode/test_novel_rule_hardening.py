@@ -267,14 +267,69 @@ def test_rule_change_keeps_historical_edition_browsable_without_reusing_it_for_p
 
 
 def test_repeated_short_dialogue_requires_unique_context_and_keeps_only_spoken_words():
-    from lib.novel_workflow.service import dialogue_evidence
+    from lib.novel_workflow.service import claim_evidence
 
     text = "甲摇头说：『我不要。』乙随后喊：『我不要。』"
     part = {"text": text, "start": 100, "source_file": "book", "note_id": "n1"}
     with pytest.raises(ValueError, match="context_quote"):
-        dialogue_evidence(part, {"quote": "『我不要。』"})
-    resolved = dialogue_evidence(part, {"quote": "『我不要。』", "context_quote": "乙随后喊：『我不要。』"})
+        claim_evidence(part, {"quote": "『我不要。』"})
+    resolved = claim_evidence(part, {"quote": "『我不要。』", "context_quote": "乙随后喊：『我不要。』"})
     assert resolved["start"] == 100 + text.rindex("『我不要。』")
     assert resolved["quote"] == "『我不要。』"
     with pytest.raises(ValueError, match="唯一"):
-        dialogue_evidence(part, {"quote": "『我不要。』", "context_quote": text})
+        claim_evidence(part, {"quote": "『我不要。』", "context_quote": text})
+
+
+async def test_ambiguous_citation_uses_small_source_choice_and_keeps_extraction_text(tmp_path):
+    from lib.novel_workflow.models import Reading
+    from lib.novel_workflow.quote_locations import resolve
+    from lib.novel_workflow.service import ground
+
+    text = "甲回头说：『不要。』乙走远后喊：『不要。』"
+    reading = Reading(
+        complete=True,
+        summary="甲乙说话",
+        events=[
+            {
+                "title": "乙走远后拒绝",
+                "cause": "未知",
+                "conflict": "未知",
+                "action": "乙拒绝",
+                "outcome": "未知",
+                "quote": "乙走远后喊：『不要。』",
+                "dialogues": [{"speaker": "乙", "quote": "『不要。』", "value": "拒绝"}],
+            }
+        ],
+    )
+    part = {"text": text, "start": 0, "source_file": "book", "note_id": "n1"}
+
+    class Locator:
+        calls = 0
+
+        async def generate(self, request, **_kwargs):
+            self.calls += 1
+            batch = json.loads(request.prompt.split("引用定位候选：", 1)[1].split("\n只输出 JSON", 1)[0])
+            options = batch[0]["candidates"]
+            chosen = next(v for v in options if "乙走远后喊：『不要。』" in v["context_quote"])
+            return SimpleNamespace(
+                text=json.dumps(
+                    {
+                        "locations": [
+                            {
+                                "record_id": batch[0]["record_id"],
+                                "candidate_id": chosen["id"],
+                                "reason": "乙走远后发言的上下文",
+                            }
+                        ]
+                    }
+                )
+            )
+
+    generator = Locator()
+    await resolve(tmp_path, generator, reading, part)
+    result = ground(reading, part)
+    utterance = result["events"][0]["dialogues"][0]
+    assert utterance["quote"] == "『不要。』"
+    assert utterance["evidence"]["start"] == text.rindex("『不要。』")
+    assert result["events"][0]["action"] == "乙拒绝"
+    assert generator.calls == 1
