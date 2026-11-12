@@ -5,14 +5,61 @@ from __future__ import annotations
 import asyncio
 import json
 from functools import partial
+from typing import Literal
 from uuid import uuid4
+
+from pydantic import Field
 
 from lib.infra.async_thread import run_noninterruptible_sync
 from lib.infra.json_io import load_json
 from lib.novel_understanding.service import NovelReadingInterrupted, check_stop
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import memory, store, synthesis
-from lib.novel_workflow.models import RangeConclusion, ScopeReview
+from lib.novel_workflow.models import AdaptationAdvice, RangeConclusion, ScopeReview
+
+
+class SingleNoteAdvice(AdaptationAdvice):
+    action: Literal["keep", "compress", "omit_candidate"]
+
+
+class SingleNoteReview(ScopeReview):
+    advice: list[SingleNoteAdvice] = Field(min_length=1)
+
+
+def batch_prompt(rules, marker, batch, facts, note_ids):
+    boundary = {
+        "allowed_note_ids": sorted(note_ids),
+        "allowed_evidence": {i: v["evidence"]["note_id"] for i, v in facts.items()},
+        "allowed_actions": ["keep", "compress", "omit_candidate"] + (["combine"] if len(note_ids) > 1 else []),
+    }
+    return (
+        rules
+        + "\n本批引用边界："
+        + json.dumps(boundary, ensure_ascii=False)
+        + "\n只可使用allowed_note_ids中的真实ID，不得用章节序号、标题或证据ID替代Note ID。"
+        "note_ids不得重复。combine仅用于至少两个不同Note；同一章内部的段落压缩使用compress，不是combine。"
+        "建议的evidence_ids必须来自本批allowed_evidence，且每个涉及Note均须有其自身证据。"
+        + marker
+        + json.dumps(batch, ensure_ascii=False)
+    )
+
+
+def overview_material(sections, notes):
+    titles = {n["id"]: n["title"] for n in notes}
+    advice = [a for section in sections for a in section["advice"]]
+    nodes = []
+    for batch in synthesis.packs(advice, 16000):
+        ids = sorted({i for a in batch for i in a["note_ids"]})
+        nodes.append(
+            {
+                "note_id": ids[0] if len(ids) == 1 else None,
+                "note_ids": ids,
+                "titles": {i: titles[i] for i in ids},
+                "evidence_ids": list(dict.fromkeys(i for a in batch for i in a["evidence_ids"])),
+                "advice": batch,
+            }
+        )
+    return nodes
 
 
 def validate(value, facts, note_ids):
@@ -20,7 +67,11 @@ def validate(value, facts, note_ids):
     for advice in value.advice:
         selected = set(advice.note_ids)
         if not selected <= note_ids:
-            raise ValueError("Advice references a Note outside this range")
+            raise ValueError(
+                "Advice references a Note outside this range; allowed note_ids: " + ", ".join(sorted(note_ids))
+            )
+        if len(advice.note_ids) != len(selected):
+            raise ValueError("note_ids must not repeat; use compress for passages within one Note")
         if advice.action == "combine" and len(selected) < 2:
             raise ValueError("Combining requires two distinct Notes")
         if any(i not in facts or facts[i]["evidence"]["note_id"] not in selected for i in advice.evidence_ids):
@@ -65,7 +116,14 @@ async def review_scope(path, generator, note_ids, expected):
         else {"cursor": 0, "sections": []}
     )
     batches = list(synthesis.packs(inputs, 26000))
-    progress = {"phase": "review", "total": len(batches), "done": run["cursor"], "started_at": now()}
+    progress = {
+        "phase": "review",
+        "step": "analysis",
+        "total": len(batches),
+        "done": run["cursor"],
+        "started_at": now(),
+    }
+    await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
     try:
         while run["cursor"] < len(batches):
             check_stop()
@@ -75,8 +133,8 @@ async def review_scope(path, generator, note_ids, expected):
             result = await ask(
                 path,
                 generator,
-                ScopeReview,
-                rules + "\n本次已读范围材料：" + json.dumps(batch, ensure_ascii=False),
+                SingleNoteReview if len(ids) == 1 else ScopeReview,
+                batch_prompt(rules, "\n本次已读范围材料：", batch, batch_facts, ids),
                 partial(validate, facts=batch_facts, note_ids=ids),
             )
             run["sections"].append(result)
@@ -85,30 +143,15 @@ async def review_scope(path, generator, note_ids, expected):
             progress["done"] = run["cursor"]
             await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
         # A second bounded pass reviews advice across batch boundaries, retaining first-pass details.
-        overview_nodes = []
-        for note in notes:
-            advice = [a for section in run["sections"] for a in section["advice"] if note["id"] in a["note_ids"]]
-            for advice_batch in synthesis.packs(advice, 16000):
-                evidence_ids = list(
-                    dict.fromkeys(
-                        i
-                        for a in advice_batch
-                        for i in a["evidence_ids"]
-                        if facts[i]["evidence"]["note_id"] == note["id"]
-                    )
-                )
-                overview_nodes.append(
-                    {
-                        "note_id": note["id"],
-                        "title": note["title"],
-                        "evidence_ids": evidence_ids,
-                        "advice": advice_batch,
-                    }
-                )
+        # Keep cross-Note advice and all its evidence together; never split it by owner Note.
+        overview_nodes = overview_material(run["sections"], notes)
         overview = []
-        for batch in synthesis.packs(overview_nodes, 26000):
+        summary_batches = list(synthesis.packs(overview_nodes, 26000))
+        progress.update(step="overview", done=0, total=len(summary_batches))
+        await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
+        for batch in summary_batches:
             check_stop()
-            ids = {v["note_id"] for v in batch}
+            ids = {i for v in batch for i in v["note_ids"]}
             allowed = {i: facts[i] for v in batch for i in v["evidence_ids"]}
             await asyncio.to_thread(current, path, expected)
             summary_key = digest([rules, batch, "advice"])
@@ -119,12 +162,14 @@ async def review_scope(path, generator, note_ids, expected):
                 result = await ask(
                     path,
                     generator,
-                    ScopeReview,
-                    rules + "\n汇总已完成的取舍分析，检查跨章因果与组合建议：" + json.dumps(batch, ensure_ascii=False),
+                    SingleNoteReview if len(ids) == 1 else ScopeReview,
+                    batch_prompt(rules, "\n汇总已完成的取舍分析，检查跨章因果与组合建议：", batch, allowed, ids),
                     partial(validate, facts=allowed, note_ids=ids),
                 )
                 await run_noninterruptible_sync(store.write, cache, result)
             overview.append(result)
+            progress["done"] = len(overview)
+            await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
         nodes = [
             {
                 "theme": section["theme"],
@@ -137,7 +182,10 @@ async def review_scope(path, generator, note_ids, expected):
         ]
         while True:
             next_level = []
-            for batch in synthesis.packs(nodes, 24000):
+            conclusion_batches = list(synthesis.packs(nodes, 24000))
+            progress.update(step="conclusion", done=0, total=len(conclusion_batches))
+            await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
+            for batch in conclusion_batches:
                 allowed_ids = {i for node in batch for i in node["evidence_ids"]}
 
                 def valid_conclusion(value, allowed_ids=allowed_ids):
@@ -159,6 +207,8 @@ async def review_scope(path, generator, note_ids, expected):
                     )
                     await run_noninterruptible_sync(store.write, cache, conclusion)
                 next_level.append(conclusion)
+                progress["done"] = len(next_level)
+                await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
             if len(next_level) == 1:
                 conclusion = next_level[0]
                 break
@@ -193,7 +243,7 @@ async def review_scope(path, generator, note_ids, expected):
                 store.write, store.root(path) / "history" / f"review-{uuid4().hex}.json", old
             )
         await run_noninterruptible_sync(store.write, target, result)
-        progress.update(phase="complete", done=len(batches))
+        progress.update(phase="complete", done=progress["total"])
         return {"review_id": key, "notes": len(notes)}
     except Exception as exc:
         progress.update(phase="stopped" if isinstance(exc, NovelReadingInterrupted) else "failed", error=str(exc))
