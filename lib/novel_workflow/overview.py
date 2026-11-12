@@ -34,8 +34,10 @@ def snapshot(path, project):
     readings = store.valid_readings(path, notebook)
     notes = [n for n in notebook["notes"] if n["id"] in allowed]
     if not notes or any(n["id"] not in readings or not readings[n["id"]].get("overview") for n in notes):
-        raise WorkflowError("当前可用范围还有未生成或已过期的 Notes。请泛读生成 Notes，或缩小可用范围，再生成故事设定。")
-    rule = store.rule(path, "overview")
+        raise WorkflowError(
+            "当前可用范围还有未生成或已过期的 Notes。请泛读生成 Notes，或缩小可用范围，再生成故事设定。"
+        )
+    rule = store.effective_rule(path, "overview")
     bases = {n["id"]: readings[n["id"]]["basis"] for n in notes}
     nodes = []
     for note in notes:

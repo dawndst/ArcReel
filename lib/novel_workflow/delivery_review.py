@@ -160,8 +160,8 @@ def preview(path, project, shot_ids, title, expected):
             title.strip(),
             [execution.content_basis(s) for _, _, s in selected],
             [{k: v for k, v in a.items() if k not in {"image", "image_hash"}} for a in assets],
-            store.rule(path, "shot_execution"),
-            store.rule(path, "selection_story"),
+            store.effective_rule(path, "shot_execution"),
+            store.effective_rule(path, "selection_story"),
         ]
     )
     file = store.root(path) / "delivery_reviews" / f"{basis}.json"
@@ -373,10 +373,13 @@ def export(path, project, shot_ids, title, expected, *, final=False):
             )
             links = shot["story_links"]
             lines.append("主线事件：" + (links["svt_id"] or "待编导补充"))
-            lines.extend("事件："
-                    + event.get("title", "")
-                    + "\n"
-                    + "；".join(event.get(k, "") for k in ("cause", "conflict", "action", "outcome")) for event in links["events"])
+            lines.extend(
+                "事件："
+                + event.get("title", "")
+                + "\n"
+                + "；".join(event.get(k, "") for k in ("cause", "conflict", "action", "outcome"))
+                for event in links["events"]
+            )
             for moment in links["moments"]:
                 lines.append("爆点场面：" + moment["scene"])
                 lines.extend(

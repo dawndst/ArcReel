@@ -10,9 +10,9 @@ it("adds chapters by default and previews a scope restriction without hiding sav
   expect(save).not.toHaveBeenCalled();
   expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
   fireEvent.click(screen.getByText(/制作与检索范围/));
-  fireEvent.click(screen.getByRole("button", { name: "将所选章节加入可用范围" }));
+  fireEvent.click(screen.getByRole("button", { name: "追加输入章节（保留现有范围）" }));
   expect(save).toHaveBeenLastCalledWith(true);
-  fireEvent.click(screen.getByRole("button", { name: "仅使用所选章节…" }));
+  fireEvent.click(screen.getByRole("button", { name: "将可用范围限定为输入章节…" }));
   expect(save).toHaveBeenCalledTimes(1);
   expect(screen.getByText(/1 章将暂不参与制作与检索/)).toBeVisible();
   expect(screen.getByText(/已生成的 Note、精简稿和素材不会删除/)).toBeVisible();

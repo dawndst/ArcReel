@@ -116,7 +116,7 @@ async def generate(path, generator, note_ids, expected, shot_ids):
     data = await asyncio.to_thread(snapshot, path, expected, note_ids, shot_ids[0])
     if not data["pending"]:
         return {"suggested": 0}
-    rule = await asyncio.to_thread(store.rule, path, "speaker_attribution")
+    rule = await asyncio.to_thread(store.effective_rule, path, "speaker_attribution")
     await run_noninterruptible_sync(
         store.write, store.root(path) / "progress.json", {"phase": "speaker_attribution", "done": 0, "total": 1}
     )
@@ -147,7 +147,7 @@ async def generate(path, generator, note_ids, expected, shot_ids):
     def commit():
         with project_metadata_lock(path):
             fresh = snapshot(path, expected, note_ids, shot_ids[0])
-            if fresh != data or store.rule(path, "speaker_attribution") != rule:
+            if fresh != data or store.effective_rule(path, "speaker_attribution") != rule:
                 raise ValueError("镜头、原文或候选人物已变化，请刷新后重试补判")
             library = catalog(path)
             batch = next(b for b in library["batches"].values() if b["basis"] == data["batch_basis"])

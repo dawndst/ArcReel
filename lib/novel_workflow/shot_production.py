@@ -226,7 +226,7 @@ async def complete_batch(path, generator, batch, reading, project, chunk):
     from lib.novel_workflow.service import ask
 
     ctx = await asyncio.to_thread(context, path, reading, chunk)
-    rules = await asyncio.to_thread(store.rule, path, "shot_production")
+    rules = await asyncio.to_thread(store.effective_rule, path, "shot_production")
     shots = {sh["id"]: sh for sc in batch["scenes"] for sh in sc["shots"]}
     clean, bindings, basis = planning_inputs(ctx, rules, shots, project, reading)
     if batch.get("production_basis") == basis and all(sh.get("production") for sh in shots.values()):

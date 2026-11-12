@@ -38,6 +38,9 @@ class Reader:
                     }
                 )
             )
+        if "抽取审核材料：" in request.prompt:
+            payload = json.JSONDecoder().raw_decode(request.prompt.split("抽取审核材料：", 1)[1])[0]
+            return SimpleNamespace(text=json.dumps(payload["draft"]))
         self.calls += 1
         if "章节材料：" in request.prompt:
             nodes = json.loads(request.prompt.split("章节材料：", 1)[1].split("\n只输出 JSON", 1)[0])
@@ -63,11 +66,24 @@ class Reader:
                 {
                     "complete": True,
                     "summary": quote,
-                    "assets": [{"kind": "character", "name": quote[0], "description": "原文明示行为", "quote": quote}],
+                    "assets": [
+                        {
+                            "claim_type": "fact",
+                            "source_kind": "narrative",
+                            "perspective": "",
+                            "kind": "character",
+                            "name": quote[0],
+                            "description": "原文明示行为",
+                            "quote": quote,
+                        }
+                    ],
                     "changes": [],
                     "events": [
                         {
                             "title": quote,
+                            "claim_type": "fact",
+                            "source_kind": "narrative",
+                            "perspective": "",
                             "cause": "未明",
                             "conflict": "未明",
                             "action": quote,
@@ -217,7 +233,7 @@ def test_ledger_preserves_reveal_order_alias_evidence_and_seed_resolution(tmp_pa
             complete=True,
             summary=quote,
             assets=[{"kind": "character", "name": "乙", "description": "开门者", "quote": quote}],
-            aliases=[{"name": "甲", "alias": "乙", "quote": quote}],
+            aliases=[{"claim_type": "fact", "source_kind": "narrative", "name": "甲", "alias": "乙", "quote": quote}],
             changes=[
                 {"character": "甲", "before": "未知", "after": "身份揭晓", "dimension": "knowledge", "quote": quote}
             ],

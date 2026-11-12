@@ -29,7 +29,7 @@ def svt_event_tags(path, note_id, reading):
     value = load_json(file)
     if (
         value.get("schema_version") != 2
-        or value.get("rule_basis") != digest(store.rule(path, "svt"))
+        or value.get("rule_basis") != digest(store.effective_rule(path, "svt"))
         or value.get("note_bases", {}).get(note_id) != reading["basis"]
     ):
         return []
@@ -47,7 +47,9 @@ def svt_event_tags(path, note_id, reading):
 def valid_batch(path, batch, notebook, readings):
     if any(g.get("usage") == "reference" and set(g["note_ids"]) & set(batch["note_bases"]) for g in notebook["groups"]):
         return False
-    if batch["source_basis"] != notebook["source_basis"] or batch["rule_basis"] != digest(store.rule(path, "scenes")):
+    if batch["source_basis"] != notebook["source_basis"] or batch["rule_basis"] != digest(
+        store.effective_rule(path, "scenes")
+    ):
         return False
     if any(readings.get(i, {}).get("basis") != b for i, b in batch["note_bases"].items()):
         return False
@@ -60,7 +62,10 @@ def valid_batch(path, batch, notebook, readings):
     try:
         understanding.require_understood(path, list(batch["note_bases"]))
         return (
-            batch["understanding_basis"] == understanding.production_context(path, list(batch["note_bases"]))["basis"]
+            batch["understanding_basis"]
+            == understanding.production_context(
+                path, list(batch["note_bases"]), source_offset=batch.get("source_start")
+            )["basis"]
         )
     except ValueError:
         return False
@@ -82,7 +87,7 @@ def view(path, notebook, readings):
                 chunk_cache[note_id] = chapters.chunks(path, project, note)
             chunk = chunk_cache[note_id][batch["part"]]
             ctx = context(path, readings[note_id], chunk)
-            rules = store.rule(path, "shot_production")
+            rules = store.effective_rule(path, "shot_production")
             shots = {sh["id"]: sh for sc in batch["scenes"] for sh in sc["shots"]}
             batch["production_stale"] = (
                 batch.get("production_basis") != planning_inputs(ctx, rules, shots, project, readings[note_id])[2]
@@ -101,7 +106,7 @@ def view(path, notebook, readings):
 
                     draft = shot["execution_draft"]
                     draft["stale"] = draft["basis"] != content_basis(shot) or draft.get("rule_basis") != digest(
-                        store.rule(path, "shot_execution")
+                        store.effective_rule(path, "shot_execution")
                     )
     return sorted(batches, key=lambda b: (b["note_order"], b["part"]))
 
@@ -191,8 +196,14 @@ def ground(value, chunk, assets, durations):
                     uttered.append(utterance.text)
                     if uttered.count(utterance.text) > chunk["text"].count(utterance.text):
                         raise ValueError("不得在SEG之间重复复制整段对白")
-                    if utterance.speaker and utterance.speaker not in segment.characters_in_scene:
-                        raise ValueError("说话人必须出现在本镜头角色列表中")
+                    if utterance.speaker and utterance.speaker not in assets["character"]:
+                        raise ValueError("说话人必须引用当前可用的已登记人物资产")
+                    if (
+                        utterance.delivery == "on_screen"
+                        and utterance.speaker
+                        and utterance.speaker not in segment.characters_in_scene
+                    ):
+                        raise ValueError("画内对白的说话人必须出现在本镜头角色列表中")
     return value.model_dump()
 
 
@@ -229,7 +240,7 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
         durations = [d for d in capabilities["supported_durations"] if d <= 15]
     if not durations:
         raise ValueError("请配置支持15秒以内片段的视频模型")
-    rules = await asyncio.to_thread(store.rule, path, "scenes")
+    rules = await asyncio.to_thread(store.effective_rule, path, "scenes")
     chunks_by_note = {n["id"]: await asyncio.to_thread(chapters.chunks, path, project, n) for n in notes}
     total = sum(len(v) for v in chunks_by_note.values())
     progress = {"phase": "scenes", "done": 0, "total": total}
@@ -238,12 +249,12 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
     try:
         for note in notes:
             reading = readings[note["id"]]
-            known = await asyncio.to_thread(understanding.production_context, path, [note["id"]])
             tags = await asyncio.to_thread(svt_event_tags, path, note["id"], reading)
             chunks = chunks_by_note[note["id"]]
             assets = []
             for asset in mentions(project, reading):
-                if asset.get("source_kind") == "annotation" or asset.get("claim_type") in {
+                if asset.get("source_kind") in {"annotation", "unknown"} or asset.get("claim_type") in {
+                    "unverified",
                     "inference",
                     "statement",
                     "adaptation",
@@ -274,6 +285,9 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                 )
             for part, chunk in enumerate(chunks):
                 check_stop()
+                known = await asyncio.to_thread(
+                    understanding.production_context, path, [note["id"]], source_offset=chunk["start"]
+                )
                 seed = [note["id"], part, reading["basis"], rules, known["basis"], durations, tags]
                 key = digest(seed)
                 slot = f"{note['id']}:{part}"
@@ -375,6 +389,7 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                     "note_id": note["id"],
                     "note_order": note["order"],
                     "part": part,
+                    "source_start": chunk["start"],
                     "note_bases": {note["id"]: reading["basis"]},
                     "source_basis": expected,
                     "rule_basis": digest(rules),
@@ -478,7 +493,7 @@ def attribute_dialogue(
                     from lib.novel_workflow.shot_production import asset_bindings, planning_inputs
 
                     shots = {sh["id"]: sh for sc in batch["scenes"] for sh in sc["shots"]}
-                    rules = store.rule(path, "shot_production")
+                    rules = store.effective_rule(path, "shot_production")
                     ctx = batch.get("production_context")
                     production_current = bool(
                         ctx

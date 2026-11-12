@@ -77,7 +77,7 @@ async def shot_draft(path, generator, note_ids, expected, shot_ids):
     project, batch_id, shot, source, candidates = await asyncio.to_thread(
         _shot_input, path, expected, note_ids, shot_ids
     )
-    rule = await asyncio.to_thread(store.rule, path, "shot_execution")
+    rule = await asyncio.to_thread(store.effective_rule, path, "shot_execution")
     await run_noninterruptible_sync(
         store.write, store.root(path) / "progress.json", {"phase": "shot_draft", "done": 0, "total": 1}
     )
@@ -121,7 +121,7 @@ async def shot_draft(path, generator, note_ids, expected, shot_ids):
             _, _, fresh, _, _ = _shot_input(path, expected, note_ids, shot_ids)
             if (
                 execution.content_basis(fresh) != execution.content_basis(shot)
-                or store.rule(path, "shot_execution") != rule
+                or store.effective_rule(path, "shot_execution") != rule
             ):
                 raise ValueError("镜头或修订规则已变化，请刷新后重新生成建议")
             library = catalog(path)
@@ -169,7 +169,7 @@ async def selection_story(path, generator, note_ids, expected, shot_ids, title):
     ]
     if len(json.dumps(visible, ensure_ascii=False)) > 70000:
         raise ValueError("所选镜头超出单次叙事审阅容量，请缩短本集或先人工审阅")
-    rule = await asyncio.to_thread(store.rule, path, "selection_story")
+    rule = await asyncio.to_thread(store.effective_rule, path, "selection_story")
     await run_noninterruptible_sync(
         store.write, store.root(path) / "progress.json", {"phase": "selection_story", "done": 0, "total": 1}
     )

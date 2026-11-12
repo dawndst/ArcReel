@@ -16,7 +16,7 @@ from lib.infra.json_io import load_json
 from lib.infra.text_utils import strip_json_code_fences
 from lib.novel_understanding.service import NovelReadingInterrupted, check_stop
 from lib.novel_understanding.store import digest, now
-from lib.novel_workflow import chapters, memory, store, synthesis
+from lib.novel_workflow import chapters, memory, settings, store, synthesis, understanding
 from lib.novel_workflow.evidence import locate
 from lib.novel_workflow.models import Reading, SVTBatch
 
@@ -61,6 +61,17 @@ def ground(reading: Reading, part: dict, seed_ids=frozenset(), identity_ids=froz
     return data
 
 
+def output_schema(schema):
+    value = schema.model_json_schema()
+    for definition in [value, *value.get("$defs", {}).values()]:
+        properties = definition.get("properties", {})
+        if "claim_type" in properties:
+            definition["required"] = list(
+                dict.fromkeys([*definition.get("required", []), "claim_type", "perspective", "source_kind"])
+            )
+    return value
+
+
 async def ask(
     path: Path,
     generator,
@@ -71,19 +82,23 @@ async def ask(
     grow_output=False,
     max_output_tokens=12000,
 ):
-    fidelity = await asyncio.to_thread(store.rule, path, "fidelity")
+    fidelity = await asyncio.to_thread(store.effective_rule, path, "fidelity")
     if isinstance(prompt, dict):
-        prompt = {**prompt, "instructions": prompt.get("instructions", "") + "\n" + fidelity}
+        prompt = {
+            **prompt,
+            "instructions": prompt.get("instructions", "")
+            + ("" if fidelity in prompt.get("instructions", "") else "\n" + fidelity),
+        }
     else:
-        prompt = fidelity + "\n" + prompt
+        prompt = prompt if fidelity in prompt else fidelity + "\n" + prompt
     if isinstance(prompt, dict):
         prompt = (
             "请按 instructions 规则处理 source；memory 仅为上下文，不作为证据。只输出符合 schema 的 JSON。\n"
-            + json.dumps({**prompt, "schema": schema.model_json_schema()}, ensure_ascii=False)
+            + json.dumps({**prompt, "schema": output_schema(schema)}, ensure_ascii=False)
         )
     else:
         prompt += "\n只输出 JSON 数据实例（不是 schema 本身），结构：" + json.dumps(
-            schema.model_json_schema(), ensure_ascii=False
+            output_schema(schema), ensure_ascii=False
         )
     error = ""
     output_limit = max_output_tokens
@@ -108,11 +123,19 @@ async def ask(
             {"text": response.text, "created_at": now()},
         )
         try:
-            return validate(schema.model_validate_json(strip_json_code_fences(response.text)))
+            return validate(
+                schema.model_validate_json(strip_json_code_fences(response.text), context={"model_output": True})
+            )
         except (ValidationError, ValueError) as exc:
             validation_failures += 1
             error = "\n修正上次输出中的问题，不删掉原始事实：" + str(exc)[:2200]
     raise ValueError("模型输出未通过原文或结构校验，已保留响应及完成片段，可修正后重试。" + error)
+
+
+def reading_rules(path):
+    return (
+        store.effective_rule(path, "read") + "\n抽取审核规则版本：" + digest(store.effective_rule(path, "read_review"))
+    )
 
 
 async def read_part(
@@ -125,17 +148,31 @@ async def read_part(
     marker = target.with_suffix(".split.json")
     split = await asyncio.to_thread(marker.exists)
     if not split:
-        prompt = {"instructions": rules, "memory": rolling, "source": part["text"]}
+        prompt = {
+            "instructions": rules,
+            "memory": rolling,
+            "source": part["text"],
+            "surrounding_context": {"before": part.get("before_context", ""), "after": part.get("after_context", "")},
+        }
         try:
-            data = await ask(
-                path,
-                generator,
-                Reading,
-                prompt,
-                lambda value: ground(value, part, seed_ids, identity_ids) if value.complete else None,
-            )
+            draft_file = store.root(path) / "reading_drafts" / f"{key}.json"
+            if await asyncio.to_thread(draft_file.exists):
+                data = await asyncio.to_thread(load_json, draft_file)
+            else:
+                data = await ask(
+                    path,
+                    generator,
+                    Reading,
+                    prompt,
+                    lambda value: ground(value, part, seed_ids, identity_ids) if value.complete else None,
+                )
+                if data is not None:
+                    await run_noninterruptible_sync(store.write, draft_file, data)
             await asyncio.to_thread(current, path, expected)
             if data is not None:
+                from lib.novel_workflow.reading_audit import audit
+
+                data = await audit(path, generator, data, part, seed_ids, identity_ids)
                 await run_noninterruptible_sync(store.write, target, data)
                 return [data]
         except TextOutputTruncatedError:
@@ -147,7 +184,14 @@ async def read_part(
     results = []
     for start, end in ((0, middle), (middle, len(part["text"]))):
         check_stop()
-        child = {**part, "start": part["start"] + start, "end": part["start"] + end, "text": part["text"][start:end]}
+        child = {
+            **part,
+            "start": part["start"] + start,
+            "end": part["start"] + end,
+            "text": part["text"][start:end],
+            "before_context": (part.get("before_context", "") + part["text"][:start])[-600:],
+            "after_context": (part["text"][end:] + part.get("after_context", ""))[:400],
+        }
         child_context = rolling + "\n" + "\n".join(v["summary"] for v in results[-2:])[-2500:]
         extra_records = []
         for previous in results:
@@ -179,7 +223,7 @@ async def read_notes(path: Path, generator, note_ids: list[str], expected: str) 
     notes = [n for n in notebook["notes"] if n["id"] in wanted]
     if not notes or len(notes) != len(wanted):
         raise ValueError("Select existing Notes")
-    rules = await asyncio.to_thread(store.rule, path, "read")
+    rules = await asyncio.to_thread(reading_rules, path)
     from lib.novel_workflow import settings
 
     chapter_rule = await asyncio.to_thread(settings.chapter_rule, path)
@@ -222,7 +266,7 @@ async def read_notes(path: Path, generator, note_ids: list[str], expected: str) 
             await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
             overview = await synthesis.chapter(path, generator, extracted, chapter_rule)
             await asyncio.to_thread(current, path, expected)
-            live_rule = await asyncio.to_thread(store.rule, path, "read")
+            live_rule = await asyncio.to_thread(reading_rules, path)
             if live_rule != rules or await asyncio.to_thread(settings.chapter_rule, path) != chapter_rule:
                 raise ValueError("Reading rules changed during generation; completed fragment cache is preserved")
             result = {
@@ -337,7 +381,12 @@ def validate_svt(
                 raise ValueError("爆点必须准确标注其来源 Note")
         assigned |= ids
     if not new_ids <= assigned:
-        raise ValueError("Some current events were not classified; preserve them as supporting events if appropriate")
+        raise ValueError(
+            "Some current events were not classified: "
+            + ", ".join(sorted(new_ids - assigned))
+            + "。以上ID必须全部加入当前Note唯一主归属SVT的event_ids；supporting_event_ids不能代替正式归属。"
+            "梦境、未判定和过渡事件也保留来源性质归入同一Note，归属不表示它们属于同一现实因果链。"
+        )
     candidate_notes = set()
     for alternatives in batch.alternatives:
         if alternatives.note_id in candidate_notes or (
@@ -423,11 +472,11 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
             events.append(event)
     # Every event is retained; deduplicate only repeated extraction of the same exact source evidence.
     events = list({e["id"]: e for e in events}.values())
-    rules = await asyncio.to_thread(store.rule, path, "svt")
+    rules = await asyncio.to_thread(store.effective_rule, path, "svt")
     target = store.root(path) / "svts.json"
     previous = await asyncio.to_thread(load_json, target) if await asyncio.to_thread(target.exists) else {}
     # Include only past/current valid Notes. Future SVT summaries must never enter an earlier scope.
-    cutoff = max(n["order"] for n in notes)
+    cutoff = min(n["order"] for n in notes)
     context_events = list(events)
     context_bases = dict(bases)
     for note in notebook["notes"]:
@@ -449,7 +498,7 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
             previous.get("note_bases", {}).get(i) == context_bases.get(i) and i in context_bases for i in s["note_ids"]
         )
     ]
-    run_key = digest([bases, rules, prior_svts, edition_bases, 2])
+    run_key = digest([bases, rules, prior_svts, edition_bases, await asyncio.to_thread(understanding.view, path), 3])
     run_file = store.root(path) / "svt_runs" / f"{run_key}.json"
     run = (
         await asyncio.to_thread(load_json, run_file)
@@ -465,6 +514,27 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
             "rule_basis": digest(rules),
         }
     )
+    directions = {}
+    for note in notes:
+        reading = await asyncio.to_thread(store.note_result, path, note)
+        note_events_index = [{"id": e["id"], "title": e["title"]} for e in events if e["note_id"] == note["id"]]
+        # Summaries cover all records; compact title indices are packed rather than truncated.
+        index_batches = list(synthesis.packs(note_events_index, 9000))
+        if len(index_batches) > 1:
+            direction = await synthesis.chapter(
+                path, generator, [reading], await asyncio.to_thread(settings.chapter_rule, path)
+            )
+            index_value = {"summary": direction, "event_count": len(note_events_index)}
+        else:
+            index_value = {"events": note_events_index}
+        end = max(section["end"] for section in note["sections"])
+        related = await asyncio.to_thread(understanding.production_context, path, [note["id"]], source_offset=end)
+        directions[note["id"]] = {
+            "note_id": note["id"],
+            "overview": reading.get("overview"),
+            "index": index_value,
+            "verified_links": related["links"],
+        }
     by_event = {e["id"]: e for e in context_events}
     dialogues = {d["id"]: d for e in context_events for d in e["dialogues"]}
     progress = {"phase": "svt", "total": len(events), "done": run["cursor"], "started_at": now()}
@@ -517,6 +587,10 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
             prompt = (
                 rules
                 + "\n事件中的edition_context是精编转述，只用于理解，不作为原文事实或逐字台词依据；以事件证据及对白原句为准。"
+                + "\n整章方向材料："
+                + json.dumps(directions[current_note], ensure_ascii=False)
+                + "\n必须覆盖的本批事件ID（全部进入本Note唯一主归属event_ids，不能只放supporting_event_ids）："
+                + json.dumps([e["id"] for e in batch])
                 + "\n本批事件："
                 + json.dumps(batch, ensure_ascii=False)
                 + "\n可续接SVT："
@@ -580,7 +654,7 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
             progress["done"] = run["cursor"]
             await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
         await asyncio.to_thread(current, path, expected)
-        if await asyncio.to_thread(store.rule, path, "svt") != rules:
+        if await asyncio.to_thread(store.effective_rule, path, "svt") != rules:
             raise ValueError("SVT rules changed; rerun with current rules")
         for note in notebook["notes"]:
             if note["id"] not in context_bases:
@@ -623,7 +697,7 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
                 live_svt = load_json(target) if target.exists() else {}
                 if digest(live_svt) != digest(previous):
                     raise ValueError("SVT 主归属在生成期间已变化，请刷新后重新运行")
-                if store.rule(path, "svt") != rules:
+                if store.effective_rule(path, "svt") != rules:
                     raise ValueError("SVT 规则已变化，请使用当前规则重新拆分")
                 if live_svt:
                     store.write(store.root(path) / "history" / f"svt-{uuid4().hex}.json", live_svt)

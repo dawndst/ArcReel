@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validator
 
 
 class StrictModel(BaseModel):
@@ -21,8 +21,20 @@ class EvidencedClaim(StrictModel):
         default="unknown", description="正文、读者/译者批注、未判定；批注不作剧情事实"
     )
 
+    uncertainty_reason: str = Field(
+        default="", max_length=1000, description="未判定或来源未知时，具体缺少什么证据；不把字段省略当作无法判断"
+    )
+
     @model_validator(mode="after")
-    def retain_perspective(self):
+    def retain_perspective(self, info: ValidationInfo):
+        if info.context and info.context.get("model_output"):
+            missing = {"claim_type", "perspective", "source_kind"} - self.model_fields_set
+            if missing:
+                raise ValueError("必须显式填写信息性质字段：" + ", ".join(sorted(missing)))
+            if (
+                self.claim_type == "unverified" or self.source_kind == "unknown"
+            ) and not self.uncertainty_reason.strip():
+                raise ValueError("未判定的信息必须在 uncertainty_reason 中说明具体缺少的证据")
         if self.claim_type in {"statement", "inference", "vision"} and not self.perspective.strip():
             raise ValueError("人物说法、推测或梦境必须标明认知主体 perspective；未知时写明未明确，不得默认客观事实")
         if self.source_kind == "annotation" and self.claim_type == "fact":
@@ -118,7 +130,10 @@ class NoteAlternatives(StrictModel):
 
 class SVTBatch(StrictModel):
     svts: list[SVTDraft] = Field(default_factory=list)
-    supporting_event_ids: list[str] = Field(default_factory=list)
+    supporting_event_ids: list[str] = Field(
+        default_factory=list,
+        description="辅助事件索引，不能代替Note正式主归属；所有本批事件包括辅助事件仍必须列入该Note唯一SVT的event_ids",
+    )
     alternatives: list[NoteAlternatives] = Field(default_factory=list)
     merge_suggestions: list[str] = Field(default_factory=list)
 

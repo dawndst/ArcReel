@@ -105,14 +105,14 @@ def test_register_and_attribute_is_versioned_and_reuses_one_asset(tmp_path):
     }
     reading = store.valid_readings(tmp_path, book)[note["id"]]
     ctx = {"svt_id": None, "events": [], "moments": []}
-    rules = store.rule(tmp_path, "shot_production")
+    rules = store.effective_rule(tmp_path, "shot_production")
     batch = {
         "basis": "batch",
         "note_id": note["id"],
         "note_order": 1,
         "part": 0,
         "source_basis": book["source_basis"],
-        "rule_basis": digest(store.rule(tmp_path, "scenes")),
+        "rule_basis": digest(store.effective_rule(tmp_path, "scenes")),
         "note_bases": {note["id"]: reading["basis"]},
         "understanding_basis": digest([]),
         "scenes": [{"id": "SCN-1", "shots": [shot]}],

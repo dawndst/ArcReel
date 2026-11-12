@@ -30,7 +30,7 @@ async def summarize(path, generator, note_ids, expected, group_id):
     if any(i not in readings for i in note_ids):
         raise ValueError("请先为组合内的章节生成 Notes，再重新归纳组合梗概")
     bases = {i: readings[i]["basis"] for i in note_ids}
-    rules = await asyncio.to_thread(store.rule, path, "group")
+    rules = await asyncio.to_thread(store.effective_rule, path, "group")
     extracted = [{**readings[i], "summary": "\n".join(readings[i].get("summaries", []))} for i in group["note_ids"]]
     await run_noninterruptible_sync(
         store.write, store.root(path) / "progress.json", {"phase": "group_summary", "done": 0, "total": 1}
@@ -54,7 +54,7 @@ async def summarize(path, generator, note_ids, expected, group_id):
                 not target
                 or target["note_ids"] != group["note_ids"]
                 or any(fresh.get(i, {}).get("basis") != b for i, b in bases.items())
-                or store.rule(path, "group") != rules
+                or store.effective_rule(path, "group") != rules
             ):
                 raise ValueError("资料或规则已变化，梗概未覆盖当前资料组")
             target["synopsis"] = result

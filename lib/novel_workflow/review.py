@@ -94,7 +94,7 @@ async def review_scope(path, generator, note_ids, expected):
     notes = [n for n in notebook["notes"] if n["id"] in wanted]
     if not notes or len(notes) != len(wanted):
         raise ValueError("Select existing Notes")
-    rules = await asyncio.to_thread(store.rule, path, "review")
+    rules = await asyncio.to_thread(store.effective_rule, path, "review")
     facts, bases, inputs = {}, {}, []
     for note in notes:
         reading = await asyncio.to_thread(store.note_result, path, note)
@@ -216,7 +216,7 @@ async def review_scope(path, generator, note_ids, expected):
                 raise ValueError("Range conclusion cannot fit bounded context")
             nodes = next_level
         await asyncio.to_thread(current, path, expected)
-        if await asyncio.to_thread(store.rule, path, "review") != rules:
+        if await asyncio.to_thread(store.effective_rule, path, "review") != rules:
             raise ValueError("Review rules changed during generation")
         for note in notes:
             reading = await asyncio.to_thread(store.note_result, path, note)

@@ -65,7 +65,8 @@ def synchronize(path: Path) -> dict:
                 readings.get(note["id"], {}).get("assets", []),
                 key=lambda m: (m["evidence"].get("start", 0), m["evidence"].get("end", 0)),
             ):
-                if mention.get("source_kind") == "annotation" or mention.get("claim_type") in {
+                if mention.get("source_kind") in {"annotation", "unknown"} or mention.get("claim_type") in {
+                    "unverified",
                     "inference",
                     "statement",
                     "adaptation",

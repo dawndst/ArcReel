@@ -7,6 +7,8 @@ from lib.novel_workflow import settings, store
 from lib.prompts.prompt_templates.builtin import builtin_templates
 
 TITLES = {
+    "read_review": ("Note 抽取原文审核", "保存前核对信息性质、说话人、因果和状态变化；仅修订抽取结果，不改原文"),
+    "understand_reconcile": ("跨章关联汇总核对", "核对同类跨章结论的重复和冲突，保留原文揭示边界"),
     "shot_execution": ("单镜执行方案修订", "原文对照、发声方式、关键资产、起止状态和剪辑切点；人工采用"),
     "selection_story": ("选镜后的观众理解检查", "只审阅实际选中音画，不借未选原文补脑；编导记录取舍"),
     "speaker_attribution": ("单镜对白说话人补判", "读取当前原文和相邻镜头，提供有证据的建议；采用后才填写说话人"),
@@ -47,7 +49,16 @@ def catalog(path, project):
         local = store.root(path) / "rules" / f"{name}.md"
         if local.is_symlink() or (local.exists() and not local.resolve().is_relative_to(path.resolve())):
             raise ValueError("项目规则文件不能是符号链接")
-        text = settings.chapter_rule(path) if name == "chapter" else store.rule(path, name)
+        if name == "read":
+            from lib.novel_workflow.service import reading_rules
+
+            text = reading_rules(path)
+        elif name == "understand":
+            from lib.novel_workflow.understanding import understanding_rules
+
+            text = understanding_rules(path)
+        else:
+            text = settings.chapter_rule(path) if name == "chapter" else store.effective_rule(path, name)
         add(
             "novel/" + name,
             title,

@@ -148,7 +148,7 @@ async def note_edition(name: str, note_id: str):
         note = next((n for n in notebook["notes"] if n["id"] == note_id), None)
         if not note:
             raise ValueError("Note not found")
-        value = load(path, note, store.display_note_result(path, note))
+        value = load(path, note, store.display_note_result(path, note), history=True)
         if not value:
             raise ValueError("请先生成当前版本的章节精编稿")
         return value

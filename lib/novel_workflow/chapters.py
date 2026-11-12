@@ -118,6 +118,8 @@ def chunks(path: Path, project: dict, note: dict, limit: int = 6000) -> list[dic
                     "start": start,
                     "end": end,
                     "text": text[start:end],
+                    "before_context": text[max(section["start"], start - 600) : start],
+                    "after_context": text[end : min(section["end"], end + 400)],
                     "note_id": note["id"],
                 }
             )

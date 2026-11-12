@@ -71,7 +71,7 @@ def ground(value, supplied, anchor_note_ids, notebook):
         if draft.kind == "contradiction" and draft.status != "uncertain":
             raise ValueError("Contradictions remain uncertain until further evidence resolves them")
         data = draft.model_dump(exclude={"citations"})
-        if draft.claim_type in {"statement", "inference", "vision", "adaptation"} or draft.source_kind == "annotation":
+        if draft.claim_type != "fact" or draft.source_kind != "narrative":
             data["status"] = "uncertain"
         data.update(
             id=digest([draft.kind, draft.subject, sorted((e["note_id"], e["start"], e["end"]) for e in evidence)])[:24],
@@ -87,6 +87,14 @@ def ground(value, supplied, anchor_note_ids, notebook):
     return {"links": links, "unresolved": list(dict.fromkeys(unresolved)), "next_queries": value.next_queries}
 
 
+def understanding_rules(path):
+    return (
+        store.effective_rule(path, "understand")
+        + "\n关联汇总规则版本："
+        + digest(store.effective_rule(path, "understand_reconcile"))
+    )
+
+
 def view(path: Path, notebook=None):
     notebook = notebook or store.state(path)
     if not notebook:
@@ -95,7 +103,7 @@ def view(path: Path, notebook=None):
     from lib.novel_workflow import scope
 
     allowed = scope.available_ids(path, notebook)
-    rule_basis = digest(store.rule(path, "understand"))
+    rule_basis = digest(understanding_rules(path))
     reports, links = [], {}
     for file in (store.root(path) / "understanding" / "reports").glob("*.json"):
         report = load_json(file)
@@ -104,8 +112,8 @@ def view(path: Path, notebook=None):
             or not set(report.get("selected_note_ids", [])) <= allowed
             or not set(report.get("inspected_note_ids", [])) <= allowed
             or any(not set(link["note_ids"]) <= allowed for link in report.get("links", []))
-            or report.get("scope_rule_basis", digest((store.RULES / "scope.md").read_text()))
-            != digest(store.rule(path, "scope"))
+            or report.get("scope_rule_basis", digest(store.effective_rule(path, "scope")))
+            != digest(store.effective_rule(path, "scope"))
             or report["rule_basis"] != rule_basis
             or any(readings.get(i, {}).get("basis") != b for i, b in report["note_bases"].items())
         )
@@ -118,8 +126,8 @@ def view(path: Path, notebook=None):
     return {"links": list(links.values()), "reports": list(reversed(reports))}
 
 
-def production_context(path, selected_note_ids):
-    """Conservative cutoff: only links known before the first selected chapter enter generation."""
+def production_context(path, selected_note_ids, *, source_offset=None):
+    """Use only facts revealed before the supplied source position; episodes default to their start."""
     if not settings.get(path)["understanding_enabled"]:
         return {"links": [], "basis": digest([])}
     notebook = store.state(path)
@@ -130,7 +138,13 @@ def production_context(path, selected_note_ids):
         return {"links": [], "basis": digest([])}
     cutoff = min(n["order"] for n in selected)
     links = [
-        v for v in view(path, notebook)["links"] if v["status"] == "supported" and v["revealed_at"]["order"] < cutoff
+        v
+        for v in view(path, notebook)["links"]
+        if v["status"] == "supported"
+        and v.get("claim_type") == "fact"
+        and v.get("source_kind") == "narrative"
+        and (v["revealed_at"]["order"], v["revealed_at"]["offset"])
+        < (cutoff, source_offset if source_offset is not None and len(selected) == 1 else 0)
     ]
     relevant = []
     current_readings = store.valid_readings(path, notebook)
@@ -163,8 +177,8 @@ async def understand_notes(path, generator, note_ids, expected):
     scope_basis = await asyncio.to_thread(scope.basis, path, notebook)
     allowed = await asyncio.to_thread(scope.available_ids, path, notebook)
     bases = {n["id"]: readings[n["id"]]["basis"] for n in notes}
-    rules = await asyncio.to_thread(store.rule, path, "understand")
-    scope_rule = await asyncio.to_thread(store.rule, path, "scope")
+    rules = await asyncio.to_thread(understanding_rules, path)
+    scope_rule = await asyncio.to_thread(store.effective_rule, path, "scope")
     scope_hint = "\n" + scope_rule.strip()
     key = digest([expected, bases, rules, scope_basis, scope_hint, 2])
     target = store.root(path) / "understanding" / "reports" / f"{key}.json"
@@ -299,17 +313,33 @@ async def understand_notes(path, generator, note_ids, expected):
         if (
             await asyncio.to_thread(scope.basis, path, notebook) != scope_basis
             or any(latest.get(i, {}).get("basis") != b for i, b in bases.items())
-            or await asyncio.to_thread(store.rule, path, "understand") != rules
-            or await asyncio.to_thread(store.rule, path, "scope") != scope_rule
+            or await asyncio.to_thread(understanding_rules, path) != rules
+            or await asyncio.to_thread(store.effective_rule, path, "scope") != scope_rule
         ):
             raise ValueError("Understanding sources or rules changed; completed reread caches retained")
+        from lib.novel_workflow.understanding_reconcile import reconcile
+
+        reconciled, reconciliation_questions = await reconcile(path, generator, run["links"], notebook, wanted)
+        await asyncio.to_thread(current, path, expected)
+        latest = await asyncio.to_thread(store.valid_readings, path, notebook)
+        if (
+            await asyncio.to_thread(scope.basis, path, notebook) != scope_basis
+            or any(latest.get(i, {}).get("basis") != b for i, b in bases.items())
+            or await asyncio.to_thread(understanding_rules, path) != rules
+            or await asyncio.to_thread(store.effective_rule, path, "scope") != scope_rule
+        ):
+            raise ValueError("汇总核对期间原文、范围或规则已变化；已完成缓存保留，请重试")
         report = {
             **run,
+            "source_links": run["links"],
+            "reconciliation_questions": reconciliation_questions,
             "id": key,
             "source_basis": expected,
             "rule_basis": digest(rules),
             "note_bases": bases,
-            "links": list({v["id"]: v for v in run["links"]}.values()),
+            "links": reconciled,
+            "unresolved": run["unresolved"]
+            + [{"note_id": notes[0]["id"], "question": q} for q in reconciliation_questions],
             "created_at": now(),
             "selected_note_ids": [n["id"] for n in notes],
             "scope_note_ids": sorted(allowed),

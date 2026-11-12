@@ -11,7 +11,8 @@ def test_catalog_reads_effective_project_rules_and_templates_without_mutation(tm
     value = catalog(tmp_path, data)
     entries = {v["id"]: v for v in value["entries"]}
     assert value["read_only"] is True
-    assert entries["novel/svt"]["content"] == "项目专属主归属规则"
+    assert entries["novel/svt"]["content"] == store.effective_rule(tmp_path, "svt")
+    assert entries["novel/svt"]["content"].startswith("项目专属主归属规则")
     assert entries["novel/svt"]["source"] == "project"
     assert "1200" in entries["novel/chapter"]["content"]
     assert any(k.startswith("template/") for k in entries)

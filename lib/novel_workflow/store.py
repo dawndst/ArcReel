@@ -11,6 +11,7 @@ from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import chapters
 
 RULES = Path(__file__).parent / "rules"
+OUTPUT_CONTRACT_VERSION = 3
 
 
 def root(path: Path) -> Path:
@@ -20,6 +21,20 @@ def root(path: Path) -> Path:
 def rule(path: Path, name: str) -> str:
     local = root(path) / "rules" / f"{name}.md"
     return (local if local.exists() else RULES / f"{name}.md").read_text(encoding="utf-8")
+
+
+def effective_rule(path: Path, name: str) -> str:
+    """Fingerprint the same shared rules and output contract that generation actually uses."""
+    text = rule(path, name)
+    if name != "fidelity":
+        text += "\n" + rule(path, "fidelity")
+    return text + f"\n输出约束版本：{OUTPUT_CONTRACT_VERSION}。分类字段必须显式填写，不从缺省值认定事实。"
+
+
+def saved_reading(path: Path, note: dict) -> dict | None:
+    """Historical material is browsable, but never becomes an operational input implicitly."""
+    files = sorted((root(path) / "notes" / note["id"]).glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
+    return load_json(files[0]) if files else None
 
 
 def write(path: Path, value: dict) -> None:
@@ -41,18 +56,7 @@ def initialize(path: Path, project: dict, expected: str) -> dict:
         result = {**preview, "groups": previous.get("groups", []) if previous else [], "initialized_at": now()}
         if previous:
             write(root(path) / "history" / f"{uuid4().hex}.json", previous)
-        for name in (
-            "read",
-            "chapter",
-            "svt",
-            "review",
-            "understand",
-            "group",
-            "scenes",
-            "scope",
-            "production",
-            "overview",
-        ):
+        for name in sorted(file.stem for file in RULES.glob("*.md")):
             file = root(path) / "rules" / f"{name}.md"
             if not file.exists():
                 file.parent.mkdir(parents=True, exist_ok=True)
@@ -62,18 +66,20 @@ def initialize(path: Path, project: dict, expected: str) -> dict:
 
 
 def reading_key(path: Path, note: dict) -> str:
+    from lib.novel_workflow.service import reading_rules
     from lib.novel_workflow.settings import chapter_rule
 
-    return digest([note["basis"], rule(path, "read"), chapter_rule(path), 2])
+    return digest([note["basis"], reading_rules(path), chapter_rule(path), 2])
 
 
 def valid_readings(path: Path, notebook=None, *, before=None, respect_scope=True) -> dict:
     """Resolve cache validity once in reveal order, with bounded file reads."""
     notebook = notebook if notebook is not None else state(path)
     bases, readings = {}, {}
+    from lib.novel_workflow.service import reading_rules
     from lib.novel_workflow.settings import chapter_rule as configured_chapter_rule
 
-    read_rule, chapter_rule = rule(path, "read"), configured_chapter_rule(path)
+    read_rule, chapter_rule = reading_rules(path), configured_chapter_rule(path)
     from lib.novel_workflow import scope
 
     allowed = (
@@ -109,7 +115,7 @@ def display_note_result(path: Path, note: dict) -> dict | None:
     active = note_result(path, note)
     historical = valid_readings(path, before=note["order"] + 1, respect_scope=False).get(note["id"])
     cached = root(path) / "notes" / note["id"] / f"{reading_key(path, note)}.json"
-    return active or historical or (load_json(cached) if cached.exists() else None)
+    return active or historical or (load_json(cached) if cached.exists() else saved_reading(path, note))
 
 
 def require_current(path: Path, project: dict, expected: str) -> dict:
@@ -188,9 +194,11 @@ def view(path: Path, project: dict) -> dict:
         result = display_readings.get(note["id"])
         if result is None and not stale:
             cached = root(path) / "notes" / note["id"] / f"{reading_key(path, note)}.json"
-            result = load_json(cached) if cached.exists() else None
+            result = load_json(cached) if cached.exists() else saved_reading(path, note)
         current_reading = note["id"] in (readings if note["id"] in allowed else display_readings)
         older = any((root(path) / "notes" / note["id"]).glob("*.json")) if result is None else False
+        if result is not None:
+            display_readings[note["id"]] = result
         notes.append(
             {
                 **note,
@@ -215,7 +223,7 @@ def view(path: Path, project: dict) -> dict:
         and (
             stale
             or svts.get("schema_version") != 2
-            or svts.get("rule_basis") != digest(rule(path, "svt"))
+            or svts.get("rule_basis") != digest(effective_rule(path, "svt"))
             or any(valid_results.get(i) != basis for i, basis in svts.get("note_bases", {}).items())
         )
     )
@@ -242,7 +250,7 @@ def view(path: Path, project: dict) -> dict:
         review = load_json(file)
         review["stale"] = (
             stale
-            or review["rule_basis"] != digest(rule(path, "review"))
+            or review["rule_basis"] != digest(effective_rule(path, "review"))
             or any(valid_results.get(i) != b for i, b in review["note_bases"].items())
         )
         reviews.append(review)
@@ -253,7 +261,7 @@ def view(path: Path, project: dict) -> dict:
         group = dict(group)
         group["summary_stale"] = bool(group.get("synopsis")) and (
             stale
-            or group.get("summary_rule_basis") != digest(rule(path, "group"))
+            or group.get("summary_rule_basis") != digest(effective_rule(path, "group"))
             or any(valid_results.get(i) != b for i, b in group.get("summary_bases", {}).items())
         )
         groups.append(group)

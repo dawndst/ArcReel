@@ -102,12 +102,12 @@ def prepared(tmp_path):
         "note_order": 1,
         "part": 0,
         "source_basis": book["source_basis"],
-        "rule_basis": digest(store.rule(path, "scenes")),
+        "rule_basis": digest(store.effective_rule(path, "scenes")),
         "note_bases": {note["id"]: reading["basis"]},
         "understanding_basis": digest([]),
         "production_context": ctx,
         "production_basis": planning_inputs(
-            ctx, store.rule(path, "shot_production"), {shot["id"]: shot}, project, reading
+            ctx, store.effective_rule(path, "shot_production"), {shot["id"]: shot}, project, reading
         )[2],
         "scenes": [
             {"id": "SCN-0001", "title": "出发", "location": "房间", "time": "日", "purpose": "行动", "shots": [shot]}
@@ -220,7 +220,7 @@ def test_hard_errors_cannot_be_signed_off_but_timing_is_a_human_decision(prepare
     batch = library["batches"]["n:0"]
     reading = store.valid_readings(path, book)[batch["note_id"]]
     batch["production_basis"] = planning_inputs(
-        batch["production_context"], store.rule(path, "shot_production"), {raw["id"]: raw}, project, reading
+        batch["production_context"], store.effective_rule(path, "shot_production"), {raw["id"]: raw}, project, reading
     )[2]
     store.write(file, library)
     plan = preview(prepared)
@@ -387,7 +387,7 @@ def test_reference_assembly_does_not_require_approval_or_a_speech_budget(prepare
     raw["segments"][0]["duration_seconds"] = 1
     reading = store.valid_readings(path, book)[batch["note_id"]]
     batch["production_basis"] = planning_inputs(
-        batch["production_context"], store.rule(path, "shot_production"), {raw["id"]: raw}, project, reading
+        batch["production_context"], store.effective_rule(path, "shot_production"), {raw["id"]: raw}, project, reading
     )[2]
     store.write(file, library)
     episode = assemble(manager, "demo", [shot["id"]], "出发", book["source_basis"], "reference")
@@ -444,7 +444,7 @@ def test_unresolved_speaker_uses_pending_asset_without_blocking_reference_episod
     raw["segments"][0]["utterances"][0]["speaker"] = unresolved
     reading = store.valid_readings(path, book)[batch["note_id"]]
     batch["production_basis"] = planning_inputs(
-        batch["production_context"], store.rule(path, "shot_production"), {raw["id"]: raw}, project, reading
+        batch["production_context"], store.effective_rule(path, "shot_production"), {raw["id"]: raw}, project, reading
     )[2]
     store.write(file, library)
     episode = assemble(manager, "demo", [shot["id"]], "含待定路人", book["source_basis"], "pending")

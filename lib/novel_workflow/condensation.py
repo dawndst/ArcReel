@@ -73,6 +73,17 @@ def validate(value, source_units, anchors):
             raise ValueError("保留、压缩或待定单元必须有正文")
         # Uncertain material stays verbatim; this decision is reversible without another model call.
         text = unit["text"] if p.treatment in {"retain", "uncertain"} else p.text
+        if p.treatment == "condense" and locked:
+            compact = "".join(text.split())
+            spans = [
+                (max(e["start"], unit["start"]) - unit["start"], min(e["end"], unit["end"]) - unit["start"])
+                for e in anchors
+                if e["start"] < unit["end"] and e["end"] > unit["start"]
+            ]
+            if any("".join(unit["text"][a:b].split()) not in compact for a, b in spans):
+                p.treatment = "retain"
+                p.reason = "受保护原文未被逐字保留，系统保留本单元原文"
+                text = unit["text"]
         result.append(
             {
                 **p.model_dump(),
@@ -89,18 +100,26 @@ def edition_key(reading, rule):
     return digest([reading["basis"], rule, 1])
 
 
-def load(path, note, reading):
+def load(path, note, reading, *, history=False):
     if not reading:
         return None
-    key = edition_key(reading, store.rule(path, "condense"))
+    key = edition_key(reading, store.effective_rule(path, "condense"))
     file = store.root(path) / "editions" / note["id"] / f"{key}.json"
-    return load_json(file) if file.exists() else None
+    if file.exists():
+        return load_json(file)
+    if history:
+        files = sorted(file.parent.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
+        for previous in files:
+            value = load_json(previous)
+            if value.get("reading_basis") == reading["basis"]:
+                return value
+    return None
 
 
 async def ensure(path, generator, note, reading, project, expected):
     from lib.novel_workflow.service import ask, current
 
-    rule = await asyncio.to_thread(store.rule, path, "condense")
+    rule = await asyncio.to_thread(store.effective_rule, path, "condense")
     cached = await asyncio.to_thread(load, path, note, reading)
     if cached:
         return cached
@@ -158,7 +177,7 @@ async def ensure(path, generator, note, reading, project, expected):
             {"source_file": chunk["source_file"], "start": chunk["start"], "end": chunk["end"], "passages": passages}
         )
     await asyncio.to_thread(current, path, expected)
-    if rule != await asyncio.to_thread(store.rule, path, "condense"):
+    if rule != await asyncio.to_thread(store.effective_rule, path, "condense"):
         raise ValueError("精编规则已变化，已完成片段保留，请重试")
     live = await asyncio.to_thread(store.note_result, path, note)
     if not live or live["basis"] != reading["basis"]:
@@ -214,5 +233,5 @@ def material(edition, reading, chunk):
 
 
 def metadata(path, note, reading):
-    value = load(path, note, reading)
+    value = load(path, note, reading, history=True)
     return {k: value[k] for k in ("basis", "created_at", "original_chars", "edited_chars")} if value else None

@@ -39,7 +39,7 @@ def plan_reference_refresh(path, before, after, rewrite=None, kind=None):
     if not payload["batches"]:
         return plan
     readings = store.valid_readings(path, store.state(path))
-    rules = store.rule(path, "shot_production")
+    rules = store.effective_rule(path, "shot_production")
     fields = {"character": "characters_in_scene", "scene": "scenes", "prop": "props"}
     for batch in payload["batches"].values():
         reading = readings.get(batch["note_id"])

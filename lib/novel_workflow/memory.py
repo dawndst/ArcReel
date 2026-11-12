@@ -48,7 +48,8 @@ def ledger(path, notebook, *, through=None, extra=(), readings=None):
         v
         for v in items
         if v["bucket"] == "aliases"
-        and v.get("claim_type", "unverified") in {"fact", "unverified"}
+        and v.get("claim_type") == "fact"
+        and v.get("source_kind") == "narrative"
         and v.get("source_kind") != "annotation"
     ]
     people = {}
@@ -106,6 +107,7 @@ def ledger(path, notebook, *, through=None, extra=(), readings=None):
         "relations": [v for v in items if v["bucket"] == "relations"],
         "changes": [v for v in items if v["bucket"] == "changes"],
         "threads": seeds,
+        "setting_records": [v for v in items if v["bucket"] == "assets" and v["kind"] in {"scene", "prop"}],
         "unmatched_resolutions": [v for v in threads if v["kind"] == "resolution" and not v.get("seed_id")],
     }
 
@@ -116,8 +118,24 @@ def context(ledger, text, budget=10000):
         names = [person["name"], *(a["alias"] for a in person["aliases"])]
         if any(name in text for name in names):
             entries.extend(
-                person["aliases"] + person["mentions"][-2:] + person["changes"][-3:] + person["relations"][-3:]
+                person["aliases"]
+                + person["mentions"][:1]
+                + person["mentions"][-2:]
+                + person["changes"]
+                + person["relations"]
             )
+    # Older stable settings and object handovers must not disappear behind recent emotions.
+    entries.extend(v for v in ledger.get("setting_records", []) if v.get("name", "") in text)
+    entries = list({v["id"]: v for v in entries}.values())
+
+    def relevance(value):
+        description = " ".join(
+            str(value.get(k, "")) for k in ("description", "before", "after", "relation", "identity_scope")
+        )
+        score = sum(description[i : i + 2] in text for i in range(max(0, len(description) - 1)))
+        return (value.get("dimension") not in {"emotion", "knowledge"}, score)
+
+    entries.sort(key=relevance, reverse=True)
     # Pending threads remain eligible even when no character's name occurs verbatim.
     pending = [v for v in ledger["threads"] if not v["resolutions"]]
     pending.sort(

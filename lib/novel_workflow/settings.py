@@ -25,6 +25,6 @@ def update(path, values):
 def chapter_rule(path):
     limit = get(path)["summary_max_chars"]
     return (
-        store.rule(path, "chapter")
+        store.effective_rule(path, "chapter")
         + f"\n整章摘要 summary 上限为 {limit} 个字符。按信息密度使用篇幅，长章尽量保留完整因果、转折、人物变化和关键线索；短章不凑字数。"
     )

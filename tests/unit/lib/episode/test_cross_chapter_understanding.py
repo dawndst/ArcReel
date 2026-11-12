@@ -77,6 +77,9 @@ class CrossReader:
                             "subject": "紫衣陌生人 / 景麒",
                             "description": "第二章揭晓第一章陌生人为景麒",
                             "status": "supported",
+                            "claim_type": "fact",
+                            "source_kind": "narrative",
+                            "perspective": "",
                             "story_time": "第一章出现时即为同一人物",
                             "story_start_note_id": first["note_id"],
                             "citations": [
@@ -134,6 +137,9 @@ def test_retrieval_searches_raw_chapters_and_citations_cannot_fabricate_or_backd
                 "subject": "景麒",
                 "description": "同一人",
                 "status": "supported",
+                "claim_type": "fact",
+                "source_kind": "narrative",
+                "perspective": "",
                 "citations": [
                     {"fragment_id": first_fragment["id"], "quote": FIRST},
                     {"fragment_id": second_fragment["id"], "quote": "原文不存在的真相"},
@@ -233,6 +239,9 @@ def test_single_note_claim_is_unresolved_not_confirmed_cross_chapter_fact(tmp_pa
                     "subject": "陌生人",
                     "description": "身份同指待核对",
                     "status": "supported",
+                    "claim_type": "fact",
+                    "source_kind": "narrative",
+                    "perspective": "",
                     "story_time": "未明确",
                     "citations": [
                         {"fragment_id": fragment["id"], "quote": "门边站着紫衣陌生人。"},
@@ -265,6 +274,9 @@ def test_citation_relocates_only_to_unique_supplied_source_span(tmp_path):
                     "subject": "景麒",
                     "description": "后章揭晓身份",
                     "status": "supported",
+                    "claim_type": "fact",
+                    "source_kind": "narrative",
+                    "perspective": "",
                     "citations": [
                         {"fragment_id": first["id"], "quote": FIRST},
                         {"fragment_id": first["id"], "quote": SECOND},

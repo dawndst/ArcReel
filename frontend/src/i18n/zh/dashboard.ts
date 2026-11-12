@@ -1,6 +1,7 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_claim_pending: "信息性质待判定",
   nw_settings_range_hint: "下面的范围操作直接使用这里输入的起止章节，无需先选择章节。限定会替换现有可用范围；追加只会扩大范围，不会移除已有章节。",
   nw_range_use_for_task: "将此范围勾选为本次任务章节",
   nw_settings_range_count: "输入范围共 {{count}} 章",

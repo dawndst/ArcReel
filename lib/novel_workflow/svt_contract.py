@@ -21,7 +21,11 @@ def assignments(svts):
 
 
 def valid_svts(path, value, readings):
-    if not value or value.get("schema_version") != 2 or value.get("rule_basis") != digest(store.rule(path, "svt")):
+    if (
+        not value
+        or value.get("schema_version") != 2
+        or value.get("rule_basis") != digest(store.effective_rule(path, "svt"))
+    ):
         return []
     return [
         s

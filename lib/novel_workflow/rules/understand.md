@@ -4,3 +4,7 @@
 证据回读：阅读提供的原文片段。只在至少两个不同 Note 的原文能证明关联时建立 link；同一人同名不够，不能把猜测写成身份归一。kind 可为 identity（身份同指）、thread_resolution（伏笔回收）、state（状态适用）、world_rule（世界/环境约束）、causal（因果联系）、contradiction（矛盾待核对）。subject 写相关人物/物件/线索，不用“他”。description 清楚说明关联及证据推理；status 为 supported 或 uncertain，矛盾一律 uncertain。
 每个 link 的 citations 至少两条，每条引用输入 fragment_id 和逐字连续 quote。至少一条证据属于本次锚点的 Note。story_time 写事实在故事中何时成立（未明确就写未明确）；story_start_note_id/story_end_note_id 只有原文明示可定位时才填，不能把读者得知章当故事开始时间。系统会用最晚证据位置计算读者揭示边界；不能建议提前暴露身份。
 未找到足够证据时 links 为空、问题留在 unresolved。需要继续检索时 next_queries 提供更具体的搜索词（最多 3 条）。不假装原文没有答案，不声称“全书无此线索”。每轮都可能只是有限候选。不得改写原始 Note、合并章节或替用户决定删改。
+
+## 有限检索与结论约束
+每批只拿到部分记录，未出现不等于不存在；检索无命中不等于全书没有。明确区分已检索范围、实际回读范围、缺少证据和小说尚未揭晓。各轮问题数量有限，优先身份同指、关键因果和状态适用问题，不把普通亲属关系列成待查问题。
+只有正文事实结论且来源为 narrative 时才能 status=supported。unverified、unknown、人物说法、推测、梦境、改编建议都不得凭多次重复或两段同名引句升级为已确认关联。关系在过去成立、人物何时知道、观众何时得知分别表达；跨章关联不自动给人物增加认知。

@@ -70,7 +70,7 @@ it("saves independent summary and understanding settings without starting a mode
   render(<NovelWorkbench projectName="demo" />);
   fireEvent.click(await screen.findByRole("button", { name: "阅读设置" }));
   const dialog = screen.getByRole("dialog");
-  fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "2400" } });
+  fireEvent.change(within(dialog).getByRole("spinbutton", { name: "整章摘要上限（400～3000 字）" }), { target: { value: "2400" } });
   fireEvent.click(within(dialog).getByRole("checkbox", { name: "启用跨章理解（默认开启）" }));
   fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -94,13 +94,13 @@ it("shows one primary SVT and several alternatives and replaces only on explicit
 it("selects a chapter range and generates only those Notes on explicit click", async () => {
   const run = vi.spyOn(API, "runNoteWorkflow").mockResolvedValue({});
   render(<NovelWorkbench projectName="demo" />);
-  await screen.findByText("阅读范围与设置");
-  const range = screen.getByText("阅读范围与设置");
-  if (!range.closest("details")!.open) fireEvent.click(range);
-  expect(screen.getByText(/已生成 0 \/ 2 章 Notes/)).toBeInTheDocument();
-  fireEvent.change(screen.getByRole("spinbutton", { name: "起始章节序号" }), { target: { value: "2" } });
-  fireEvent.change(screen.getByRole("spinbutton", { name: "结束章节序号" }), { target: { value: "2" } });
-  fireEvent.click(screen.getByRole("button", { name: "选择此范围" }));
+  expect(await screen.findByRole("heading", { name: /小说理解与改编.*0\/2/ })).toBeInTheDocument();
+  fireEvent.click(await screen.findByRole("button", { name: "阅读设置" }));
+  const dialog = screen.getByRole("dialog");
+  fireEvent.change(within(dialog).getByRole("spinbutton", { name: "起始章节序号" }), { target: { value: "2" } });
+  fireEvent.change(within(dialog).getByRole("spinbutton", { name: "结束章节序号" }), { target: { value: "2" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "将此范围勾选为本次任务章节" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "取消" }));
   expect(run).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: /AI 泛读并生成 Notes · 已选 1 章/ }));
   await waitFor(() => expect(run).toHaveBeenCalledWith("demo", "read", ["note-2"], "source-version"));

@@ -1,5 +1,6 @@
 
 export default {
+  nw_claim_pending: "Information type pending",
   nw_settings_range_hint: "Scope actions use the chapter numbers entered here directly. Limit replaces the available scope; Append keeps all currently available chapters.",
   nw_range_use_for_task: "Select this range for the current task",
   nw_settings_range_count: "{{count}} chapters in entered range",
