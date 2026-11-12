@@ -287,8 +287,9 @@ export function NovelWorkbench({ projectName }: { projectName: string }) {
 
     {readingSettings && <ReadingSettings value={data?.settings ?? { summary_max_chars: 1200, understanding_enabled: true }} busy={busy || working} close={() => setReadingSettings(false)} save={(value) => void act(async () => { await API.updateNoteSettings(projectName, value); setReadingSettings(false); })}>
       {data?.initialized && <>
-        <NoteReadingRange notes={data.notes} selected={selected} disabled={busy || working || data.stale || !data.source_basis} select={setSelected} />
-        <ReadingScopePanel scope={data.scope} notes={data.notes} selected={selected} disabled={busy || working || data.stale || !data.source_basis} save={(extend) => void act(() => API.setNoteScope(projectName, selected, data.source_basis!, extend))} />
+        <NoteReadingRange notes={data.notes} selected={selected} disabled={busy || working || data.stale || !data.source_basis} select={setSelected}>
+          {(range, valid) => <ReadingScopePanel key={range.join(",")} scope={data.scope} notes={data.notes} selected={range} disabled={busy || working || data.stale || !data.source_basis || !valid} save={(extend) => void act(() => API.setNoteScope(projectName, range, data.source_basis!, extend))} />}
+        </NoteReadingRange>
       </>}
     </ReadingSettings>}
     {upload && <SourceUploadDialog projectName={projectName} initialMode="whole_source" onClose={() => { setUpload(false); setRevision((n) => n + 1); }} />}

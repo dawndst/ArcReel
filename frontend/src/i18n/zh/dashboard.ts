@@ -1,9 +1,13 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_settings_range_hint: "下面的范围操作直接使用这里输入的起止章节，无需先选择章节。限定会替换现有可用范围；追加只会扩大范围，不会移除已有章节。",
+  nw_range_use_for_task: "将此范围勾选为本次任务章节",
+  nw_settings_range_count: "输入范围共 {{count}} 章",
+
   nw_scope_outside_saved: "Note 已生成 · 范围外，不参与检索与制作",
-  nw_scope_add: "将所选章节加入可用范围",
-  nw_scope_replace: "仅使用所选章节…",
+  nw_scope_add: "追加输入章节（保留现有范围）",
+  nw_scope_replace: "将可用范围限定为输入章节…",
   nw_scope_replace_preview: "将可用范围限定为所选 {{selected}} 章，{{excluded}} 章将暂不参与制作与检索",
   nw_scope_preserve_notes: "这是全项目范围设置，不是本次任务的阅读选择。已生成的 Note、精简稿和素材不会删除，仍可查看；加入范围后再用于制作。",
   nw_scope_replace_confirm: "确认限定范围，保留已有 Note",
@@ -4476,7 +4480,7 @@ export default {
   "nw_scope_end": "结束章节序号",
   "nw_scope_select": "选择此范围",
   "nw_scope_set": "以所选章节设定可用范围",
-  "nw_scope_hint": "勾选章节只决定本次操作；这里控制全项目可供 AI 回查和制作的章节。“加入”保留已有范围；“仅使用所选”才会缩小范围。范围外章节在侧边栏以删除线标记，不参与跨章检索与回读；已有 Note 和精简稿仍可查看。",
+  "nw_scope_hint": "这里控制全项目可供 AI 回查和制作的章节，直接使用上方输入范围。限定会替换当前范围；追加不会缩小范围。范围外章节以删除线标记，不参与跨章检索与回读；已有资料仍可查看。",
   "nw_scope_outside": "暂不参与制作",
   "nw_arrange_single": "建立资料组",
   "nw_group_management_hint": "资料组合只用于管理章节和重新归纳梗概，不对应成片集。场与镜生成后，由导演选择并编排成集。",

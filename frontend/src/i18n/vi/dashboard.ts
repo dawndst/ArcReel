@@ -1,9 +1,13 @@
 import type enDashboard from "@/i18n/en/dashboard";
 
 export default {
+  nw_settings_range_hint: "Scope actions use the chapter numbers entered here directly. Limit replaces the available scope; Append keeps all currently available chapters.",
+  nw_range_use_for_task: "Select this range for the current task",
+  nw_settings_range_count: "{{count}} chapters in entered range",
+
   nw_scope_outside_saved: "Note saved · outside retrieval and production scope",
-  nw_scope_add: "Add selected chapters to available scope",
-  nw_scope_replace: "Use only selected chapters…",
+  nw_scope_add: "Append entered chapters (keep existing scope)",
+  nw_scope_replace: "Limit available scope to entered chapters…",
   nw_scope_replace_preview: "Limit availability to {{selected}} selected chapters; {{excluded}} chapters will be excluded from production and retrieval",
   nw_scope_preserve_notes: "This changes the project-wide scope, not the current task selection. Existing Notes, condensed text and material remain browsable. Add them back to use them in production.",
   nw_scope_replace_confirm: "Confirm scope limit; keep existing Notes",
@@ -4478,7 +4482,7 @@ export default {
   "nw_scope_end": "Vị trí chương cuối",
   "nw_scope_select": "Chọn phạm vi",
   "nw_scope_set": "Dùng các chương đã chọn làm phạm vi",
-  "nw_scope_hint": "Checkboxes select the current task. This setting controls project-wide production and AI retrieval availability. Add retains existing scope; Use only restricts it. Excluded chapter titles are struck through in the sidebar and skipped by cross-chapter retrieval and rereading. Existing Notes and condensed text remain readable.",
+  "nw_scope_hint": "This project-wide scope controls AI retrieval and production and uses the chapter range entered above. Limit replaces the scope; Append never shrinks it. Excluded chapter titles are struck through and skipped by cross-chapter retrieval and rereading; saved material remains readable.",
   "nw_scope_outside": "Outside production scope",
   "nw_arrange_single": "Sắp xếp chương này",
   "nw_group_management_hint": "Groups organize Notes and summarize their content. They are not episodes. Directors select scenes and shots to assemble episodes.",
