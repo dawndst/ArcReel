@@ -403,3 +403,66 @@ def test_reference_assembly_does_not_require_approval_or_a_speech_budget(prepare
         manifest = json.loads(archive.read("manifest.json"))
         assert manifest["shots"][0]["scene"]["purpose"] == "行动"
         assert "story_links" in manifest["shots"][0]
+
+
+def test_story_advice_accepts_cross_shot_explanation_and_attaches_real_material():
+    from lib.novel_workflow.production_advice import StoryAdvice, ground_story_advice
+
+    visible = [
+        {"id": "SH-1", "segments": [{"scene_description": "怪物扑来", "utterances": []}]},
+        {"id": "SH-2", "segments": [{"scene_description": "阳子走进教室", "utterances": []}]},
+    ]
+    value = StoryAdvice(
+        summary="转场待编导判断",
+        audience_understanding="两个场景之间没有可见过渡",
+        findings=[
+            {
+                "kind": "transition",
+                "shot_ids": ["SH-1", "SH-2"],
+                "reason": "跨度较大",
+                "visible_evidence": "前镜是“怪物扑来”；后镜是“阳子走进教室”，缺少过渡说明。",
+                "suggestion": "由编导判断是否增加转场",
+            }
+        ],
+    )
+    result = ground_story_advice(value, visible, ["SH-1", "SH-2"])
+    assert result["findings"][0]["evidence"] == visible
+    value.findings[0].shot_ids = ["SH-other"]
+    with pytest.raises(ValueError, match="实际选中镜头"):
+        ground_story_advice(value, visible, ["SH-1", "SH-2"])
+
+
+@pytest.mark.parametrize("unresolved", [None, "无名路人"])
+def test_unresolved_speaker_uses_pending_asset_without_blocking_reference_episode(prepared, unresolved):
+    from lib.novel_workflow.director import assemble
+
+    manager, path, project, book, shot = prepared
+    file = store.root(path) / "scene_library.json"
+    library = load_json(file)
+    batch = library["batches"]["n:0"]
+    raw = batch["scenes"][0]["shots"][0]
+    raw["segments"][0]["utterances"][0]["speaker"] = unresolved
+    reading = store.valid_readings(path, book)[batch["note_id"]]
+    batch["production_basis"] = planning_inputs(
+        batch["production_context"], store.rule(path, "shot_production"), {raw["id"]: raw}, project, reading
+    )[2]
+    store.write(file, library)
+    episode = assemble(manager, "demo", [shot["id"]], "含待定路人", book["source_basis"], "pending")
+    current = manager.load_project("demo")
+    pending = [
+        (name, asset) for name, asset in current["characters"].items() if asset.get("identity_status") == "pending"
+    ]
+    assert len(pending) == 1
+    name, asset = pending[0]
+    assert asset["asset_code"]
+    assert asset["first_note"]["id"] == book["notes"][0]["id"]
+    saved = load_json(file)["batches"]["n:0"]["scenes"][0]["shots"][0]
+    assert saved["segments"][0]["utterances"][0]["speaker"] == name
+    assert name not in saved["segments"][0]["characters_in_scene"]
+    assert saved["attribution_history"][-1]["confirmed_by"] == "reference_placeholder"
+    assert assemble(manager, "demo", [shot["id"]], "含待定路人", book["source_basis"], "retry") == episode
+    assert (
+        len([a for a in manager.load_project("demo")["characters"].values() if a.get("identity_status") == "pending"])
+        == 1
+    )
+    assert (path / "source/book.txt").read_text().startswith("# 第一章")

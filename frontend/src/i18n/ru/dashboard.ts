@@ -1,6 +1,21 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_exec_speaker_pending: "Provisional speaker; resolve or merge later",
+  nw_delivery_pending_speakers: "{{count}} lines have unresolved speakers. Creating the episode registers numbered provisional assets without guessing identities or blocking reference assembly.",
+  nw_asset_pending_speaker: "Provisional speaker asset: preserves dialogue and source only. Identity and appearance are unconfirmed. Rebind the speaker or merge with a confirmed asset later; existing episodes remain.",
+  nw_delivery_create_blocked: "Complete the following before creating the episode (reference export is available)",
+  nw_delivery_fix_blocker: "Resolve this issue",
+  nw_story_ai_reason: "AI explanation (not a verbatim quotation)",
+  nw_story_material: "Show corresponding shot material",
+  nw_story_not_submitted: "Review was not submitted. Please retry.",
+  nw_story_checking: "Checking viewer understanding",
+  nw_story_retry: "Retry viewer-understanding review",
+  nw_story_queued: "Review queued. Progress will update automatically.",
+  nw_story_running: "Review in progress. Results will appear automatically.",
+  nw_story_failed: "Review did not finish successfully. See details and retry; manual assembly remains available.",
+  nw_story_error_detail: "Failure details",
+  nw_story_complete: "Review complete · {{count}} suggestions below. Adoption is a human decision.",
   nw_assembly_next_hint: "Enter an episode title, then open Assembly reference and production information to save the selection or export a reference package.",
   nw_assembly_title_needed: "Enter an episode title to continue",
   nw_exec_optional: "Optional production suggestions · {{count}} (assembly is available)",

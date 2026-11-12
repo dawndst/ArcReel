@@ -175,23 +175,7 @@ async def selection_story(path, generator, note_ids, expected, shot_ids, title):
     )
 
     def validate(value):
-        names = set(shot_ids)
-        for item in value.findings:
-            if not set(item.shot_ids) <= names:
-                raise ValueError("叙事建议只能指向实际选中镜头")
-            # Evidence is an excerpt of visible actions or audible lines, not invented source context.
-            excerpts = [
-                seg["scene_description"] for sh in visible if sh["id"] in item.shot_ids for seg in sh["segments"]
-            ] + [
-                u["text"]
-                for sh in visible
-                if sh["id"] in item.shot_ids
-                for seg in sh["segments"]
-                for u in seg["utterances"]
-            ]
-            if not any(item.visible_evidence in excerpt for excerpt in excerpts):
-                raise ValueError("请逐字引用选中镜头的动作或台词作为问题依据")
-        return value.model_dump()
+        return ground_story_advice(value, visible, shot_ids)
 
     result = await ask(
         path,
@@ -216,3 +200,14 @@ async def selection_story(path, generator, note_ids, expected, shot_ids, title):
         return {"reviewed": len(shot_ids), "basis": current["basis"]}
 
     return await run_noninterruptible_sync(commit)
+
+
+def ground_story_advice(value, visible, shot_ids):
+    """Anchor advisory explanations to supplied shots without treating prose as a literal quotation."""
+    names = set(shot_ids)
+    result = value.model_dump()
+    for item in result["findings"]:
+        if not set(item["shot_ids"]) <= names:
+            raise ValueError("叙事建议只能指向实际选中镜头")
+        item["evidence"] = [sh for sh in visible if sh["id"] in item["shot_ids"]]
+    return result

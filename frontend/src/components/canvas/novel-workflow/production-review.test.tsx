@@ -10,6 +10,7 @@ const initial: DeliveryPlan = { basis: "basis", title: "出发", shot_ids: ["SH-
 beforeEach(() => {
   vi.restoreAllMocks(); localStorage.clear();
   vi.spyOn(API, "deliveryPlans").mockResolvedValue([]);
+  vi.spyOn(API, "listProjectTasks").mockResolvedValue({ items: [], total: 0, page: 1, page_size: 50 });
   vi.spyOn(API, "deliveryPreview").mockResolvedValue(structuredClone(initial));
   vi.spyOn(API, "getSceneBatchSource").mockResolvedValue({ text: "甲说：出发。", source_file: "source/book.txt", start: 0, end: 8, note_title: "第一章", part: 0, shots: [] });
 });
@@ -36,6 +37,8 @@ it("hard structural problems cannot be waived by a human checkbox", async () => 
   expect(await screen.findByText(/项待补信息/)).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "保存当前版本的编导确认" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "前往 SH-001 修改" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "创建分集并保存编排" })).toBeEnabled();
+  expect(screen.getByText(/创建分集时将登记为带编号的待定说话资产/)).toBeInTheDocument();
 });
 it("edits speech placement without adding an off-screen speaker to the visible cast", async () => {
   const save = vi.fn<(value: ShotEdit) => Promise<void>>().mockResolvedValue();

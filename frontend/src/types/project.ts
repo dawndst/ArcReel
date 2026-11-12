@@ -48,6 +48,7 @@ export interface CharacterDerivativeStatus extends CharacterDerivative {
 }
 
 export interface Character {
+  identity_status?: "pending" | "confirmed";
   first_note?: AssetFirstNote;
   asset_code?: string;
   asset_id?: string;

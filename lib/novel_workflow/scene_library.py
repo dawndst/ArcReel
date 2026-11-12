@@ -443,7 +443,17 @@ def require_attributed(shot):
 
 
 def attribute_dialogue(
-    path, project, shot_id, segment_index, utterance_index, speaker, expected, shot_basis, register_role=False
+    path,
+    project,
+    shot_id,
+    segment_index,
+    utterance_index,
+    speaker,
+    expected,
+    shot_basis,
+    register_role=False,
+    *,
+    pending_reference=False,
 ):
     """Human attribution is local, versioned and guarded against stale edits."""
     with project_metadata_lock(path):
@@ -505,6 +515,13 @@ def attribute_dialogue(
                         }
                         store.write(store.root(path) / "history" / f"source-role-project-{uuid4().hex}.json", project)
                         speaker = register(project, note, reading[batch["note_id"]]["basis"], speaker, ev)
+                    if pending_reference:
+                        from lib.novel_workflow.pending_speakers import register as register_pending
+
+                        store.write(
+                            store.root(path) / "history" / f"pending-speaker-project-{uuid4().hex}.json", project
+                        )
+                        speaker = register_pending(project, notebook, shot, segment_index, utterance_index)
                     if speaker not in project.get("characters", {}):
                         raise ValueError("请选择项目中已登记的人物资产；未明确身份可建立无名角色资产")
                     store.write(store.root(path) / "history" / f"scene-attribution-{uuid4().hex}.json", batch)
@@ -519,14 +536,18 @@ def attribute_dialogue(
                         None,
                     )
                     utterance["speaker"] = speaker
-                    if utterance.get("delivery") == "on_screen" and speaker not in segment["characters_in_scene"]:
+                    if (
+                        not pending_reference
+                        and utterance.get("delivery") == "on_screen"
+                        and speaker not in segment["characters_in_scene"]
+                    ):
                         segment["characters_in_scene"].append(speaker)
                     shot.setdefault("attribution_history", []).append(
                         {
                             "segment": segment_index,
                             "utterance": utterance_index,
                             "speaker": speaker,
-                            "confirmed_by": "human",
+                            "confirmed_by": "reference_placeholder" if pending_reference else "human",
                             "created_at": now(),
                             **({"ai_suggestion": suggestion} if suggestion else {}),
                         }
@@ -538,7 +559,7 @@ def attribute_dialogue(
                             ctx, rules, shots, project, reading[batch["note_id"]]
                         )[2]
                     with formal_write_transaction(path / "project.json", store.root(path) / "scene_library.json"):
-                        if register_role:
+                        if register_role or pending_reference:
                             store.write(path / "project.json", project)
                         store.write(store.root(path) / "scene_library.json", library)
                     return {"shot_id": shot_id, "speaker": speaker}

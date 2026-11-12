@@ -69,6 +69,31 @@ def assemble(manager, name, shot_ids, title, expected, request_id):
         notebook = store.require_current(path, project, expected)
         readings = store.valid_readings(path, notebook)
         selected = scene_library.selected_shots(path, notebook, readings, shot_ids)
+        from lib.novel_workflow.execution import asset
+
+        # A reference episode may retain unresolved attribution using explicitly pending assets.
+        missing = [
+            (s["id"], i, j)
+            for _, _, s in selected
+            for i, seg in enumerate(s["segments"])
+            for j, u in enumerate(seg["utterances"])
+            if u["kind"] == "dialogue" and not asset(project, "character", u.get("speaker") or "").get("asset_id")
+        ]
+        for shot_id, segment, utterance in missing:
+            library = scene_library.catalog(path)
+            raw = next(
+                sh
+                for b in library["batches"].values()
+                for sc in b["scenes"]
+                for sh in sc["shots"]
+                if sh["id"] == shot_id
+            )
+            scene_library.attribute_dialogue(
+                path, project, shot_id, segment, utterance, "", expected, digest(raw), pending_reference=True
+            )
+        if missing:
+            project = manager.load_project(name)
+            selected = scene_library.selected_shots(path, notebook, readings, shot_ids)
         from lib.novel_workflow.delivery_review import preview
 
         selection_plan = preview(path, project, shot_ids, title, expected)

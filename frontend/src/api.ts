@@ -2199,7 +2199,7 @@ class API {
   static async editShotExecution(name: string, shot: string, source_basis: string, shot_basis: string, value: import("@/types/novel-workflow").ShotEdit): Promise<{ shot_ids: string[] }> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/shots/${encodeURIComponent(shot)}/execution`, { method: "PATCH", body: JSON.stringify({ source_basis, shot_basis, value }) });
   }
-  static async productionAdvice(name: string, action: "shot_draft" | "selection_story", note_ids: string[], shot_ids: string[], source_basis: string, title = ""): Promise<unknown> {
+  static async productionAdvice(name: string, action: "shot_draft" | "selection_story", note_ids: string[], shot_ids: string[], source_basis: string, title = ""): Promise<{ batch: { members: { task_id: string; status: string }[] } }> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action, note_ids, shot_ids, source_basis, title }) });
   }
   static async deliveryPlans(name: string): Promise<import("@/types/novel-workflow").SavedDelivery[]> {

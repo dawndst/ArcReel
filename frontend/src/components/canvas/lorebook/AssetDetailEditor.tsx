@@ -217,6 +217,7 @@ export function AssetDetailEditor({
 
       <SheetBody>
         <AssetFirstNoteLink projectName={projectName} first={asset.first_note} />
+        {assetType === "character" && (asset as Character).identity_status === "pending" && <p className="mb-4 rounded border border-warn/40 bg-warn/10 p-3 text-sm">{t("dashboard:nw_asset_pending_speaker")}</p>}
         <div className="flex flex-col gap-6">
           <section aria-label={t("assets:sheet_section")} className="flex flex-col gap-3">
             <div className="relative aspect-video overflow-hidden rounded-lg border border-border bg-muted/40">

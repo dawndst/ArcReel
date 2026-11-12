@@ -84,6 +84,8 @@ def inspect(shot, project):
                 add("speaker_missing", index, True, utterance=j, text=line["text"])
             elif speaker and not asset(project, "character", speaker).get("asset_id"):
                 add("speaker_asset_missing", index, True, utterance=j, name=speaker)
+            if speaker and asset(project, "character", speaker).get("identity_status") == "pending":
+                add("speaker_pending", index, False, utterance=j, name=speaker, text=line["text"])
             if mode == "unclassified":
                 add("delivery_unknown", index, False, utterance=j, text=line["text"])
             if mode == "on_screen" and speaker and speaker not in seg.get("characters_in_scene", []):

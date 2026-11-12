@@ -176,10 +176,10 @@ export function NovelWorkbench({ projectName, onProduction }: { projectName: str
   }
   function assembleSelection() { void act(async () => {
     const created = await API.assembleDirectorEpisode(projectName, shotSelection, episodeTitle, data!.source_basis!, assemblyRequest);
-    await refreshAfterWrite(projectName, t);
+    const refreshed = await refreshAfterWrite(projectName, t);
     setRevision((n) => n + 1);
     setAssemblyRequest(crypto.randomUUID());
-    setError(t("dashboard:nw_delivery_episode", { episode: created.episode }));
+    if (refreshed === "success") navigate(`/episodes/${created.episode}`);
   }); }
   const selectedNotes = data?.notes.filter((n) => selected.includes(n.id)) ?? [];
   const note = data?.notes.find((n) => n.id === (focused ?? requestedNote)) ?? data?.notes[0];
