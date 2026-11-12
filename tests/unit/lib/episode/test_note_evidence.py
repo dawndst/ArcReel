@@ -5,6 +5,45 @@ from lib.novel_workflow.models import Reading
 from lib.novel_workflow.service import ground
 
 
+def test_duplicate_final_full_stop_restores_source_without_relaxing_internal_punctuation():
+    source = "他说：台辅。"
+    start, end = locate(source, "他说：台辅。。")
+    assert source[start:end] == source
+    with pytest.raises(ValueError, match="唯一出现"):
+        locate(source, "他说。台辅。。")
+    with pytest.raises(ValueError, match="唯一出现"):
+        locate(source + source, "他说：台辅。。")
+    assert locate("台辅。。", "台辅。。") == (0, 4)
+
+
+def test_inquiry_index_preserves_dialogue_and_classification_without_duplicate_evidence():
+    from lib.novel_workflow.understanding import inquiry_record
+
+    record = {
+        "id": "e1",
+        "quote": "我不知道。",
+        "claim_type": "statement",
+        "perspective": "甲",
+        "evidence": {"quote": "我不知道。", "start": 1},
+        "context_quote": "甲说我不知道。",
+        "dialogues": [{"quote": "不知道", "speaker": "甲", "source_kind": "narrative"}],
+        "uncertainty_reason": "",
+        "resolved": False,
+    }
+    result = inquiry_record(record)
+    assert result == {
+        key: value
+        for key, value in record.items()
+        if key
+        not in {
+            "evidence",
+            "context_quote",
+            "uncertainty_reason",
+        }
+    }
+    assert record["evidence"]["start"] == 1
+
+
 def test_epub_whitespace_restores_exact_source_span_and_fact_quote():
     text = "开头。导师倒地。\n\n\u00a0\u00a0阳子回头。结尾。"
     quote = "导师倒地。阳子回头。"

@@ -13,6 +13,21 @@ from lib.novel_workflow import memory, retrieval, settings, store, synthesis
 from lib.novel_workflow.evidence import locate
 from lib.novel_workflow.understanding_models import Findings, Inquiry
 
+INQUIRY_INDEX_BUDGET = 14000
+
+
+def inquiry_record(value):
+    """Keep semantic fields, including nested dialogue; source locations stay in the corpus."""
+    if isinstance(value, list):
+        return [inquiry_record(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: inquiry_record(item)
+            for key, item in value.items()
+            if key not in {"evidence", "context_quote"} and item not in (None, "", [], {})
+        }
+    return value
+
 
 def ground(value, supplied, anchor_note_ids, notebook):
     by_id = {f["id"]: f for f in supplied}
@@ -180,18 +195,24 @@ async def understand_notes(path, generator, note_ids, expected):
     rules = await asyncio.to_thread(understanding_rules, path)
     scope_rule = await asyncio.to_thread(store.effective_rule, path, "scope")
     scope_hint = "\n" + scope_rule.strip()
-    key = digest([expected, bases, rules, scope_basis, scope_hint, 2])
+    legacy_key = digest([expected, bases, rules, scope_basis, scope_hint, 2])
+    key = digest([expected, bases, rules, scope_basis, scope_hint, "compact-source-index-v1"])
     target = store.root(path) / "understanding" / "reports" / f"{key}.json"
     if await asyncio.to_thread(target.exists):
         return {"report_id": key, "cached": True}
     project = await asyncio.to_thread(load_json, path / "project.json")
     corpus = await run_noninterruptible_sync(retrieval.index, path, project, notebook)
     units = []
+    original_records = {}
+    legacy_count = 0
     for note in notes:
         reading = readings[note["id"]]
+        records = memory.records(reading)
+        original_records[note["id"]] = {record["id"]: record for record in records}
+        legacy_count += len(list(synthesis.packs(records, 7000)))
         units.extend(
             {"note_id": note["id"], "title": note["title"], "questions": reading["questions"], "records": batch}
-            for batch in synthesis.packs(memory.records(reading), 7000)
+            for batch in synthesis.packs([inquiry_record(record) for record in records], INQUIRY_INDEX_BUDGET)
         )
     checkpoint = store.root(path) / "understanding" / "runs" / f"{key}.json"
     run = (
@@ -199,6 +220,17 @@ async def understand_notes(path, generator, note_ids, expected):
         if await asyncio.to_thread(checkpoint.exists)
         else {"cursor": 0, "links": [], "unresolved": [], "inspections": []}
     )
+    if not await asyncio.to_thread(checkpoint.exists):
+        # Reuse only completed units from the identical source, rules, Note bases and scope.
+        # Every compact unit is still inspected; reconciliation deduplicates overlapping links.
+        run["reused_units"] = 0
+        for index in range(legacy_count):
+            old_file = store.root(path) / "understanding" / "units" / f"{digest([legacy_key, index])}.json"
+            if await asyncio.to_thread(old_file.exists):
+                previous = await asyncio.to_thread(load_json, old_file)
+                for field in ("links", "unresolved", "inspections"):
+                    run[field].extend(previous[field])
+                run["reused_units"] += 1
     progress = {"phase": "understanding", "total": len(units), "done": run["cursor"], "started_at": now()}
     await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
 
@@ -226,7 +258,8 @@ async def understand_notes(path, generator, note_ids, expected):
                 )
             ).model_dump()
             await run_noninterruptible_sync(store.write, inquiry_file, inquiry)
-        anchors = await asyncio.to_thread(retrieval.anchors, corpus, unit["records"])
+        anchor_records = [original_records[unit["note_id"]][record["id"]] for record in unit["records"]]
+        anchors = await asyncio.to_thread(retrieval.anchors, corpus, anchor_records)
         # Split anchor material itself when dense chapters contain many source quotations.
         anchor_batches = list(synthesis.packs(anchors, 10000))
         unresolved = list(inquiry["questions"])

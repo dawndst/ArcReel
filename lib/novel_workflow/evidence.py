@@ -14,6 +14,11 @@ def locate(text: str, quote: str) -> tuple[int, int]:
     if pos < 0:
         needle = needle.strip('「」『』“”‘’"')
         pos = compact.find(needle)
+    # A duplicated final full stop is a model formatting error, not source wording.
+    # Only restore it when the unchanged, shorter excerpt has a unique source span.
+    if pos < 0 and needle.endswith("。。"):
+        needle = needle[:-1]
+        pos = compact.find(needle)
     if not needle or pos < 0 or compact.find(needle, pos + 1) >= 0:
         raise ValueError(f"引文必须在当前原文中唯一出现（仅容忍排版空白与摘录外层引号，不改词或拼接）：{quote[:90]}")
     return positions[pos], positions[pos + len(needle) - 1] + 1

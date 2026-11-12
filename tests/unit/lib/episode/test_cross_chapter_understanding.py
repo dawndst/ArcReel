@@ -305,7 +305,7 @@ async def test_parallel_units_keep_successes_when_sibling_fails_and_resume(tmp_p
     monkeypatch.setattr(understanding.memory, "records", lambda reading: original_records(reading) * 4)
 
     def packs(values, budget=18000):
-        if budget == 7000:
+        if budget == understanding.INQUIRY_INDEX_BUDGET:
             yield from ([v] for v in values)
         else:
             yield from original_packs(values, budget)
