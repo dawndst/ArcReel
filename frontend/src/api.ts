@@ -2172,6 +2172,9 @@ class API {
   static async runNoteWorkflow(name: string, action: "read" | "svt" | "review" | "understand" | "scenes" | "condense" | "group_summary", note_ids: string[], source_basis: string, group_id?: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action, note_ids, source_basis, group_id }) });
   }
+  static async organizeCrossQuestions(name: string, report_id: string, note_ids: string[], source_basis: string): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action: "questions", report_id, note_ids, source_basis }) });
+  }
   static async createNoteGroup(name: string, note_ids: string[], title: string, source_basis: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/groups`, { method: "POST", body: JSON.stringify({ note_ids, title, source_basis }) });
   }

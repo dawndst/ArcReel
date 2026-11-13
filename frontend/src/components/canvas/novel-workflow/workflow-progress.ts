@@ -5,6 +5,7 @@ export function workflowProgress(progress: NovelWorkflow["progress"]) {
     shot_draft: "nw_exec_ai_request", selection_story: "nw_delivery_ai", speaker_attribution: "nw_speaker_ai_running", reading: "nw_reading_running", condensing: "nw_condensing", summarizing: "nw_summarizing",
     scenes: progress?.step === "production" ? "nw_complete_production" : "nw_phase_scenes",
     group_summary: "nw_group_summarize", understanding: "nw_understanding_running",
+    question_register: progress?.step === "merge" ? "nw_question_merging" : "nw_question_grouping",
     review: progress?.step === "overview" ? "nw_review_stage_overview" : progress?.step === "conclusion" ? "nw_review_stage_conclusion" : "nw_review_running",
     svt: "nw_svt_running",
   };

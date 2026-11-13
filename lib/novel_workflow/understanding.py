@@ -136,7 +136,9 @@ def view(path: Path, notebook=None):
             or report["rule_basis"] != rule_basis
             or any(readings.get(i, {}).get("basis") != b for i, b in report["note_bases"].items())
         )
-        reports.append({**report, "stale": stale})
+        from lib.novel_workflow.question_register import load as load_questions
+
+        reports.append({**report, "stale": stale, "question_register": load_questions(path, report)})
     reports.sort(key=lambda r: r["created_at"])
     for report in reports:
         if not report["stale"]:
@@ -205,6 +207,9 @@ async def understand_notes(path, generator, note_ids, expected):
     key = digest([expected, bases, rules, scope_basis, scope_hint, "compact-source-index-v1"])
     target = store.root(path) / "understanding" / "reports" / f"{key}.json"
     if await asyncio.to_thread(target.exists):
+        from lib.novel_workflow.question_register import organize_notes
+
+        await organize_notes(path, generator, note_ids, expected, key)
         return {"report_id": key, "cached": True}
     project = await asyncio.to_thread(load_json, path / "project.json")
     corpus = await run_noninterruptible_sync(retrieval.index, path, project, notebook)
@@ -408,6 +413,9 @@ async def understand_notes(path, generator, note_ids, expected):
             ),
         }
         await run_noninterruptible_sync(store.write, target, report)
+        from lib.novel_workflow.question_register import build
+
+        await build(path, generator, report, notebook)
         progress.update(phase="complete", done=len(units))
         return {"report_id": key, "links": len(report["links"])}
     except Exception as exc:

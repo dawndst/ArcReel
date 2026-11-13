@@ -56,7 +56,17 @@ export interface UnderstandingReport {
   id: string; stale: boolean; created_at: string; selected_note_ids: string[]; searched_note_count: number;
   inspected_note_ids: string[]; unread_inspected_note_ids: string[];
   unresolved: { note_id: string; question: string }[];
+  links?: UnderstandingLink[];
+  question_register?: QuestionRegister | null;
   inspections: { anchor_note_id: string; queries: string[]; note_ids: string[]; round: number }[];
+}
+
+export interface QuestionRegister {
+  stale: boolean; original_count: number; group_count: number;
+  counts: { plot_unrevealed: number; extraction_check: number };
+  originals: { id: string; note_id: string; question: string; index: number }[];
+  groups: { id: string; question: string; kind: "plot_unrevealed" | "extraction_check"; explanation: string;
+    note_ids: string[]; original_ids: string[]; link_ids: string[]; original_count: number }[];
 }
 
 export interface LibrarySegment { start_frame?: string; end_frame?: string; asset_states?: ExecutionAssetState[]; duration_seconds: number; scene_description: string; characters_in_scene: string[]; scenes: string[]; props: string[]; utterances: { kind: string; speaker: string | null; text: string; delivery?: SpeechDelivery; origin?: "source" | "adaptation"; basis_quote?: string }[] }

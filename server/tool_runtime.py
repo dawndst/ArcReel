@@ -2792,6 +2792,13 @@ async def _execute_queued_text_task(
         from lib.novel_workflow.scene_library import generate as generate_scenes
         from lib.novel_workflow.understanding import understand_notes
 
+        if payload["action"] == "questions":
+            from lib.novel_workflow.question_register import organize_notes
+
+            return await organize_notes(
+                path, generator, payload["note_ids"], payload["source_basis"], payload.get("report_id")
+            )
+
         if payload["action"] == "group_summary":
             return await summarize(
                 path, generator, payload["note_ids"], payload["source_basis"], payload.get("group_id")

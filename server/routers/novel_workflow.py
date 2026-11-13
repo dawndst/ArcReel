@@ -46,6 +46,7 @@ class ReadingRequest(SourceRequest):
         "svt",
         "review",
         "understand",
+        "questions",
         "scenes",
         "condense",
         "group_summary",
@@ -56,6 +57,7 @@ class ReadingRequest(SourceRequest):
     note_ids: list[str] = Field(min_length=1, max_length=10000)
 
     group_id: str | None = Field(default=None, max_length=100)
+    report_id: str | None = Field(default=None, max_length=100)
     shot_ids: list[str] = Field(default_factory=list, max_length=300)
     title: str = Field(default="", max_length=200)
 
