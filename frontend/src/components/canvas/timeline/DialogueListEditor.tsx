@@ -40,7 +40,7 @@ function DialogueRow({ value, onUpdate, onRemove, readOnly }: DialogueRowProps) 
         onChange={(e) => onUpdate({ line: e.target.value })}
         onKeyDown={(e) => {
           // 一条台词只占一段：回车不换行，只折行显示长文本；输入法用回车确认候选时放行。
-          if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+          if (e.key === "Enter" && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) {
             e.preventDefault();
           }
         }}

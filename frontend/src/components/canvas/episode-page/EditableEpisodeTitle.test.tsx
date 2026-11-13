@@ -60,6 +60,7 @@ describe("EditableEpisodeTitle", () => {
     fireEvent.change(input, { target: { value: "拼音确认中" } });
     // 中文输入法按 Enter 确认候选词时 isComposing 为 true，不应触发保存
     fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: false, keyCode: 229 });
 
     expect(onSave).not.toHaveBeenCalled();
   });

@@ -32,3 +32,7 @@ uv run python scripts/gate.py backend frontend     # 或直接点名域；各域
 ## 小说改编业务定义
 
 Note/SVT 的最新约束以 [docs/novel-workflow/note-svt-contract.md](docs/novel-workflow/note-svt-contract.md) 为准：每章一 Note，每 Note 唯一主归属 SVT并可有多个备选；多个 Note 可共用一个 SVT。爆点须成对保存场面和原文台词，并标注来源 Note。不要恢复为一个 Note 多个同时生效的 SVT，或把 Note 管理组合直接视为成片集。
+
+## 前端 Web 指南
+
+前端交互改动使用 [GoogleChrome/modern-web-guidance](https://github.com/GoogleChrome/modern-web-guidance) 的 `skills/modern-web-guidance` 开发技能：先检索对应能力，再读取具体指南。仅用于开发，不加入小说分析或制作模型提示词。保留现有 Base UI 的焦点管理与关闭行为；中文输入快捷键需检查 `isComposing` 和 Safari 的 `keyCode === 229`；原文依据保留语义化 `<mark>`，重点不能仅靠颜色区分。

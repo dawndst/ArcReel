@@ -50,6 +50,9 @@ describe("DialogueListEditor", () => {
       isComposing: true,
     });
     expect(prevented).toBe(false);
+    expect(fireEvent.keyDown(screen.getByDisplayValue(dialogue[0].line), {
+      key: "Enter", isComposing: false, keyCode: 229,
+    })).toBe(true);
   });
 
   it("appends an empty pair on add", () => {

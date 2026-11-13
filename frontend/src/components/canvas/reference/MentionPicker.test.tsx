@@ -15,6 +15,22 @@ const CANDIDATES = {
 };
 
 describe("MentionPicker", () => {
+  it("leaves IME navigation and confirmation to the input method", () => {
+    const select = vi.fn();
+    render(<MentionPicker open query="" candidates={CANDIDATES} onSelect={select} onClose={vi.fn()} />);
+    for (const key of ["ArrowDown", "ArrowUp", "Enter", "Tab"]) {
+      const event = new KeyboardEvent("keydown", { key, isComposing: true, cancelable: true, bubbles: true });
+      fireEvent(window, event);
+      expect(event.defaultPrevented).toBe(false);
+    }
+    const safari = new KeyboardEvent("keydown", { key: "Enter", keyCode: 229, cancelable: true, bubbles: true });
+    fireEvent(window, safari);
+    expect(safari.defaultPrevented).toBe(false);
+    expect(select).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(select).toHaveBeenCalledWith({ type: "character", name: "主角" });
+  });
+
   it("builds 160px thumbnail URLs with the asset fingerprint from the projects store", () => {
     useProjectsStore.setState({ assetFingerprints: { "characters/zs.png": 1712345678901 } });
     const candidates = {

@@ -73,7 +73,10 @@ export function MentionPicker({
     for (const kind of GROUP_ORDER) {
       const bucket = { character: project?.characters, scene: project?.scenes, prop: project?.props, product: project?.products }[kind];
       for (const [name, asset] of Object.entries(bucket ?? {})) {
-        if (asset.asset_code) result[`${kind}:${name}`] = asset.asset_code;
+        const candidate: unknown = asset;
+        if (candidate && typeof candidate === "object" && "asset_code" in candidate && typeof candidate.asset_code === "string") {
+          result[`${kind}:${name}`] = candidate.asset_code;
+        }
         if (kind === "character") for (const [variant, value] of Object.entries(project?.characters[name]?.derivatives ?? {})) {
           if (value.asset_code) result[`${kind}:${name}/${variant}`] = value.asset_code;
         }
@@ -161,6 +164,8 @@ export function MentionPicker({
 
   // 键盘监听只随 open 订阅；列表、高亮项与 onSelect 在按键时读最新值，不触发重新订阅。
   const handleKey = useEffectEvent((e: KeyboardEvent) => {
+    // Leave IME navigation and confirmation to the input method (Safari uses 229).
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setActiveIndex(Math.min(flat.length - 1, clampedActive + 1));
