@@ -52,6 +52,8 @@ def report(batch, reading, chunk):
         for d in source_dialogues(reading, chunk)
     ]
     intervals = {e["dialogue_id"]: [] for e in entries}
+    original = normalized(chunk.get("text", ""))
+    unique_quotes = {normalized(e["quote"]) for e in entries if original.count(normalized(e["quote"])) == 1}
     for scene in batch["scenes"]:
         for shot in scene["shots"]:
             ev = shot.get("evidence", {})
@@ -64,8 +66,16 @@ def report(batch, reading, chunk):
                         e
                         for e in entries
                         if text
-                        and ev.get("start", -1) <= e["evidence"]["start"] < e["evidence"]["end"] <= ev.get("end", -1)
-                        and (text in normalized(e["quote"]) or normalized(e["quote"]) in text)
+                        and (
+                            (
+                                ev.get("start", -1)
+                                <= e["evidence"]["start"]
+                                < e["evidence"]["end"]
+                                <= ev.get("end", -1)
+                                and (text in normalized(e["quote"]) or normalized(e["quote"]) in text)
+                            )
+                            or (normalized(e["quote"]) in unique_quotes and normalized(e["quote"]) in text)
+                        )
                     ]
                     if len(candidates) > 1:
                         candidates = [e for e in candidates if e["speaker"] == u.get("speaker")]

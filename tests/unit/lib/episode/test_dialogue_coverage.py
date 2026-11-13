@@ -156,3 +156,14 @@ async def test_decisions_are_version_checked_and_do_not_delete_note_or_shots(tmp
         assert list((store.root(tmp_path) / "history").glob("dialogue-decision-*.json"))
 
     await asyncio.to_thread(check)
+
+
+def test_unique_original_line_matches_even_when_shot_anchor_is_an_adjacent_action():
+    batch, reading, chunk = material()
+    chunk["text"] = "他转身。『为什么？因为要回家。』她关上门。"
+    shot = batch["scenes"][0]["shots"][0]
+    shot["evidence"] = {"start": 40, "end": 60}
+    shot["segments"][0]["utterances"][0]["text"] = reading["dialogues"][0]["quote"]
+    assert report(batch, reading, chunk)["entries"][0]["status"] == "retained"
+    chunk["text"] += "后来他又问。『为什么？因为要回家。』"
+    assert report(batch, reading, chunk)["entries"][0]["status"] == "unassigned"
