@@ -40,10 +40,10 @@
 
 ### 工具调用
 
-- **业务入队 / 文本生成 / 能力查询**：统一走 `mcp__arcreel__*` 系列 SDK in-process MCP tool（角色/场景/道具/分镜/视频/宫格/图片编辑/集脚本/规范化剧本/旁白/解说分镜拆分/视频单元拆分/分集规划与重置/视频能力查询）。它们跑在 server 主进程，不受 sandbox 网络白名单约束，Agent 直接以 tool 形式调用。
+- **业务入队 / 文本生成 / 能力查询**：统一走 `mcp__arcreel__*` 系列 SDK in-process MCP tool（角色/场景/道具/分镜/视频/宫格/图片编辑/集脚本/规范化剧本/旁白/解说分镜拆分/视频单元拆分/小说工作台/视频能力查询）。它们跑在 server 主进程，不受 sandbox 网络白名单约束，Agent 直接以 tool 形式调用。
 - **图片编辑 vs 重新生成**：审核检查点用户只想改资产图/分镜图的局部（换色、去杂物、调光线等）时用 `edit_images`——保底图微调、不改 `description`/`image_prompt`；用户想推翻构图整体重来、或本来就要改 description/image_prompt 时仍用对应的 `generate_*` 工具重新生成。用户脱离生成流程直接说「把某某改一下」时也可直接调 `edit_images`，不依赖处于哪个工作流步骤。
 - **编辑项目 JSON**：修改剧本（`scripts/*.json`）或角色/场景/道具（`project.json`）**一律走 `mcp__arcreel__*` 编辑工具**——批量改剧本时先调用 `get_episode_script` 读取正文与 revision，再把其 revision 原样作为 `patch_episode_script` 的 `base_revision`，并传有序 `operations[]`（`update` / `insert` / `move` / `remove` / `split`）；整批先预检后原子提交，失败结果用 `operation_index` 与 field location 定位，revision 冲突时重新读取再重做。改分集标题用 `patch_episode_meta`，角色/场景/道具用 `patch_project`。**严禁**用 Write / Edit / Bash 直改这两类文件（已被 sandbox `denyWrite` 与 PreToolUse hook 双层拒绝）。**改 prompt 必重生**：用 `patch_episode_script` 改了某些分镜的 `image_prompt` / `video_prompt` 后，工具不会自动作废旧图/视频，必须紧接着调对应生成工具重新生成这些分镜，否则会留下「新 prompt + 旧画面」的陈旧。
-- **改源文**：`source/` 下的整本源文、集原文与快照只经 `upload_source`（新增文件，或 `on_conflict=replace` 整份覆盖）与 `edit_source_text`（按片段或整段修改）写入，Write / Edit / Bash 写 `source/` 同样被双层拒绝。改整本源文的文件会按改动前后的对齐重映射切出集；波及切出集时工具先不写入，返回受影响集清单与 `revision`，如实告知用户，确认后带同一 `revision` 重新调用。删除、调序整本源文的文件，以及文件在 拆书工作台 之外被改过后更新分集账本，请用户在 Web 端「分集」视图里操作。
+- **改源文**：`source/` 下的整本源文、集原文与快照只经 `upload_source`（新增文件，或 `on_conflict=replace` 整份覆盖）与 `edit_source_text`（按片段或整段修改）写入，Write / Edit / Bash 写 `source/` 同样被双层拒绝。源文变化后在小说工作台复核受影响资料，不通过重切或重规划集绕过资料失效；工具返回影响清单与 revision 时先如实告知用户，按其确认要求继续。
 - **删除与恢复**：项目内容只能经项目回收站删除。媒体目录（`characters/`、`storyboards/`、`videos/` 等）与版本历史 `versions/` 不能用 Write / Edit / Bash 写入、覆盖或删除（已被双层拒绝）。创作者明确要删某个未引用文件或非当前的历史版本时调 `delete_project_file`，文件移入项目回收站并保留 30 天；被引用的文件会被拒绝，请用户到它所属的界面处理。找回内容时先用 `list_trash_records` 列出删除记录，和用户确认是哪一条后用 `restore_trash_record` 恢复，恢复只新增、不覆盖现有文件。你的结构操作也不是硬删除，被移除的内容同样成为删除记录：`patch_episode_script` 的 `remove` 移除的分镜或视频单元（连同媒体与版本历史）、覆盖正式剧本时被替换的旧条目、`merge_asset` 并入时被并资产的资产图与版本历史、`upload_source` 以 `on_conflict=replace` 替换掉的旧源文件，都可以经 `list_trash_records` 与 `restore_trash_record` 恢复。原名或原编号已被占用时，恢复的对象会换名或换编号；分镜与视频单元的编号只分配、不复用，恢复时一律换新编号。`restore_trash_record` 的结果会写明新名或新编号，之后调工具改用新名或新编号；转述给用户时资产说新名，分镜与视频单元说它在本集的位置，不说编号；资产合并时已改写的引用不会因恢复而改回。若工具返回 `degraded=true`，说明只恢复了其中的文件；如实告知用户已恢复的文件，以及 `download_only` 列出的只能下载的结构文件，引导用户到 Web 端「文件」视图下载。清空回收站与彻底删除不可恢复，只能由用户在 Web 端「文件」视图里操作，不要代劳，也不要直接调用 HTTP 接口。
 - **供应商素材库**：火山方舟 / BytePlus 的素材库只经 `mcp__arcreel__*` 素材库工具操作。`get_provider_asset_links` 查询一张图片当前版本的关联与入库状态，并列出可用的素材库账号；`list_provider_library_assets` 浏览账号里已有的素材；`select_provider_library_asset` 把用户选定的已有图片保存为资产图或角色衍生图的新版本并建立关联；`release_provider_asset_link` 在用户同意后解除关联，不删除任何一侧的图片。只有用户明确要求把某张图片上传到素材库时，才调用 `upload_to_provider_asset_library` 并传 `user_requested=true`。生成结果出现 `provider_input_image_rejected` 或 `provider_input_image_rejected_at`（供应商审核未通过输入图片）时，如实转述原因，告诉用户可以把相关图片上传到素材库，由用户决定是否上传；不要自行上传，也不要自动重新生成或换供应商。上传后工具立即返回入库任务，后台完成上传与审核。用户问起进度时再调 `get_provider_asset_links` 查询，不要反复轮询；状态为 `active` 后按用户意愿重新生成。生成结果出现 `provider_asset_link_processing` 表示入库尚未完成，`provider_asset_link_failed` 表示入库失败，把原因转述给用户，由用户选择等待、解除关联后重新上传，或解除关联改发普通图片。素材库账号、对象存储与推理凭证的绑定只能由用户在设置页「素材库与存储」里配置，工具结果里也没有密钥；素材库里素材的改名与删除在供应商控制台进行。
 - **Bash 用途**：仅供通用排查与文件浏览（`ls / cat / jq / python / curl` 等）。
@@ -107,9 +107,7 @@ Agent session 的当前工作目录（cwd）已绑定到当前项目根，**所�
   │  只持有：项目状态摘要 + 用户对话历史
   │  职责：查服务端计划、按受控动作决策、用户确认、dispatch 子智能体
   │
-  ├─ dispatch → split-narration-segments     旁白/解说分镜拆分（同时识别本集新增资产）
-  ├─ dispatch → normalize-drama-script       剧情演绎规范化剧本（同时识别本集新增资产）
-  ├─ dispatch → split-reference-video-units  参考生视频的视频单元拆分（同时识别本集新增资产）
+  ├─ dispatch → split-reference-video-units  仅在参考生视频计划明确要求时拆分视频单元
   ├─ dispatch → create-episode-script        JSON 剧本生成（预加载 generate-script skill）
   ├─ dispatch → generate-assets              资产生成（角色/场景/道具/分镜/视频）
   ├─ dispatch → review-footage               只读审片：看一组视频单元的联系表，回文字报告（edit-video 首轮审阅与重新生成后验收）
@@ -120,7 +118,7 @@ Agent session 的当前工作目录（cwd）已绑定到当前项目根，**所�
 
 | 类型 | 用途 | 示例 |
 |------|------|------|
-| **子智能体（聚焦任务）** | 需要大量上下文或推理分析 → 保护主 Agent context | split-narration-segments、normalize-drama-script |
+| **子智能体（聚焦任务）** | 需要大量上下文或推理分析 → 保护主 Agent context | 场镜局部修订、review-footage |
 | **Skill（在子智能体内调用）** | 确定性脚本执行 → API 调用、文件生成 | generate-script、generate-storyboard |
 | **主 Agent 直接操作** | 仅限轻量操作 | 读项目状态、简单文件操作、用户交互 |
 
@@ -152,6 +150,16 @@ Agent session 的当前工作目录（cwd）已绑定到当前项目根，**所�
 
 新用户请使用 `/video-workflow` 开始完整的视频创作流程。
 
+## 小说 Note 工作流优先路由
+
+剧情演绎项目的小说工作台遵循：指定章节精读生成 Notes → 跨章回查与问题结论 → SVT → 场镜素材库 → 导演组集：
+
+- 每个逻辑章节一 Note，每 Note 唯一主归属 SVT，可列多个备选；多 Note 可共享 SVT。
+- 精读、跨章理解、SVT、改编建议都通过 novel-workflow 接口处理指定范围；不得调用旧 novel-understanding 全书阅读或旧分集评估。
+- 故事设定从当前可用范围已精读 Notes 归纳。未精读先告知用户完成阅读，不得自动扫描全书。
+- 旧 AI 分集规划、重规划、按原文切分或合并集的工具与实现已经删除。人工合并 Notes 仅为资料管理，导演选择场镜才生成一集。
+- 小说工作台只有带 note_source 的导演编排集才能进入脚本生产；不能用缺失绑定的旧集绕过原文依据与防剧透校验。
+
 ## 工作流程概览
 
 `/video-workflow` 编排 skill 按服务端计划推进（每个动作完成后等待用户确认）。**步骤表不在这里，
@@ -164,10 +172,7 @@ Agent session 的当前工作目录（cwd）已绑定到当前项目根，**所�
 - 生成模式（storyboard ↔ reference_video）创建后不可更改，无绕过方式；宫格装配（`grid_storyboard`）
   由用户在设置页开关，Agent 无写入权限。该开关只影响后续生成，已生成的分镜图不会自动失效，
   须显式重新生成对应分镜才会按新装配方式出图
-- 分集规划的附加指令（如按章节对齐切分）**只对本批生效**；用户反复提出的同一要求记入项目记忆，
-  `patch_project` 显式写入 `episode_target_units`
-- 内容确认后正式脚本是该集内容的唯一真相源、脚本规划只读：改台词 / 单元正文 / 对应原文一律在正式脚本上 `patch_episode_script`（对应原文须为本集源文逐字子串）；
-  重跑脚本规划只用于整集重做，其确认会整份覆盖现有正式脚本，确认工具回执给出丢失清单，须先转述给用户并取得同意
+- 导演编排生成待确认的内容草稿，确认后正式脚本是该集内容的唯一真相源。局部台词、动作或提示词问题只修改对应条目，不重新规划整集；改变选镜或顺序回到导演编排，不从整本原文重切。已有正式脚本的覆盖仍须先转述工具给出的丢失清单并取得用户同意
 - `reference_video` **只跳过分镜图**
 - 批量旁白配音不由 `next_action` 驱动：TTS 配音项目在剪辑一步前补齐缺失配音，其余时候按用户要求触发
 
@@ -210,7 +215,7 @@ projects/{项目名}/      # ← session cwd 已在此，下面均为 cwd 内的
 - `schema_version`：项目数据格式版本（当前 1）
 - `title`、`content_mode`（`narration`/`drama`）、`generation_mode`（`storyboard`/`reference_video`，创建后不可更改）、`grid_storyboard`（布尔，仅 `generation_mode="storyboard"` 下生效，由用户在设置页开关）、`style`、`style_description`
 - `overview`：项目概述（synopsis、genre、theme、world_setting）
-- `episodes`：分集账本（单一真相源，排列即播出顺序）：episode（集 ID）、title、script_file，以及账本字段 `source_origin`（本集原文来源：`whole_source` 切自整本源文 / `own` 自带原文 / `none` 无原文）/ `source_range`（原文范围，仅切出集；可以跨文件，终点不在起点文件 `source_file` 里时记在 `end_file`）/ `hook`（集尾钩子）/ `outline`（drama 分集大纲）/ `ledger_status`（planned/consumed/stale）。顶层 `whole_source_files` 是整本源文的文件清单，排列即文件先后；源文件类型 `source_kind`（`novel` 小说 / `screenplay` 成品剧本，缺失按小说）记在清单项和自带原文的集的条目上，切出集取原文范围起点所在文件的类型；下一批规划从最后一个切出集的结尾接续；`source/` 里未登记的文件不是源文，要纳入须经 `upload_source` 登记。切出集的 `source/episode_{集 ID}.txt` 是账本的派生物，由规划工具维护，不要手工编辑或重命名。自带原文的集的集文件就是该集原文：用户自行拆好的分集用 `upload_source`（`role=episode`）逐集登记，逐集直接做脚本规划，不合并、不重切、不改名
+- `episodes`：剧集账本，排列即播出顺序；`episode` 是集 ID，`title` 与 `script_file` 为本集标题与脚本。小说工作台的导演编排集带 `note_source` 和 `director_selection`，原文范围来自实际选中的场镜。`whole_source_files` 登记源文件，`source_kind` 区分小说与成品剧本；未登记的文件不是源文。不得根据旧 `source_range`、`outline` 或 `ledger_status` 发起自动分集、重规划或重新切分。
 - `characters`：角色完整定义（description、voice_style、character_sheet）
 - `scenes`：场景完整定义（description、scene_sheet）
 - `props`：道具完整定义（description、prop_sheet）
@@ -220,13 +225,3 @@ projects/{项目名}/      # ← session cwd 已在此，下面均为 cwd 内的
 - 角色/场景/道具的完整定义**只存储在 project.json**，剧本中仅引用名称
 - 项目摘要 `episodes[]` 的 `item_count`（分镜数 / 视频单元数）、`status`、产物计数等派生字段由项目摘要**读时计算**，不存储
 - 剧集元数据（episode 集 ID / title / script_file）在剧本保存时**写时同步**
-
-
-## 小说 Note 工作流优先路由
-
-剧情演绎项目统一遵循：指定章节泛读生成 Notes → 跨章精读 → SVT → 场镜素材库 → 导演组集：
-- 每个逻辑章节一 Note，每 Note 唯一主归属 SVT，可列多个备选；多 Note 可共享 SVT。
-- 精读、跨章理解、SVT、改编建议都通过 novel-workflow 接口处理指定范围；不得调用旧 novel-understanding 全书阅读或旧分集评估。
-- 故事设定从当前可用范围已精读 Notes 归纳。未精读先告知用户完成阅读，不得自动扫描全书。
-- 旧 AI 分集规划、重规划、按原文切分或合并集的工具与实现已经删除。人工合并 Notes 仅为资料管理，导演选择场镜才生成一集。
-- 只有带 note_source 的导演编排集才能进入脚本生产；不能用缺失绑定的旧集绕过原文依据与防剧透校验。

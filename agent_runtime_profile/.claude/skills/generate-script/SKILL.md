@@ -14,7 +14,7 @@ ArcReel 整条 pipeline 中最值得重点优化的一环。
 ## 前置条件
 
 1. 项目目录下存在 `project.json`（含 style / overview / characters / scenes / props）
-2. **正式脚本 `scripts/episode_N.json` 已存在**（N 是目标集的集 ID，取自计划 `target.episode`，不是第几集）（drama / narration / reference_video）：内容确认即把脚本规划整集转为正式脚本，全部条目带待编写标记。确认有两条等价路径：用户在 Web 端点击确认，或在对话中明确同意后由主 Agent 调用 `mcp__arcreel__confirm_script_review({"episode_id": N})`。本工具只读正式脚本、不读脚本规划：脚本规划缺失或重跑后尚未确认都不影响编写。
+2. **正式脚本 `scripts/episode_N.json` 已存在**（N 是目标集的集 ID，取自计划 `target.episode`，不是第几集）：drama 小说工作台先由导演选镜组集，带 `note_source` 的编排内容确认后转为正式脚本；不得回退为自动分集或从原文重跑规范化。narration 与参考生视频保留各自的单集内容规划/确认入口。确认后条目带待编写标记。确认有两条等价路径：用户在 Web 端点击确认，或在对话中明确同意后由主 Agent 调用 `mcp__arcreel__confirm_script_review({"episode_id": N})`。本工具只读正式脚本、不读脚本规划：脚本规划缺失或重跑后尚未确认都不影响编写。
    - **ad（广告/短片）**：尚无正式脚本时本工具按 `project.json` 的 `brief` + `products`（含 selling_points）+ `target_duration` 整份生成（后端按审定的带货八段框架配比表构建 prompt，`products` 为空自动分流通用短片），`brief` 与 `products` 至少一项。结果直接成为正式脚本，不经内容确认；引用里的新角色 / 场景 / 道具由模型列进 `new_assets` 并给出处理决定，随正式脚本登记为待生成资产，与已登记同类资产同名的自动归并，回执列出本次新登记的资产。已有正式脚本时与其他路线一样只编写待编写条目，整份重做见下文。
 3. **约束失败产出保留为待修复草稿，不丢弃重抽**：参考生视频提示词编写的产出违反内容约束时，正式文件不写，产出连同逐条违约报告落到 `*.invalid.json`。用 `open_draft` 读取草稿及 revision，按 `violations[]` 修复完整 `content`，再用 `patch_draft` 提交；随后以相同 `episode_id` 与 `doc_type: reference_prompt_authoring` 调 `promote_draft`，仍违约则继续 open → patch → promote，无轮次上限。
 
@@ -48,7 +48,7 @@ mcp__arcreel__generate_episode_script({"episode_id": N})
   （台词、旁白正文、对应原文）与备注、已生成产物照常保留。会覆盖已有内容时工具先返回
   `prompt_overwrite_required`，回执正文是服务端生成的丢失清单，`params.prompt_overwrite.revision` 是认可令牌：
   把清单原文转述给用户，得到同意后才以该 revision 作为 `overwrite_revision` 重新调用。
-- 没有要编写的条目时工具不调用模型、不改剧本，回执会说明。整集重做走重跑脚本规划并重新确认。
+- 没有要编写的条目时工具不调用模型、不改剧本，回执会说明。drama 小说工作台改变内容回到导演编排；narration 等有单集规划的路线才重跑对应规划并重新确认。
 - 参考生视频在调用模型前按正式脚本复判待编写单元的正文与台词量。不通过时任务失败，问题码
   `prompt_authoring_dialogue_overload`（台词念不完）或 `prompt_authoring_unit_invalid`，`action` 为 `fix_input`；
   `params.position` 是该单元在本集的位置，界面称「视频单元 N」。向用户转述原因时用这个称呼，请用户在时间线上
@@ -70,6 +70,8 @@ mcp__arcreel__generate_episode_script({"episode_id": N, "regenerate": true, "ins
   问题码 `ad_script_rejected`，正式脚本、资产与草稿都不变。把失败原因转述给用户，按原因补一句附加指令再生成。
 
 **重要：生成剧本必须调用上述 MCP 工具。此 skill 不提供任何 Python/Shell 脚本，不得用 BASH 调 `python .../scripts/*.py`。**
+
+局部对白或动作问题先用 `get_episode_script` / `patch_episode_script` 修订受影响条目，保留其他内容。drama 小说工作台的对白默认原话，问答前提、回应、决定与信息揭示不能在视觉编写中丢失或倒序；工作人员明确采用的改编在 utterances 保留 `origin=adaptation` 与逐字 `basis_quote`，不冒充原话。节奏与试读由工作人员判断。
 
 ## 生成流程
 

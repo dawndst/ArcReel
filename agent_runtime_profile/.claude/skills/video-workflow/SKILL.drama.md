@@ -1,6 +1,6 @@
 ---
 name: video-workflow
-description: 将小说转换为短视频的端到端工作流编排器。当用户提到做视频、创建项目、继续项目、查看进度时必须使用此 skill。触发场景包括但不限于："帮我把小说做成视频"、"开个新项目"、"继续"、"下一步"、"看看项目进度"、"从头开始"、"拆集"、"自动跑完流程"等。即使用户只说了简短的"继续"或"下一步"，只要当前上下文涉及视频项目，就应该触发。不要用于单个资产生成（如只重画某张分镜图或只重新生成某个角色资产图——那些有专门的 skill）。
+description: 将小说转换为短视频的端到端工作流编排器。当用户提到做视频、创建项目、继续项目、查看进度时必须使用此 skill。触发场景包括但不限于："帮我把小说做成视频"、"开个新项目"、"继续"、"下一步"、"看看项目进度"、"从头开始"、"导演组集"、"自动跑完流程"等。即使用户只说了简短的"继续"或"下一步"，只要当前上下文涉及视频项目，就应该触发。不要用于单个资产生成（如只重画某张分镜图或只重新生成某个角色资产图——那些有专门的 skill）。
 ---
 <!-- mode: drama -->
 
@@ -8,7 +8,7 @@ description: 将小说转换为短视频的端到端工作流编排器。当用�
 
 ## 小说阅读与组集
 
-使用小说工作台指定章节 → AI 泛读生成 Notes → 跨章精读 → SVT → 场镜 → 导演组集。不存在 AI 自动分集、重规划或重置工具。
+使用小说工作台指定章节 → AI 精读生成 Notes → 跨章回查与问题结论 → SVT → 场镜 → 导演组集。不存在 AI 自动分集、重规划或重置工具。
 
 你（主 Agent）是编排中枢。你**不直接**处理小说原文或生成剧本，而是：
 1. 检测项目状态 → 2. 读计划的 `next_action` → 3. dispatch 合适的子智能体 → 4. 展示结果 → 5. 获取用户确认 → 6. 循环
@@ -31,7 +31,7 @@ description: 将小说转换为短视频的端到端工作流编排器。当用�
 1. 提示用户在 Web 端先创建项目，**创建时指定 content_mode（narration / drama）与 generation_mode（storyboard / reference_video）**；两者创建后均不可变更，Agent 无对应写入权限。session 启动后 cwd 已绑定到对应项目根
 2. 使用 Read 工具读取 `project.json`，确认 `title`、`content_mode`、`generation_mode` 字段（本 session 当前 content_mode 为 `drama`，创建后不可变更）
 3. 请用户在 Web 端上传小说文本（整本源文），或经 `mcp__arcreel__upload_source` 写入；直接放进 `source/` 而未登记的文件不是源文。用户给的是写好的成品剧本时，经工具登记要带 `source_kind=screenplay`，缺省按小说
-4. **上传后自动生成项目概述**（synopsis、genre、theme、world_setting）
+4. 在小说工作台对指定章节完成精读与回查，从已读范围归纳项目概述；不因上传自动扫描全书
 
 > 标准项目子目录由 `create_project()` 自动建好：`source/`、`scripts/`、`drafts/`、`characters/`、`scenes/`、`props/`、`storyboards/`、`grids/`、`videos/`、`reference_videos/`、`thumbnails/`、`output/`。
 
@@ -47,7 +47,7 @@ description: 将小说转换为短视频的端到端工作流编排器。当用�
 
 进入工作流、用户说“继续/下一步/查看进度”、以及每次工具或子智能体完成后，都调用
 `mcp__arcreel__get_workflow_plan({})` 取回权威计划（用户指定某一集时，按其说的播出位置或标题在项目 `episodes[]` 里找到那一集，传它的集 ID `{"episode_id": X}`），
-再按 `next_action.type` 路由到下面同名的小节。
+再按 `next_action.type` 路由到对应小节；小说内容阶段按「导演编排与内容确认」处理。
 
 计划的字段含义、完整受控动作表、旁白交付、整批准入判定、四条状态轴与 stale / 历史纪律，见
 [.claude/references/workflow-plan.md](../../references/workflow-plan.md)。**本 skill 不重复一张按创作类型
@@ -79,49 +79,19 @@ description: 将小说转换为短视频的端到端工作流编排器。当用�
 
 ---
 
-## `prepare_script_plan`：单集脚本规划
+## 导演编排与内容确认
 
-**触发**：`next_action.type == "prepare_script_plan"`
+小说工作台先生成 Notes、问题结论、SVT 和场镜，由工作人员选择场镜并决定顺序后组集。Note 与资料管理组合都不是一集；不得调用自动分集、重规划或 normalize-drama-script 从整段原文重新生成本集内容。缺少 `note_source` 绑定时返回工作台完成导演编排，不绕过依据校验。
 
-dispatch `next_action.args.preprocessor` 指名的子智能体，产出 `drafts/episode_{N}/` 下对应的 script_plan
-中间文件。**不要自己按 `generation_mode` × `content_mode` 反推该选谁**：服务端在同一张规则表上得出
-`preprocessor`，profile 侧再推一遍只会造出第二个真相源。各 script_plan 文件与 schema 的对应关系见
-`.claude/references/generation-modes.md`。
+`prepare_script_plan` 若出现在小说工作台集的计划中，先检查编排是否完整并告知缺口，不 dispatch 全集规范化。参考生视频仍可在计划明确准入时使用 `next_action.args.preprocessor` 指定的视频单元预处理；这不授权自动分集或重切原文。派发仅传项目路径、目标集 ID、`target.source` 与用户附加指令；预处理成功且 args 含 `expected_stale_script_plan_revision` 时，调用 `complete_script_plan_rebuild` 带回同一 revision，不能以内容是否变化代替完成事实，冲突时刷新计划。
 
-dispatch prompt 通用参数：项目名称、项目路径、目标集的集 ID（`target.episode`）及其标题与播出位置、本集小说文件路径（`target.source`）；可选附加指令（用户对本次生成的要求等任何需带给子智能体的临时上下文，原文透传）。
+导演编排会生成标准内容草稿。`confirm_script_plan` 时请工作人员审阅选镜、对白、来源和新增资产；取得明确同意后调用 `mcp__arcreel__confirm_script_review({"episode_id": N})`，或由工作人员在 Web 端确认。已有正式脚本时，工具要求覆盖确认的，先展示丢失清单，再按用户同意带回 `overwrite_revision`。确认前逐项展示新增资产及 `register` / `merge` / `derivative` / `skip` 处理；要改处理时在 Web 内容确认页或受控草稿编辑入口修订。`invalid_new_assets` 按工具回执修正，不绕过。确认完成后刷新计划。
 
-若 `next_action.args` 含 `expected_stale_script_plan_revision`，子智能体成功产出正式 script_plan 后必须调用
-`mcp__arcreel__complete_script_plan_rebuild({"episode_id": N, "expected_stale_script_plan_revision": next_action.args.expected_stale_script_plan_revision})`。
-该完成事实不可用“文件内容是否变化”推断：确定性重建可能产出完全相同的 JSON。工具报冲突时刷新计划，
-不得用旧参数重试。
+内容确认后只在正式脚本上修改：用 `get_episode_script` 读取正文与 revision，再以 `patch_episode_script` 更新需要修订的条目。对应原文保持逐字依据，默认不改台词；工作人员明确采用改编时保留 `origin=adaptation` 与 `basis_quote`。问答承接或单镜问题只修受影响内容，不以重做整集代替局部修订。调整选镜和顺序回到导演编排。
 
-（两个脚本规划子智能体会自行读 project.json + 调用
-`mcp__arcreel__get_video_capabilities({})`
-拿到模型能力与用户偏好；主 Agent 不需要预先注入角色/场景/道具列表或
-`supported_durations` / `max_duration` / `max_reference_images` / `default_duration` / `episode_target_duration` 等数据。）
+## `generate_script` / `author_prompts`：正式脚本提示词编写
 
-**本集新增资产随规划产出**：资产识别在逐集脚本规划里完成。子智能体以已登记资产的名字、别名与描述认人，本集未登记的角色 / 场景 / 道具写进 script_plan 顶层的 `new_assets`，每项带处理决定（`register` 登记为新资产 / `merge` 归到已有资产 / `derivative` 登记为角色衍生 / `skip` 不登记）与一句依据。资产表为空时照常 dispatch 脚本规划。
-
-**内容确认后的内容修改在正式脚本上做**：内容确认把脚本规划整集转为正式脚本 `scripts/episode_{N}.json`，此后正式脚本是该集内容的唯一真相源，脚本规划只读（Web 端保存，以及 Agent 取回、修改、晋升编辑副本，都返回 `script_plan_confirmed`）。
-
-- **修改内容**：用户要改分镜台词 `utterances` 与对应原文 `source_text`，或参考生视频单元正文 `text` 与对应原文 `source_text` 时，先 `mcp__arcreel__get_episode_script` 取正文与 revision，再用一次 `mcp__arcreel__patch_episode_script` 的 `update` 写回，不改脚本规划、不重跑编写。写入的非空对应原文须是本集源文 `source/episode_{N}.txt` 的逐字子串（空白归一后比对，可截取首尾、中间不得删改；本集源文缺失时比对项目源文），项目有源文时服务端校验，不符以 `source_text_not_verbatim` 拒绝；清空对应原文不校验。分镜改了台词后若要让提示词跟上，由用户决定是否用 `generate_episode_script` 带 `entry_ids` 与 `rewrite: true` 显式重写这几条；参考生视频的编写会改写单元正文，对刚改过正文的单元显式重写会覆盖这次修改，须先向用户说明
-- **整集重做**：只有用户要推倒整集时，才重新 dispatch 脚本规划子智能体（操作类型写「整集重做」）重跑脚本规划。新的脚本规划写出后本集内容确认回到待确认（计划的 `gates.script_plan_review.state` 为 `pending`），但旧正式脚本仍在用，计划不会停在 `confirm_script_plan`，`next_action` 照常指向旧正式脚本的下游动作；整集重做时不要跟随它，也不要调 `generate_episode_script`——它会去编写即将被覆盖的旧正式脚本，按下述流程直接调 `confirm_script_review`。该集已有正式脚本时确认就是覆盖：`confirm_script_review` 返回 `script_overwrite_required`，回执正文是服务端生成的丢失清单（与 Web 确认框同一份文本，含配音、尾帧、宫格归属）。先把清单原文转述给用户，得到明确同意后，才以 `overwrite_revision=params.script_overwrite.revision` 重新确认；覆盖后全部条目待编写
-- **提示词编写**：`generate_episode_script` 默认补缺，已有的图片 / 视频提示词（包括用户手写的）原样保留；`entry_ids` 只划定范围，只在用户明确要求覆盖某几条时再加 `rewrite: true`，并按回执的丢失清单取得同意后传回令牌
-
----
-
-## `confirm_script_plan` / `generate_script`：JSON 剧本生成
-
-**触发**：
-
-- `next_action.type == "confirm_script_plan"` → 先完成下述内容确认，刷新计划后再路由
-- `next_action.type == "generate_script"` → dispatch 剧本生成
-
-**script_plan→prompt_authoring 内容确认（阻塞）**：`prepare_script_plan` 产出的脚本规划须经**显式确认**才放行提示词编写（三种结构化 script_plan 变体——drama / narration / reference_video——一律适用；`reference_video` 的 `script_plan_reference_units.json` 同样须确认，不要跳过。ad 无 script_plan，不要求内容确认）。两条等价确认路径——用户在 Web 端审阅 / 编辑后确认，或在对话中明确同意进入视觉生成后由你调用 `mcp__arcreel__confirm_script_review({"episode_id": N})`（全自主模式下按用户总体授权确认）。该集尚无正式脚本时，未确认的计划停在 `confirm_script_plan`、不会路由到提示词编写（已有正式脚本时不挡下游，见上方「整集重做」）；尚无正式脚本时 `generate_episode_script` 直接报「尚无正式脚本」。确认即把脚本规划整集转为正式脚本、全部条目待编写；该集已有正式脚本时确认会覆盖它，须按上方「整集重做」先取得用户同意。
-
-确认时 `new_assets` 随正式脚本一并登记：按处理决定新建资产、给已有资产记别名或登记衍生，引用随之改写；与已登记同类资产同名的新增项自动归入该资产。在对话中确认前，把新增资产与各自的处理逐项告诉用户；用户要改处理时，请其在 Web 端内容确认页的「本集新增资产」区修改，或取回脚本规划草稿改 `new_assets` 后晋升。处理解析不出（归入的资产或衍生的本体不存在）时确认返回 `invalid_new_assets`，按回执修正后重新确认。
-
-**dispatch `create-episode-script` 子智能体**：传入项目名称、项目路径、目标集的集 ID（`target.episode`）及其标题与播出位置；可选附加指令（用户对本次生成的要求等任何需带给子智能体的临时上下文，原文透传）。
+按计划 dispatch `create-episode-script`，传项目路径、目标集 ID、标题、播出位置及用户附加指令，由其使用 generate-script skill。默认只补缺失提示词；局部重写仅在用户明确要求时限定 `entry_ids` 并传 `rewrite: true`，遵循工具覆盖确认，不重新生成内容规划。
 
 ---
 
@@ -257,7 +227,7 @@ revision 重试。改完后按上面的请求选择语义点名重做这些 ID�
 工作流**不强制从头开始**。根据计划结果，自动从正确的动作开始：
 
 - "继续" → 执行计划的 `next_action`；`next_alternatives` 非空时是分岔，列出选项由用户选
-- 点名具体操作（如"分析小说角色""规划第2集脚本""生成分镜图"）→ 先查计划，`plan.status.operations`
+- 点名具体操作（如"分析小说角色""修订第2集镜头""生成分镜图"）→ 先查计划，`plan.status.operations`
   里该操作为 `admitted`（或未列出）就执行，即使 `next_action` 指向别处；为 `refused` 时把 `reason`
   转述给用户，说明缺什么、怎样补上。有 `blockers` 时一律不执行
 - 用户说「第 N 集」指播出顺序第 N 个：按 `episodes[]` 的排列取那一集的集 ID，再查它的计划

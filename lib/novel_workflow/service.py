@@ -96,8 +96,9 @@ async def ask(
     *,
     grow_output=False,
     max_output_tokens=12000,
+    include_fidelity=True,
 ):
-    fidelity = await asyncio.to_thread(store.effective_rule, path, "fidelity")
+    fidelity = await asyncio.to_thread(store.effective_rule, path, "fidelity") if include_fidelity else ""
     if isinstance(prompt, dict):
         prompt = {
             **prompt,

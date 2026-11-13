@@ -7,6 +7,8 @@ from lib.novel_workflow import settings, store
 from lib.prompts.prompt_templates.builtin import builtin_templates
 
 TITLES = {
+    "evidence_selection": ("原文候选选择边界", "引用定位和引文修复共用，仅选择依据，不判断剧情结论"),
+    "scene_review": ("场镜原文一致性审核", "局部审核画面、起止状态与台词，提供有原文依据的最小修订，人工采用"),
     "conclusions": ("问题回收与统一结论", "同章及跨章证据统一判断，整理导览、悬念和制作约束"),
     "understand_questions": ("跨章问题归并与分类", "合并同义提示，区分剧情悬念与资料核对，保留来源并关联已有证据"),
     "svt_summary": ("SVT 跨章累计概况", "基于全部来源 Note 汇总主线起因、行动和结果，避免末批事件覆盖前章"),

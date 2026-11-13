@@ -1,3 +1,4 @@
+import { DialogueCoveragePanel, type DecideDialogue } from "./DialogueCoveragePanel";
 import { DialogueAttribution } from "./DialogueAttribution";
 import { SceneQuestions, type ConfirmQuestion } from "./SceneQuestions";
 import { MomentCoverage } from "./MomentCoverage";
@@ -13,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ChapterNote, SceneLibraryBatch, ShotDecisions, ShotAssetBinding } from "@/types/novel-workflow";
 
-export function SceneLibraryPanel({ batches, notes, disabled, selection, setSelection, title, setTitle, assemble, source, characters = [], attribute, adoptRevision, confirmQuestions, completeProduction, saveProduction, openAsset, openSvt, batchSource, suggestSpeakers, projectName, assetOptions = [], saveExecution, draftExecution, assemblyActions }: {
+export function SceneLibraryPanel({ batches, notes, disabled, selection, setSelection, title, setTitle, assemble, source, characters = [], attribute, adoptRevision, confirmQuestions, decideDialogue, completeProduction, saveProduction, openAsset, openSvt, batchSource, suggestSpeakers, projectName, assetOptions = [], saveExecution, draftExecution, assemblyActions }: {
   projectName?: string; assetOptions?: ExecutionAssetOption[];
   saveExecution?: (shot: LibraryShot, edit: ShotEdit) => Promise<void>;
   draftExecution?: (note: string, shot: string) => void;
@@ -27,11 +28,13 @@ export function SceneLibraryPanel({ batches, notes, disabled, selection, setSele
   batches: SceneLibraryBatch[]; notes: ChapterNote[]; disabled: boolean;
   selection: string[]; setSelection: (ids: string[]) => void; title: string; setTitle: (title: string) => void;
   confirmQuestions?: ConfirmQuestion;
+  decideDialogue?: DecideDialogue;
   adoptRevision?: (batch: string, revision: string) => void;
   characters?: string[]; attribute?: (shot: string, segment: number, utterance: number, speaker: string, revision: string, registerRole?: boolean) => void;
   assemble: () => void; source: (note: string) => void;
 }) {
   const { t } = useTranslation("dashboard");
+  const formatRevision = (value: string | import("@/types/novel-workflow").LibrarySegment["utterances"]): string => typeof value === "string" ? value : value.map((u) => `${u.speaker || t("nw_speaker_pending")} · ${t(`nw_delivery_${u.delivery ?? "unclassified"}`)}：${u.text}`).join("\n");
   const [filter, setFilter] = useState("");
   const [editing, setEditing] = useState<{ shot: LibraryShot; batch: string; proposal: boolean } | null>(null);
   const { ordered, sceneLabels, shotLabels } = sceneLibraryOrder(batches, notes);
@@ -56,7 +59,8 @@ export function SceneLibraryPanel({ batches, notes, disabled, selection, setSele
       {!batches.length && <p className="text-sm">{t("nw_scene_empty")}</p>}
       {ordered.map((batch, batchIndex) => <div key={batch.basis} id={`scene-batch-${batch.basis}`} className="space-y-6">
         {(batchIndex === 0 || ordered[batchIndex - 1].note_id !== batch.note_id) && <button className="text-sm font-semibold text-primary underline" onClick={() => source(batch.note_id)}>{notes.find((n) => n.id === batch.note_id)?.title ?? batch.note_id}</button>}
-        {batch.review && <details className="space-y-3 rounded-lg border border-warn/40 p-3"><summary className="cursor-pointer font-semibold">{t("nw_semantic_review")}{(batch.review.unresolved.length + batch.review.revisions.filter((r) => !r.applied && !r.superseded).length) > 0 && ` (${batch.review.unresolved.length + batch.review.revisions.filter((r) => !r.applied && !r.superseded).length})`}</summary><SceneQuestions key={batch.review_revision} batch={batch} disabled={disabled || batch.stale} confirm={confirmQuestions} source={() => batchSource ? batchSource(batch.basis, batch.scenes.flatMap((s) => s.shots).find((sh) => sh.segments.some((seg) => seg.utterances.some((u) => u.kind === "dialogue" && !u.speaker)))?.id) : source(batch.note_id)} shotLabels={shotLabels} locate={(id) => { setFilter(shotLabels.get(id) ?? id); requestAnimationFrame(() => document.getElementById(`library-shot-${id}`)?.scrollIntoView({ block: "center", behavior: "smooth" })); }} />{batch.review.revisions.filter((r) => !r.superseded).map((r) => <article key={r.id} className="space-y-2 rounded border p-3 text-sm"><p>{r.reason}</p><p className="rounded bg-destructive/10 p-2"><del>{r.before}</del></p><p className="rounded bg-primary/10 p-2">{r.after}</p><details><summary>{t("nw_evidence")}</summary><blockquote>{r.source_quote}</blockquote></details>{r.applied ? <p className="text-primary">{t("nw_revision_applied")}</p> : <Button size="sm" disabled={disabled || batch.stale || r.superseded || !adoptRevision} onClick={() => adoptRevision?.(batch.basis, r.id)}>{t("nw_revision_adopt")}</Button>}</article>)}</details>}
+        <DialogueCoveragePanel batch={batch} disabled={disabled || batch.stale} decide={decideDialogue} locate={(id) => { setFilter(shotLabels.get(id) ?? id); requestAnimationFrame(() => document.getElementById(`library-shot-${id}`)?.scrollIntoView({ block: "center", behavior: "smooth" })); }} />
+        {batch.review && <details className="space-y-3 rounded-lg border border-warn/40 p-3"><summary className="cursor-pointer font-semibold">{t("nw_semantic_review")}{(batch.review.unresolved.length + batch.review.revisions.filter((r) => !r.applied && !r.superseded).length) > 0 && ` (${batch.review.unresolved.length + batch.review.revisions.filter((r) => !r.applied && !r.superseded).length})`}</summary><SceneQuestions key={batch.review_revision} batch={batch} disabled={disabled || batch.stale} confirm={confirmQuestions} source={() => batchSource ? batchSource(batch.basis, batch.scenes.flatMap((s) => s.shots).find((sh) => sh.segments.some((seg) => seg.utterances.some((u) => u.kind === "dialogue" && !u.speaker)))?.id) : source(batch.note_id)} shotLabels={shotLabels} locate={(id) => { setFilter(shotLabels.get(id) ?? id); requestAnimationFrame(() => document.getElementById(`library-shot-${id}`)?.scrollIntoView({ block: "center", behavior: "smooth" })); }} />{batch.review.revisions.filter((r) => !r.superseded).map((r) => <article key={r.id} className="space-y-2 rounded border p-3 text-sm"><p>{r.reason}</p><p className="whitespace-pre-wrap rounded bg-destructive/10 p-2"><del>{formatRevision(r.before)}</del></p><p className="whitespace-pre-wrap rounded bg-primary/10 p-2">{formatRevision(r.after)}</p><details><summary>{t("nw_evidence")}</summary><blockquote>{r.source_quote}</blockquote></details>{r.applied ? <p className="text-primary">{t("nw_revision_applied")}</p> : <Button size="sm" disabled={disabled || batch.stale || r.superseded || !adoptRevision} onClick={() => adoptRevision?.(batch.basis, r.id)}>{t("nw_revision_adopt")}</Button>}</article>)}</details>}
         {batch.production_stale && <p className="text-sm text-warn">{t("nw_production_stale")}</p>}
         {batch.stale && <p className="text-sm text-destructive">{t("nw_scene_stale")}</p>}
         {batch.skipped_reason && <p className="text-sm text-muted-foreground">{t("nw_scene_skipped")}：{batch.skipped_reason}</p>}

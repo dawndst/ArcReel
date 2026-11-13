@@ -129,10 +129,19 @@ it("resolves one review question without hiding missing speakers", () => {
   render(<SceneLibraryPanel batches={[draft]} notes={[]} disabled={false} selection={[]} setSelection={() => {}} title="" setTitle={() => {}} assemble={() => {}} source={() => {}} confirmQuestions={confirm} />);
   fireEvent.click(screen.getByText("原文一致性检查 (2)"));
   expect(screen.getByText("1. 台词 缺少归属")).toBeInTheDocument();
-  expect(screen.getAllByRole("button", { name: "已完成修复" })[0]).toBeDisabled();
+  expect(screen.getAllByRole("button", { name: "已完成修复" })[0]).toBeEnabled();
   fireEvent.click(screen.getAllByRole("button", { name: "这是误报" })[1]!);
   fireEvent.change(screen.getByRole("textbox", { name: "说明为什么是误报，并引用原文依据（至少10字）" }), { target: { value: "动作与原文描写完全一致，此项为误报" } });
   fireEvent.click(screen.getByRole("button", { name: "确认这一项" }));
   expect(confirm).toHaveBeenCalledWith("b", "review-v1", "动作与原文描写完全一致，此项为误报", 1, "false_positive");
   expect(screen.getByText(/谁/).closest("p")).toHaveTextContent(/说话人待确认：.*谁/);
+});
+
+it("renders dialogue-array revisions as readable speaker lines", () => {
+  const draft = structuredClone(batch);
+  draft.review = { revisions: [{ id: "dialogue-r", scene_index: 0, shot_index: 0, segment_index: 0, field: "utterances", before: [{ kind: "dialogue", speaker: "阳子", text: "为什么？", delivery: "on_screen" }], after: [{ kind: "dialogue", speaker: "猴子", text: "我知道。", delivery: "on_screen" }, { kind: "dialogue", speaker: "阳子", text: "为什么？", delivery: "on_screen" }], reason: "补齐问答前提", source_quote: "我知道。为什么？", applied: false }], unresolved: [] };
+  render(<SceneLibraryPanel batches={[draft]} notes={[]} disabled={false} selection={[]} setSelection={() => {}} title="" setTitle={() => {}} assemble={() => {}} source={() => {}} />);
+  expect(screen.getAllByText(/阳子 · 画内对白：为什么？/).length).toBeGreaterThan(0);
+  expect(screen.getByText(/猴子 · 画内对白：我知道。/)).toBeInTheDocument();
+  expect(screen.queryByText("[object Object]")).not.toBeInTheDocument();
 });

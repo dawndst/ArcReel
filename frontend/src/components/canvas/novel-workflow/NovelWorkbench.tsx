@@ -276,6 +276,7 @@ export function NovelWorkbench({ projectName }: { projectName: string }) {
         batchSource={(basis, shotId, segment, utterance) => setSourceBatch({ basis, shotId, segment, utterance })}
         suggestSpeakers={(note, shot) => void act(() => API.suggestShotSpeakers(projectName, note, shot, data.source_basis!))}
         characters={Object.keys(project?.characters ?? {})}
+        decideDialogue={(batch, revision, dialogue, decision, reason) => void act(async () => { await API.decideDialogue(projectName, batch, data.source_basis!, revision, dialogue, decision, reason); await refreshAfterWrite(projectName, t); })}
         confirmQuestions={(batch, revision, reason, index, resolution) => void act(async () => { await API.confirmSceneQuestions(projectName, batch, revision, reason, data.source_basis!, index, resolution); await refreshAfterWrite(projectName, t); })}
         adoptRevision={(batch, revision) => void act(async () => { await API.adoptSceneRevision(projectName, batch, revision, data.source_basis!); await refreshAfterWrite(projectName, t); })}
         attribute={(shot, segment, utterance, speaker, revision, registerRole) => { setTab("scenes", shot); void act(async () => { await API.attributeNoteDialogue(projectName, shot, segment, utterance, speaker, data.source_basis!, revision, registerRole); await refreshAfterWrite(projectName, t); }); }}

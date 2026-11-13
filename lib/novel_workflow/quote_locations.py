@@ -110,6 +110,7 @@ async def resolve(path, generator, reading, part):
                 rule + "\n引用定位候选：" + json.dumps(batch, ensure_ascii=False),
                 validate,
                 max_output_tokens=4000,
+                include_fidelity=False,
             )
             await run_noninterruptible_sync(store.write, cache, selected)
         for selection in selected["locations"]:

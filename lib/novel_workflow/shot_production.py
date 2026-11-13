@@ -217,8 +217,6 @@ def issues(shot):
     for i, seg in enumerate(shot["segments"]):
         if any(u["kind"] == "dialogue" and not u.get("speaker") for u in seg["utterances"]):
             result.append({"code": "speaker", "segment": i, "blocking": True})
-        if sum(len(u["text"]) for u in seg["utterances"]) > seg["duration_seconds"] * 6:
-            result.append({"code": "timing", "segment": i, "blocking": False})
     result.extend(
         {"code": "asset", "blocking": True}
         for asset in shot.get("production", {}).get("assets", [])

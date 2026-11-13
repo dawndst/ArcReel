@@ -497,3 +497,30 @@ async def decide_conclusion(name: str, req: ConclusionDecision):
             path, req.note_id, req.conclusion_id, req.status, req.answer, req.evidence_ids, req.reason, req.source_basis
         ),
     )
+
+
+class DialogueDecisionRequest(SourceRequest):
+    batch_basis: str
+    coverage_revision: str
+    dialogue_id: str
+    decision: Literal["omit", "restore"]
+    reason: str = Field(min_length=10, max_length=2000)
+
+
+@router.post("/projects/{name}/novel-workflow/dialogue-decision", dependencies=[Depends(require_project_migration_ok)])
+async def decide_dialogue(name: str, req: DialogueDecisionRequest):
+    from lib.novel_workflow.dialogue_coverage import decide
+
+    return await invoke(
+        name,
+        lambda path, project: decide(
+            path,
+            project,
+            req.batch_basis,
+            req.source_basis,
+            req.coverage_revision,
+            req.dialogue_id,
+            req.decision,
+            req.reason,
+        ),
+    )

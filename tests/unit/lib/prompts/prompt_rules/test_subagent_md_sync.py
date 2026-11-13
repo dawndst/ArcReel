@@ -10,23 +10,20 @@ from lib.episode.episode_target_volume import EPISODE_TARGET_UNITS_FIELD
 REPO = Path(__file__).resolve().parents[5]
 
 
-#: 会在 Step 0 读 ``get_video_capabilities`` 里的单集目标时长的三条脚本规划子智能体，
-#: 加上把该字段列进 ``patch_project`` 白名单的 skill，以及分集规划步骤里据它折算每集体量的
-#: 两条 video-workflow skill。
+#: 读取 ``get_video_capabilities`` 单集目标时长的脚本规划子智能体、项目设置 skill 与旁白编排。
+#: drama 编排使用导演选镜结果，参考生视频预处理从服务端 args 路由，不直接读取该目标字段。
 EPISODE_TARGET_DURATION_READERS = (
     "agent_runtime_profile/.claude/agents/normalize-drama-script.md",
     "agent_runtime_profile/.claude/agents/split-narration-segments.md",
     "agent_runtime_profile/.claude/agents/split-reference-video-units.md",
     "agent_runtime_profile/.claude/skills/manage-project/SKILL.md",
     "agent_runtime_profile/.claude/skills/video-workflow/SKILL.narration.md",
-    "agent_runtime_profile/.claude/skills/video-workflow/SKILL.drama.md",
 )
 
 #: 会在分集规划前核对每集目标体量、并经 ``patch_project`` 写入该字段的 skill。
 EPISODE_TARGET_UNITS_READERS = (
     "agent_runtime_profile/.claude/skills/manage-project/SKILL.md",
     "agent_runtime_profile/.claude/skills/video-workflow/SKILL.narration.md",
-    "agent_runtime_profile/.claude/skills/video-workflow/SKILL.drama.md",
 )
 
 #: 分集规划回退说明必须在同一行同时说明两个字段，避免只因文件别处出现字段名而误通过。
@@ -34,9 +31,7 @@ EPISODE_TARGET_FALLBACK_READERS = (
     "agent_runtime_profile/.claude/references/generation-modes.md",
     "agent_runtime_profile/.claude/skills/manage-project/SKILL.md",
     "agent_runtime_profile/.claude/skills/video-workflow/SKILL.narration.md",
-    "agent_runtime_profile/.claude/skills/video-workflow/SKILL.drama.md",
     "agent_runtime_profile/CLAUDE.narration.md",
-    "agent_runtime_profile/CLAUDE.drama.md",
 )
 
 

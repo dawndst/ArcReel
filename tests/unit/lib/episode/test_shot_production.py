@@ -80,12 +80,11 @@ def test_assembly_inherits_design_and_variant_without_rewriting_dialogue():
     assert segment["characters_in_scene"] == ["景麒"]
 
 
-def test_density_is_warning_and_missing_design_blocks_assembly():
+def test_duration_does_not_budget_dialogue_but_missing_design_and_speaker_are_reported():
     shot = {
         "segments": [{"duration_seconds": 5, "utterances": [{"kind": "dialogue", "speaker": None, "text": "字" * 50}]}]
     }
-    assert {v["code"] for v in p.issues(shot)} == {"design", "speaker", "timing"}
-    assert next(v for v in p.issues(shot) if v["code"] == "timing")["blocking"] is False
+    assert {v["code"] for v in p.issues(shot)} == {"design", "speaker"}
     with pytest.raises(ValueError, match="完善"):
         p.require_ready(shot, {})
 

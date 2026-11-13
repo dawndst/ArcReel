@@ -93,6 +93,27 @@ def view(path, notebook, readings):
             batch["production_stale"] = (
                 batch.get("production_basis") != planning_inputs(ctx, rules, shots, project, readings[note_id])[2]
             )
+        if batch["source_basis"] == notebook["source_basis"]:
+            from lib.novel_workflow.dialogue_coverage import report
+
+            note_id = batch["note_id"]
+            coverage_reading = readings.get(note_id)
+            if not coverage_reading or coverage_reading["basis"] != batch["note_bases"].get(note_id):
+                # Historical coverage is display-only: never inject old evidence into production.
+                coverage_reading = next(
+                    (
+                        r
+                        for f in (store.root(path) / "notes" / note_id).glob("*.json")
+                        if (r := load_json(f)).get("basis") == batch["note_bases"].get(note_id)
+                    ),
+                    None,
+                )
+            if coverage_reading:
+                if note_id not in chunk_cache:
+                    note = next(n for n in notebook["notes"] if n["id"] == note_id)
+                    chunk_cache[note_id] = chapters.chunks(path, project, note)
+                if batch["part"] < len(chunk_cache[note_id]):
+                    batch["dialogue_coverage"] = report(batch, coverage_reading, chunk_cache[note_id][batch["part"]])
         if "review" in batch:
             batch["review_revision"] = digest(batch["review"])
         for scene in batch["scenes"]:
@@ -335,7 +356,14 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                 from lib.novel_workflow.condensation import ensure, material
 
                 edition = await ensure(path, generator, note, reading, project, expected)
+                from lib.novel_workflow.dialogue_coverage import source_dialogues
+
+                key_dialogues = [
+                    {k: d[k] for k in ("id", "quote", "speaker", "purposes")}
+                    for d in source_dialogues(reading, chunk)
+                ]
                 payload = {
+                    "key_dialogues": key_dialogues,
                     "note_title": note["title"],
                     "reading_material": material(edition, reading, chunk),
                     "assets": local_assets,
@@ -375,12 +403,14 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                     await run_noninterruptible_sync(store.write, draft_file, result)
                 from lib.novel_workflow.scene_review import review
 
-                review_file = store.root(path) / "scene_reviews" / f"{key}.json"
+                review_rule = await asyncio.to_thread(store.effective_rule, path, "scene_review")
+                review_key = digest([key, review_rule, key_dialogues])
+                review_file = store.root(path) / "scene_reviews" / f"{review_key}.json"
                 if await asyncio.to_thread(review_file.exists):
                     semantic_review = await asyncio.to_thread(load_json, review_file)
                 else:
                     semantic_review = (
-                        await review(path, generator, result["scenes"], chunk["text"])
+                        await review(path, generator, result["scenes"], chunk["text"], key_dialogues=key_dialogues)
                         if result["scenes"]
                         else {"revisions": [], "unresolved": []}
                     )

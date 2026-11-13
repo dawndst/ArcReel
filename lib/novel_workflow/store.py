@@ -26,7 +26,9 @@ def rule(path: Path, name: str) -> str:
 def effective_rule(path: Path, name: str) -> str:
     """Fingerprint the same shared rules and output contract that generation actually uses."""
     text = rule(path, name)
-    if name != "fidelity":
+    if name in {"quote_locations", "understand_citations"}:
+        text += "\n" + rule(path, "evidence_selection")
+    elif name not in {"fidelity", "evidence_selection"}:
         text += "\n" + rule(path, "fidelity")
     return text + f"\n输出约束版本：{OUTPUT_CONTRACT_VERSION}。分类字段必须显式填写，不从缺省值认定事实。"
 

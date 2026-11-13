@@ -2184,6 +2184,9 @@ class API {
   static async setNoteGroupUsage(name: string, id: string, usage: "reference" | "candidate", source_basis: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/groups/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ usage, source_basis }) });
   }
+  static async decideDialogue(name: string, batch_basis: string, source_basis: string, coverage_revision: string, dialogue_id: string, decision: "omit" | "restore", reason: string): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/dialogue-decision`, { method: "POST", body: JSON.stringify({ batch_basis, source_basis, coverage_revision, dialogue_id, decision, reason }) });
+  }
   static async confirmSceneQuestions(name: string, batch_basis: string, review_basis: string, reason: string, source_basis: string, question_index: number, resolution: "repaired" | "false_positive"): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/scene-revisions/confirm`, { method: "POST", body: JSON.stringify({ batch_basis, review_basis, reason, source_basis, question_index, resolution }) });
   }

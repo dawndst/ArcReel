@@ -2,28 +2,41 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+from copy import deepcopy
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from lib.artifacts.formal_write import project_metadata_lock
+from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import store
 from lib.novel_workflow.evidence import locate
 from lib.novel_workflow.models import StrictModel
+from lib.novel_workflow.scene_models import LibraryUtterance
 
 
 class Revision(StrictModel):
     scene_index: int = Field(ge=0)
     shot_index: int = Field(ge=0)
     segment_index: int | None = Field(default=None, ge=0)
-    field: Literal["title", "scene_description"]
-    before: str = Field(min_length=1)
-    after: str = Field(min_length=1)
+    field: Literal["title", "scene_description", "start_frame", "end_frame", "utterances"]
+    before: str | list[LibraryUtterance]
+    after: str | list[LibraryUtterance]
     source_quote: str = Field(min_length=2)
     reason: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def field_values(self):
+        if self.field == "utterances":
+            if not isinstance(self.before, list) or not isinstance(self.after, list):
+                raise ValueError("台词修订必须提供完整的前后列表")
+        elif not isinstance(self.before, str) or not isinstance(self.after, str) or not self.after.strip():
+            raise ValueError("文字修订必须提供完整文字，修订后不能为空")
+        return self
 
 
 class SceneReview(StrictModel):
@@ -35,7 +48,10 @@ def target(scenes, revision):
     shot = scenes[revision["scene_index"]]["shots"][revision["shot_index"]]
     if revision["field"] == "title" and revision["segment_index"] is None:
         return shot
-    if revision["field"] == "scene_description" and revision["segment_index"] is not None:
+    if (
+        revision["field"] in {"scene_description", "start_frame", "end_frame", "utterances"}
+        and revision["segment_index"] is not None
+    ):
         return shot["segments"][revision["segment_index"]]
     raise ValueError("修订字段与位置不匹配")
 
@@ -53,18 +69,24 @@ def validate_review(value, scenes, original):
             continue
         seen.add(fingerprint)
         key = (draft.scene_index, draft.shot_index, draft.segment_index, draft.field)
-        field = "标题" if draft.field == "title" else "画面描述"
+        field = {
+            "title": "标题",
+            "scene_description": "画面描述",
+            "start_frame": "起始画面",
+            "end_frame": "结束画面",
+            "utterances": "台词",
+        }[draft.field]
         location = f"第{draft.scene_index + 1}场、第{draft.shot_index + 1}镜"
         if draft.segment_index is not None:
             location += f"、第{draft.segment_index + 1}片段"
         location += f"的{field}"
         reason = None
         try:
-            previous = target(scenes, item)[item["field"]]
+            previous = target(scenes, item).get(item["field"], "")
         except (IndexError, KeyError, ValueError):
             reason = "位置索引或字段与片段的对应关系无效"
         else:
-            if previous != draft.before:
+            if previous != item["before"]:
                 reason = "修订前文字与当前字段不逐字一致"
             else:
                 try:
@@ -88,23 +110,17 @@ def validate_review(value, scenes, original):
     }
 
 
-async def review(path, generator, scenes, original):
+async def review(path, generator, scenes, original, *, key_dialogues=()):
     from lib.novel_workflow.service import ask
 
+    rule = await asyncio.to_thread(store.effective_rule, path, "scene_review")
     return await ask(
         path,
         generator,
         SceneReview,
-        "逐项审核场镜与本次原文的语义一致性。核对身份、动机、发色/年龄/形态、事件先后、梦境与现实、人物说法与客观事实。"
-        "允许正常镜头化表达，不因未完整复述而报错。引用存在不等于结论成立。"
-        "确有不一致时给出最小修订，保留其他内容；before/after 必须是该字段的完整文字。"
-        "索引从0开始。title 的 segment_index=null；scene_description 必须指定 segment_index。"
-        "缺少明确依据的设定应删除或保持不确定，不填入外部小说知识。"
-        "对白允许摘取连续的部分原句，不要求复述完整发言，摘录外层引号差异不算错误。\n"
-        "无法通过这些字段安全修复的对白归属、事件缺失或结构问题放入 unresolved。"
-        "疑点用工作人员能理解的中文描述，写出本片段第几场、第几镜、镜头标题及相关原句；输入没有镜头ID时不得编造编号；用台词、说话人，不使用utterances等字段名。"
-        "不要将没有把握的猜测写为修订。只审核，不替导演组集。\n"
-        + json.dumps({"source": original, "scenes": scenes}, ensure_ascii=False),
+        rule
+        + "\n"
+        + json.dumps({"source": original, "scenes": scenes, "key_dialogues": key_dialogues}, ensure_ascii=False),
         lambda value: validate_review(value, scenes, original),
         max_output_tokens=8000,
         grow_output=True,
@@ -112,9 +128,13 @@ async def review(path, generator, scenes, original):
 
 
 def adopt(path, project, batch_basis, revision_id, expected):
+    from lib.novel_workflow import execution
     from lib.novel_workflow.scene_library import catalog, valid_batch
+    from lib.novel_workflow.scene_source import batch_source
+    from lib.novel_workflow.shot_production import asset_bindings, dialogue_links, planning_inputs
 
     with project_metadata_lock(path):
+        project = load_json(path / "project.json")
         notebook = store.require_current(path, project, expected)
         readings = store.valid_readings(path, notebook)
         library = catalog(path)
@@ -129,10 +149,36 @@ def adopt(path, project, batch_basis, revision_id, expected):
         if item["applied"]:
             return {"applied": True}
         obj = target(batch["scenes"], item)
-        if obj[item["field"]] != item["before"]:
+        if obj.get(item["field"], "") != item["before"]:
             raise ValueError("修订前文字已变化，不覆盖当前版本")
+        shot = batch["scenes"][item["scene_index"]]["shots"][item["shot_index"]]
+        candidate = deepcopy(shot)
+        if item["field"] == "title":
+            candidate["title"] = item["after"]
+        else:
+            candidate["segments"][item["segment_index"]][item["field"]] = deepcopy(item["after"])
+        original = batch_source(path, project, batch_basis)["text"]
+        validated = execution.validate_edit(
+            execution.ShotEdit.model_validate({"title": candidate["title"], "segments": candidate["segments"]}),
+            original,
+            project,
+        )
+        rules = store.effective_rule(path, "shot_production")
+        ctx = batch.get("production_context")
+        shots = {s["id"]: s for sc in batch["scenes"] for s in sc["shots"]}
+        was_current = bool(
+            ctx
+            and batch.get("production_basis")
+            == planning_inputs(ctx, rules, shots, project, readings[batch["note_id"]])[2]
+        )
         store.write(store.root(path) / "history" / f"scene-revision-{uuid4().hex}.json", batch)
-        obj[item["field"]] = item["after"]
+        shot.update(title=validated["title"], segments=validated["segments"])
+        shot.pop("execution_draft", None)
+        if shot.get("production"):
+            shot["production"]["assets"] = asset_bindings(project, readings[batch["note_id"]], shot)
+            shot["production"]["dialogue_sources"] = dialogue_links(readings[batch["note_id"]], shot)
+        if was_current:
+            batch["production_basis"] = planning_inputs(ctx, rules, shots, project, readings[batch["note_id"]])[2]
         item.update(applied=True, applied_at=now(), applied_by="human")
         store.write(store.root(path) / "scene_library.json", library)
         return {"applied": True}
@@ -168,17 +214,6 @@ def confirm_questions(path, project, batch_basis, expected, review_basis, reason
             raise ValueError("疑点不存在，请刷新")
         if resolution not in {"repaired", "false_positive"}:
             raise ValueError("请选择已修复或误报")
-        if resolution == "repaired":
-            if any(
-                u["kind"] == "dialogue" and not (u.get("speaker") or "").strip()
-                for scene in batch["scenes"]
-                for shot in scene["shots"]
-                for segment in shot["segments"]
-                for u in segment["utterances"]
-            ):
-                raise ValueError("本片段仍有台词缺少说话人，请先在对应台词中确认；填写说明不会修复台词")
-            if any(not r.get("applied") and not r.get("superseded") for r in review.get("revisions", [])):
-                raise ValueError("本片段仍有未采用的修订，请先处理后确认已修复")
         store.write(store.root(path) / "history" / f"scene-review-{uuid4().hex}.json", batch)
         review.setdefault("resolved_questions", []).append(
             {

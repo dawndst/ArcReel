@@ -89,6 +89,7 @@ async def repair(path, generator, findings, supplied):
                     rule + "\n引文修复材料：" + json.dumps(material, ensure_ascii=False),
                     validate,
                     max_output_tokens=2000,
+                    include_fidelity=False,
                 )
                 await run_noninterruptible_sync(store.write, cache, selected)
             repaired.extend(Citation(fragment_id=fragment["id"], quote=options[i]) for i in selected["candidate_ids"])
