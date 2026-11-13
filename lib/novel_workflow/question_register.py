@@ -177,6 +177,65 @@ def regroup(value, cards, relevant):
     return result
 
 
+def partial_groups(value, cards, relevant):
+    counts = Counter(i for group in value.groups for i in group.source_ids)
+    affected = {i for i in range(len(cards)) if counts[i] != 1}
+    for group in value.groups:
+        if any(i < 0 or i >= len(cards) for i in group.source_ids) or any(
+            i < 0 or i >= len(relevant) for i in group.evidence_ids
+        ):
+            affected.update(i for i in group.source_ids if 0 <= i < len(cards))
+    good = [i for i in range(len(cards)) if i not in affected]
+    positions = {original: index for index, original in enumerate(good)}
+    groups = [
+        group.model_copy(update={"source_ids": [positions[i] for i in group.source_ids if i in positions]})
+        for group in value.groups
+        if any(i in positions for i in group.source_ids)
+    ]
+    complete = regroup(Grouping(groups=groups), [cards[i] for i in good], relevant) if good else []
+    return complete, [cards[i] for i in sorted(affected)]
+
+
+async def group_cards(path, generator, cards, links, titles, rule):
+    """Keep complete assignments and repair only missing or multiply assigned inputs."""
+    from lib.novel_workflow.service import ask
+
+    check_stop()
+    material, relevant = material_for(cards, links, titles)
+    key = digest([rule, cards, relevant])
+    cache = store.root(path) / "understanding/question_groups" / f"{key}.json"
+    if await asyncio.to_thread(cache.exists):
+        return await asyncio.to_thread(load_json, cache)
+    prompt = rule + "\n问题归并材料：" + json.dumps(material, ensure_ascii=False)
+    candidate_file = store.root(path) / "understanding/question_candidates" / f"{key}.json"
+    if len(cards) == 1:
+        grouped = await ask(
+            path, generator, Grouping, prompt, lambda draft: regroup(draft, cards, relevant), grow_output=True
+        )
+    else:
+        if await asyncio.to_thread(candidate_file.exists):
+            candidate = await asyncio.to_thread(load_json, candidate_file)
+        else:
+            candidate = await ask(path, generator, Grouping, prompt, lambda draft: draft.model_dump(), grow_output=True)
+            await run_noninterruptible_sync(store.write, candidate_file, candidate)
+        grouped, remaining = partial_groups(Grouping.model_validate(candidate), cards, relevant)
+        if remaining:
+            # Smaller requests avoid regenerating dozens of correct groups for one omitted ID.
+            # If none were assigned safely, halve the input so recursive repair always terminates.
+            chunks = (
+                [remaining]
+                if len(remaining) < len(cards)
+                else [
+                    remaining[: len(remaining) // 2],
+                    remaining[len(remaining) // 2 :],
+                ]
+            )
+            for batch in chunks:
+                grouped.extend(await group_cards(path, generator, batch, links, titles, rule))
+    await run_noninterruptible_sync(store.write, cache, grouped)
+    return grouped
+
+
 def publish(path, report, value, rule):
     from lib.novel_workflow.understanding import view
 
@@ -188,8 +247,6 @@ def publish(path, report, value, rule):
 
 
 async def build(path, generator, report, notebook):
-    from lib.novel_workflow.service import ask
-
     rule = await asyncio.to_thread(store.effective_rule, path, RULE)
     previous = await asyncio.to_thread(load, path, report)
     if previous and not previous["stale"]:
@@ -202,6 +259,7 @@ async def build(path, generator, report, notebook):
     titles = {n["id"]: n["title"] for n in notebook["notes"]}
     links = report.get("links", [])
     level = 0
+    global_checked = False
     progress = {
         "phase": "question_register",
         "step": "grouping",
@@ -224,21 +282,7 @@ async def build(path, generator, report, notebook):
             nonlocal completed
             async with semaphore:
                 check_stop()
-                material, relevant = material_for(batch, links, titles)
-                key = digest([rule, batch, relevant])
-                cache = store.root(path) / "understanding/question_groups" / f"{key}.json"
-                if await asyncio.to_thread(cache.exists):
-                    grouped = await asyncio.to_thread(load_json, cache)
-                else:
-                    grouped = await ask(
-                        path,
-                        generator,
-                        Grouping,
-                        rule + "\n问题归并材料：" + json.dumps(material, ensure_ascii=False),
-                        lambda draft: regroup(draft, batch, relevant),
-                        grow_output=True,
-                    )
-                    await run_noninterruptible_sync(store.write, cache, grouped)
+                grouped = await group_cards(path, generator, batch, links, titles, rule)
                 completed += sum(len(c["original_ids"]) for c in batch) if level == 0 else len(batch)
                 progress["done"] = completed
                 await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
@@ -252,6 +296,11 @@ async def build(path, generator, report, notebook):
             reduced.extend(value)
         if len(batches) == 1:
             cards = reduced
+            if level > 0 and len(cards) > 1 and not global_checked:
+                # Recheck the global list after distributed grouping and isolated repairs.
+                global_checked = True
+                level += 1
+                continue
             break
         # Never force unrelated topics together just to reduce a count or loop indefinitely.
         if len(reduced) >= len(cards):

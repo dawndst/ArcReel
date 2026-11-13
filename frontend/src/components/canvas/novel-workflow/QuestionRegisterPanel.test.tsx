@@ -59,3 +59,12 @@ it("disables organizing while another workflow is active or the report is stale"
   rerender(<QuestionRegisterPanel report={{ ...report, stale: true }} notes={notes} links={[]} select={vi.fn()} organize={vi.fn()} busy={false} />);
   expect(screen.getByRole("button", { name: "更新问题台账" })).toBeDisabled();
 });
+
+it("includes the chapters of linked evidence when opening the source material", async () => {
+  const user = userEvent.setup(); const select = vi.fn();
+  const value = { ...report, question_register: { ...report.question_register!, groups: report.question_register!.groups.map((g) => ({ ...g, note_ids: ["n1"] })) } };
+  render(<QuestionRegisterPanel report={value} notes={notes} links={[{ ...link, note_ids: ["n2"] }]} select={select} busy={false} />);
+  await user.click(screen.getByRole("tab", { name: /剧情悬念/ }));
+  await user.click(screen.getByRole("button", { name: "查看来源章节" }));
+  expect(select).toHaveBeenCalledWith(["n1", "n2"]);
+});

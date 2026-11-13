@@ -17,6 +17,9 @@ export function QuestionRegisterPanel({ report, notes, links, select, organize, 
   const title = (id: string) => notes.find((n) => n.id === id)?.title ?? id;
   const originals = new Map(register?.originals.map((q) => [q.id, q]));
   const evidence = new Map(links.map((link) => [link.id, link]));
+  const sourceNotes = (group: { note_ids: string[]; link_ids: string[] }) => [...new Set([
+    ...group.note_ids, ...group.link_ids.flatMap((id) => evidence.get(id)?.note_ids ?? []),
+  ])];
   if (!report.unresolved.length) return <p className="text-muted-foreground">{t("nw_question_none")}</p>;
   return <div className="space-y-4">
     <header className="flex flex-wrap items-center justify-between gap-3">
@@ -37,8 +40,8 @@ export function QuestionRegisterPanel({ report, notes, links, select, organize, 
             {register.groups.map((group, index) => group.kind !== kind ? null : <article key={group.id} className={`min-w-0 space-y-3 rounded-xl border border-l-4 bg-card p-4 ${kind === "extraction_check" ? "border-l-warn" : "border-l-primary"}`}>
               <header className="space-y-2"><span className="inline-flex rounded bg-muted px-2 py-1 font-mono text-xs">Q-{String(index + 1).padStart(3, "0")}</span><h4 className="font-bold leading-relaxed">{group.question}</h4></header>
               <p className="text-sm leading-relaxed">{group.explanation}</p>
-              <p className="text-xs text-muted-foreground">{group.note_ids.map(title).join(" / ")}</p>
-              <Button variant="outline" size="sm" onClick={() => select(group.note_ids)}>{t("nw_question_sources")}</Button>
+              <p className="text-xs text-muted-foreground">{sourceNotes(group).map(title).join(" / ")}</p>
+              <Button variant="outline" size="sm" onClick={() => select(sourceNotes(group))}>{t("nw_question_sources")}</Button>
               {!!group.link_ids.length && <details className="rounded-lg border bg-muted/15 p-3 text-sm"><summary className="cursor-pointer font-semibold">{t("nw_question_evidence", { count: group.link_ids.length })}</summary><p className="mt-2 text-xs text-muted-foreground">{t("nw_question_evidence_hint")}</p>{group.link_ids.map((id) => {
                 const link = evidence.get(id);
                 return link ? <section key={id} className="mt-3 space-y-2 border-t pt-3"><h5 className="font-semibold">{link.subject}</h5><p>{link.description}<ClaimBadge value={link} /></p>{link.evidence.map((e) => <div key={`${e.note_id}:${e.start}:${e.end}`}><p className="text-xs font-medium">{title(e.note_id)}</p><FactEvidence value={e} /></div>)}</section> : null;

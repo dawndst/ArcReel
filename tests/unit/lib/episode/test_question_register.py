@@ -142,3 +142,83 @@ async def test_source_change_during_model_call_keeps_cache_without_publishing_st
         )
         == 1
     )
+
+
+def test_batching_uses_compact_questions_instead_of_growing_provenance_lists():
+    cards = [
+        {
+            "question": "景麒为何称阳子为主人？",
+            "note_ids": ["n1"],
+            "original_ids": ["trace-" + str(i) for i in range(3000)],
+            "link_ids": [],
+        },
+        {
+            "question": "阳子的外貌为何变化？",
+            "note_ids": ["n2"],
+            "original_ids": ["other-" + str(i) for i in range(3000)],
+            "link_ids": [],
+        },
+    ]
+    batches = registry.batches_for(cards, {"n1": "第一章", "n2": "第二章"})
+    assert len(batches) == 1
+    payload, _ = registry.material_for(batches[0], [], {"n1": "第一章", "n2": "第二章"})
+    assert [q["original_count"] for q in payload["questions"]] == [3000, 3000]
+    assert "trace-2999" not in json.dumps(payload)
+    assert "other-2999" not in json.dumps(payload)
+
+
+async def test_only_missing_and_duplicate_assignments_are_repaired_and_candidate_is_reused(tmp_path):
+    cards = [{"question": f"问题{i}", "note_ids": ["n1"], "original_ids": [f"q{i}"], "link_ids": []} for i in range(3)]
+
+    class Generator:
+        def __init__(self):
+            self.requests = []
+            self.fail_once = True
+
+        async def generate(self, request, **kwargs):
+            count = len(material(request)["questions"])
+            self.requests.append(count)
+            if count == 3:
+                groups = [
+                    {"title": "问题组合", "kind": "plot_unrevealed", "explanation": "剧情追踪", "source_ids": [0, 2]},
+                    {"title": "重复归属", "kind": "extraction_check", "explanation": "需核对", "source_ids": [0]},
+                ]
+            else:
+                if self.fail_once:
+                    self.fail_once = False
+                    raise RuntimeError("provider temporarily unavailable")
+                groups = [
+                    {
+                        "title": "补齐归属",
+                        "kind": "extraction_check",
+                        "explanation": "核对来源",
+                        "source_ids": list(range(count)),
+                    }
+                ]
+            return SimpleNamespace(text=json.dumps({"groups": groups}))
+
+    generator = Generator()
+    with pytest.raises(RuntimeError, match="provider temporarily unavailable"):
+        await registry.group_cards(tmp_path, generator, cards, [], {"n1": "第一章"}, "test-rule")
+    result = await registry.group_cards(tmp_path, generator, cards, [], {"n1": "第一章"}, "test-rule")
+    assert generator.requests == [3, 2, 2]
+    assert sorted(i for group in result for i in group["original_ids"]) == ["q0", "q1", "q2"]
+    assert any(group["original_ids"] == ["q2"] for group in result)
+    assert await registry.group_cards(tmp_path, generator, cards, [], {"n1": "第一章"}, "test-rule") == result
+    assert generator.requests == [3, 2, 2]
+
+
+def test_invented_source_or_evidence_is_not_exported_from_partial_groups():
+    cards = [
+        {"question": "原始问题", "note_ids": ["n1"], "original_ids": ["q0"], "link_ids": []},
+        {"question": "另一个问题", "note_ids": ["n1"], "original_ids": ["q1"], "link_ids": []},
+    ]
+    value = registry.Grouping(
+        groups=[
+            {"title": "混入虚构来源", "kind": "plot_unrevealed", "explanation": "待修复", "source_ids": [0, 99]},
+            {"title": "有效分组", "kind": "extraction_check", "explanation": "原始问题", "source_ids": [1]},
+        ]
+    )
+    complete, pending = registry.partial_groups(value, cards, [])
+    assert [c["original_ids"] for c in complete] == [["q1"]]
+    assert pending == [cards[0]]
