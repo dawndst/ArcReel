@@ -9,7 +9,6 @@ from pydantic import Field
 
 from lib.artifacts.formal_write import project_metadata_lock
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.infra.json_io import load_json
 from lib.novel_understanding.service import check_stop
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import store
@@ -18,6 +17,7 @@ from lib.novel_workflow.evidence import locate
 from lib.novel_workflow.models import StrictModel
 from lib.novel_workflow.scene_library import catalog, valid_batch
 from lib.novel_workflow.scene_source import batch_source
+from lib.novel_workflow.storage import load_json
 
 
 class Suggestion(StrictModel):

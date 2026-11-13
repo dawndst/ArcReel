@@ -6,11 +6,11 @@ import asyncio
 import json
 
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest
 from lib.novel_workflow import store
 from lib.novel_workflow.memory import records
 from lib.novel_workflow.models import ChapterSynthesis
+from lib.novel_workflow.storage import load_json
 
 
 def packs(values, budget=18000):

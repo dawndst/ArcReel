@@ -755,3 +755,9 @@ find projects/projects -type f -size +500M
 - [ ] 配置磁盘和健康检查告警；
 - [ ] 确认模型 API Key 不出现在日志和仓库；
 - [ ] 阅读许可证和 `NOTICE`。
+
+## 小说业务数据备份
+
+拆书工作台的章节 Note、SVT、场镜素材库、理解与人工审核记录保存在现有 `arcreel.db` 的 `nw_*` 表中。原文、SKILL、媒体、缓存以及生产资产主档仍在项目目录。备份与迁移实例时应同时保留数据库和完整项目目录，不能只复制 `novel_workflow` 文件夹。运行中的 SQLite 请使用 backup API，或停服后备份，避免遗漏 WAL 中的数据。
+
+项目导出会将数据库里的小说记录及历史版本写入 ZIP，导入后重新建立存储身份。项目目录中的 `.arcreel/novel-storage.json` 是实例内数据库定位信息，不应复制到另一个实例作为项目导入手段。迁移和恢复命令见仓库 `docs/novel-workflow/sqlite-storage.md`。

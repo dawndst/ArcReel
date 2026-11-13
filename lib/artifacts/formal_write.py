@@ -73,7 +73,10 @@ def project_metadata_lock(project_dir: Path) -> Generator[None]:
     lock_path = Path(project_dir) / ".project.json.lock"
     lock_path.touch(exist_ok=True)
     with portalocker.Lock(lock_path, flags=portalocker.LOCK_EX):
-        yield
+        from lib.novel_workflow.storage import transaction
+
+        with transaction(project_dir, writing=True):
+            yield
 
 
 @contextmanager

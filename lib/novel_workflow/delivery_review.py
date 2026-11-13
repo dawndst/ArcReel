@@ -9,11 +9,11 @@ from copy import deepcopy
 from pydantic import ConfigDict, Field
 
 from lib.artifacts.formal_write import project_metadata_lock
-from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import execution, store
 from lib.novel_workflow.models import StrictModel
 from lib.novel_workflow.scene_library import selected_shots
+from lib.novel_workflow.storage import load_json
 
 CHECK_VERSION = 1
 

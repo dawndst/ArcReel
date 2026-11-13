@@ -10,6 +10,29 @@ from lib.novel_workflow.service import generate_svts, read_notes
 from tests.unit.lib.episode.test_novel_workflow import Reader, SVTReader, project
 
 
+@pytest.fixture(autouse=True, params=["files", "sqlite"])
+def workflow_storage(request, monkeypatch, tmp_path):
+    if request.param == "files":
+        return
+    import sqlite3
+
+    from lib.novel_workflow.storage_migration import migrate
+    from lib.novel_workflow.storage_schema_v1 import DDL
+
+    database = tmp_path / "workflow.db"
+    with sqlite3.connect(database) as conn:
+        for sql in DDL:
+            conn.execute(sql)
+    original = store.initialize
+
+    def initialize(path, project_data, expected):
+        result = original(path, project_data, expected)
+        migrate(path, database)
+        return result
+
+    monkeypatch.setattr(store, "initialize", initialize)
+
+
 def scene_output(quote="甲拿起古剑。"):
     return {
         "scenes": [

@@ -1128,6 +1128,18 @@ class ProjectArchiveService:
                     copied = self._copy_visible_tree(source_dir, target_dir)
                     source_after = self._visible_tree_signature(source_dir)
                     manifest_after = self._source_manifest_entries(source_dir)
+                    from lib.novel_workflow.storage import managed, marker
+                    from lib.novel_workflow.storage_migration import snapshot
+
+                    if marker(source_dir):
+                        workflow_root = target_dir / "novel_workflow"
+                        for candidate in workflow_root.rglob("*.json"):
+                            if managed(candidate.relative_to(workflow_root).as_posix()):
+                                candidate.unlink()  # hard-delete: temp -- SQL 快照替换导出暂存区的旧 JSON
+                    for relative, content in snapshot(source_dir).items():
+                        destination = target_dir / relative
+                        destination.parent.mkdir(parents=True, exist_ok=True)
+                        destination.write_bytes(content)
                 except FileNotFoundError as exc:
                     last_missing = exc
                     continue

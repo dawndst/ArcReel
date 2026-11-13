@@ -7,10 +7,10 @@ import json
 from pathlib import Path
 
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import memory, retrieval, settings, store, synthesis
 from lib.novel_workflow.evidence import locate
+from lib.novel_workflow.storage import load_json
 from lib.novel_workflow.understanding_models import Findings, Inquiry
 
 INQUIRY_INDEX_BUDGET = 48000

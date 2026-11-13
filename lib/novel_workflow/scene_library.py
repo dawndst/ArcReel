@@ -9,12 +9,12 @@ from uuid import uuid4
 
 from lib.artifacts.formal_write import formal_write_transaction, project_metadata_lock
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.infra.json_io import load_json
 from lib.novel_understanding.service import NovelReadingInterrupted, check_stop
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import chapters, store, understanding
 from lib.novel_workflow.evidence import expand_scene_excerpt, locate
 from lib.novel_workflow.scene_models import SceneBatch, Segment
+from lib.novel_workflow.storage import load_json
 
 
 def catalog(path):
@@ -100,7 +100,9 @@ def view(path, notebook, readings):
             coverage_reading = readings.get(note_id)
             if not coverage_reading or coverage_reading["basis"] != batch["note_bases"].get(note_id):
                 # Historical coverage is display-only: never inject old evidence into production.
-                coverage_reading = next(
+                from lib.novel_workflow.storage import reading_version
+
+                coverage_reading = reading_version(path, note_id, batch["note_bases"].get(note_id)) or next(
                     (
                         r
                         for f in (store.root(path) / "notes" / note_id).glob("*.json")

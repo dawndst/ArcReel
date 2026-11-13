@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 from itertools import zip_longest
 
-from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest
 from lib.novel_workflow import store
 from lib.novel_workflow.assets import mentions
+from lib.novel_workflow.storage import load_json
 
 BUCKETS = ("assets", "changes", "events", "aliases", "relations", "threads", "highlights")
 

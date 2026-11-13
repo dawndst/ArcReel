@@ -13,13 +13,13 @@ from pydantic import ValidationError
 
 from lib.backends.text_backends.base import TextGenerationRequest, TextOutputTruncatedError
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.infra.json_io import load_json
 from lib.infra.text_utils import strip_json_code_fences
 from lib.novel_understanding.service import NovelReadingInterrupted, check_stop
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import chapters, memory, settings, store, synthesis, understanding
 from lib.novel_workflow.evidence import locate
 from lib.novel_workflow.models import Reading, SVTBatch
+from lib.novel_workflow.storage import load_json
 
 
 def current(path: Path, expected: str) -> dict:

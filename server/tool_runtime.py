@@ -2780,7 +2780,9 @@ async def _execute_queued_text_task(
         from lib.backends.text_backends.base import TextTaskType
         from lib.backends.text_generator import TextGenerator
         from lib.novel_workflow.routing import WorkflowError, enabled
+        from lib.novel_workflow.storage_migration import ensure
 
+        await run_sync_transaction(ensure, path)
         project = await asyncio.to_thread(services.projects.load_project, scope.project_name)
         if not enabled(project):
             raise WorkflowError("Note 工作流已关闭，请刷新后重新选择操作。")

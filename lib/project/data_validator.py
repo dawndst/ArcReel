@@ -172,6 +172,7 @@ class DataValidator:
         "style_reference.jpeg",
         "style_reference.webp",
         "source",
+        "novel_workflow",
         "scripts",
         "drafts",
         "edit_timelines",

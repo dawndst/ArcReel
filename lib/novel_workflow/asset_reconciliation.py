@@ -8,10 +8,10 @@ from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest
 from lib.novel_workflow import store
 from lib.novel_workflow.shot_production import asset_bindings, planning_inputs
+from lib.novel_workflow.storage import load_json
 
 
 @dataclass

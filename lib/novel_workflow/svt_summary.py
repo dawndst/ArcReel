@@ -6,10 +6,10 @@ import json
 from pydantic import Field
 
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest
 from lib.novel_workflow import store, synthesis
 from lib.novel_workflow.models import StrictModel
+from lib.novel_workflow.storage import load_json
 
 
 class Synopsis(StrictModel):

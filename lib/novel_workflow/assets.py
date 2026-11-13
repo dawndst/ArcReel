@@ -8,9 +8,9 @@ from copy import deepcopy
 from pathlib import Path
 
 from lib.artifacts.formal_write import project_metadata_lock
-from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest
 from lib.novel_workflow import store
+from lib.novel_workflow.storage import load_json
 from lib.project.asset_codes import ensure_asset_codes, keep_first_note
 from lib.project.asset_types import asset_name_comparison_key, validate_asset_name
 

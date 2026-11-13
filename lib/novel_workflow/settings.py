@@ -1,8 +1,8 @@
 """Independent controls for chapter summaries and cross-chapter understanding."""
 
 from lib.artifacts.formal_write import project_metadata_lock
-from lib.infra.json_io import load_json
 from lib.novel_workflow import store
+from lib.novel_workflow.storage import load_json
 
 DEFAULTS = {
     "summary_max_chars": 1200,

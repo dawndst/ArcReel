@@ -6,16 +6,17 @@ from pathlib import Path
 from uuid import uuid4
 
 from lib.artifacts.formal_write import project_metadata_lock
-from lib.infra.json_io import atomic_write_json, load_json
+from lib.infra.json_io import atomic_write_json
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import chapters
+from lib.novel_workflow.storage import WorkflowPath, load_json
 
 RULES = Path(__file__).parent / "rules"
 OUTPUT_CONTRACT_VERSION = 3
 
 
 def root(path: Path) -> Path:
-    return path / "novel_workflow"
+    return WorkflowPath(path) / "novel_workflow"
 
 
 def rule(path: Path, name: str) -> str:
@@ -42,6 +43,10 @@ def saved_reading(path: Path, note: dict) -> dict | None:
 
 
 def write(path: Path, value: dict) -> None:
+    from lib.novel_workflow import storage
+
+    if storage.write(path, value):
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_json(path, value)
 
@@ -170,6 +175,13 @@ def dissolve_group(path: Path, group_id: str) -> None:
 
 
 def view(path: Path, project: dict) -> dict:
+    from lib.novel_workflow.storage import transaction
+
+    with transaction(path):
+        return _view(path, project)
+
+
+def _view(path: Path, project: dict) -> dict:
     current = state(path)
     if current is None:
         from lib.novel_workflow import settings

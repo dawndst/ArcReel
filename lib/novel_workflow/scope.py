@@ -4,12 +4,14 @@ from pathlib import Path
 from uuid import uuid4
 
 from lib.artifacts.formal_write import project_metadata_lock
-from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest, now
+from lib.novel_workflow.storage import load_json
 
 
 def get(path: Path) -> dict | None:
-    file = path / "novel_workflow" / "scope.json"
+    from lib.novel_workflow.storage import WorkflowPath
+
+    file = WorkflowPath(path) / "novel_workflow" / "scope.json"
     return load_json(file) if file.exists() else None
 
 

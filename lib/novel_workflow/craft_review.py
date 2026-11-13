@@ -16,12 +16,12 @@ from pydantic import Field
 
 from lib.artifacts.formal_write import project_metadata_lock
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import execution, settings, store
 from lib.novel_workflow.evidence import locate
 from lib.novel_workflow.models import StrictModel
 from lib.novel_workflow.scene_source import source_chunk
+from lib.novel_workflow.storage import load_json
 
 
 class CoverageFinding(StrictModel):
@@ -84,6 +84,11 @@ def find_batch(path, basis):
 
 def saved_reading(path, batch):
     expected = batch["note_bases"].get(batch["note_id"])
+    from lib.novel_workflow.storage import reading_version
+
+    historical = reading_version(path, batch["note_id"], expected)
+    if historical is not None:
+        return historical
     for file in (store.root(path) / "notes" / batch["note_id"]).glob("*.json"):
         value = load_json(file)
         if value.get("basis") == expected:

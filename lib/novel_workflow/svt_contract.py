@@ -3,9 +3,9 @@
 from uuid import uuid4
 
 from lib.artifacts.formal_write import project_metadata_lock
-from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import store
+from lib.novel_workflow.storage import load_json
 
 
 def assignments(svts):
@@ -30,10 +30,14 @@ def valid_svts(path, value, readings):
     from lib.novel_workflow.conclusions import input_bases
 
     current_conclusions = input_bases(path, list(value.get("note_bases", {})))
+    from lib.novel_workflow.storage import adopted_svts
+
+    adopted = adopted_svts(path)
     return [
         s
         for s in value["svts"]
-        if not s.get("stale")
+        if (adopted is None or all(adopted.get(i) == s["id"] for i in s["note_ids"]))
+        and not s.get("stale")
         and all(value.get("conclusion_bases", {}).get(i) == current_conclusions.get(i) for i in s["note_ids"])
         and all(
             readings.get(i, {}).get("basis") == value.get("note_bases", {}).get(i) and i in readings

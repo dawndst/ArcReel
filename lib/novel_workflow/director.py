@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from lib.episode.episode_paths import SCRIPT_PLAN_FILENAMES, episode_drafts_dir
 from lib.episode.episode_source_commands import add_own_source_episode
-from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest
 from lib.novel_workflow import scene_library, store, understanding
+from lib.novel_workflow.storage import load_json
 from lib.script.script_models import DramaNormalizedScript
 from lib.script.script_review import formal_script_plan_lock, write_formal_script_plan_locked
 

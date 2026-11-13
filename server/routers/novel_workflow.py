@@ -73,7 +73,12 @@ class GroupRequest(SourceRequest):
 async def invoke(name, operation):
     def run():
         manager = get_project_manager()
-        return operation(manager.get_project_path(name), manager.load_project(name))
+        from lib.novel_workflow.storage_migration import ensure
+
+        path = manager.get_project_path(name)
+        project = manager.load_project(name)
+        ensure(path)
+        return operation(path, project)
 
     try:
         return await run_sync_transaction(run)
