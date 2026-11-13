@@ -29,28 +29,25 @@ describe("ExternalAgentSection", () => {
     Reflect.deleteProperty(navigator, "clipboard");
   });
 
-  it("按步骤给出安装命令、MCP 端点与给 AI Agent 的提示词，复制的是原样内容", async () => {
+  it("按步骤给出 MCP 端点与给 AI Agent 的提示词，复制的是原样内容", async () => {
     const user = userEvent.setup();
     const writeText = stubClipboard();
     render(<ExternalAgentSection />);
 
     const steps = within(screen.getByRole("list")).getAllByRole("listitem");
     expect(steps.map((step) => within(step).getByRole("heading").textContent)).toEqual([
-      "安装公开 skills",
       "配置远程 MCP",
       "准备访问令牌",
     ]);
-    // setup skill 明文保存令牌，第三步提醒把配置文件排除在版本控制之外
-    expect(within(steps[2]).getByText(/加入 \.gitignore/)).toBeInTheDocument();
+    // setup skill 明文保存令牌，第二步提醒把配置文件排除在版本控制之外
+    expect(within(steps[1]).getByText(/加入 \.gitignore/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "复制安装命令" }));
-    expect(writeText).toHaveBeenLastCalledWith("npx skills add ArcReel/skills");
     await user.click(screen.getByRole("button", { name: "复制 MCP 端点" }));
     expect(writeText).toHaveBeenLastCalledWith(`${window.location.origin}/mcp`);
     await user.click(screen.getByRole("button", { name: "复制提示词" }));
     // 提示词只给安装指引地址，不夹带任何令牌
     expect(writeText).toHaveBeenLastCalledWith(
-      `帮我接入 ArcReel。请阅读并执行 ${window.location.origin}/agent-installation-guide.md`,
+      `帮我接入拆书工作台。请阅读并执行 ${window.location.origin}/agent-installation-guide.md`,
     );
   });
 
@@ -59,13 +56,13 @@ describe("ExternalAgentSection", () => {
     stubClipboard(() => Promise.reject(new Error("denied")));
     render(<ExternalAgentSection />);
 
-    await user.click(screen.getByRole("button", { name: "复制安装命令" }));
+    await user.click(screen.getByRole("button", { name: "复制 MCP 端点" }));
 
     await waitFor(() => expect(useAppStore.getState().toast?.text).toBe("复制失败，请手动选择并复制内容。"));
-    expect(screen.getByRole("button", { name: "复制安装命令" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "复制 MCP 端点" })).toBeInTheDocument();
   });
 
-  it("在第三步创建的令牌出现在「访问令牌」分区的列表里", async () => {
+  it("在第二步创建的令牌出现在「访问令牌」分区的列表里", async () => {
     // 有状态的接口替身：创建写入、列表读出，模拟同一个后端
     const issued: ApiKeyInfo[] = [];
     vi.spyOn(API, "listApiKeys").mockImplementation(() => Promise.resolve([...issued]));

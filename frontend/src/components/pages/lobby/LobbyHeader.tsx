@@ -111,8 +111,8 @@ export function LobbyHeader({ query, onQueryChange, onCreate, onImport, importin
       }
     >
       <div className="flex shrink-0 items-center gap-2 pl-1">
-        <img src="/logo-light.svg" alt="" className="size-7 dark:hidden" />
-        <img src="/logo.svg" alt="" className="hidden size-7 dark:block" />
+        <img src="/logo-light.svg?v=chaishu" alt="" className="size-7 dark:hidden" />
+        <img src="/logo.svg?v=chaishu" alt="" className="hidden size-7 dark:block" />
         <span className="text-base font-medium">{BRAND.name}</span>
       </div>
       <InputGroup className="ml-3 max-w-80">

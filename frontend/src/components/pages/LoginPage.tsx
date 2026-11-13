@@ -67,12 +67,12 @@ export function LoginPage() {
         <div className="flex flex-col items-center gap-1.5 text-center">
           <h1 className="flex items-center gap-2 font-editorial text-3xl tracking-tight">
             <picture className="dark:hidden">
-              <source media="(prefers-reduced-motion: reduce)" srcSet="/logo-light.svg" />
-              <img src="/logo-animated-light.svg" alt="" aria-hidden className="block size-7" />
+              <source media="(prefers-reduced-motion: reduce)" srcSet="/logo-light.svg?v=chaishu" />
+              <img src="/logo-animated-light.svg?v=chaishu" alt="" aria-hidden className="block size-7" />
             </picture>
             <picture className="hidden dark:block">
-              <source media="(prefers-reduced-motion: reduce)" srcSet="/logo.svg" />
-              <img src="/logo-animated.svg" alt="" aria-hidden className="block size-7" />
+              <source media="(prefers-reduced-motion: reduce)" srcSet="/logo.svg?v=chaishu" />
+              <img src="/logo-animated.svg?v=chaishu" alt="" aria-hidden className="block size-7" />
             </picture>
             <span>{BRAND.name}</span>
           </h1>

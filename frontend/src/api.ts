@@ -3655,7 +3655,8 @@ class API {
   // ==================== Agent 配置 / 凭证 API ====================
 
   static async listAgentPresetProviders(options: { signal?: AbortSignal } = {}): Promise<PresetProvidersResponse> {
-    return this.request("/agent/preset-providers", { signal: options.signal });
+    const result = await this.request<PresetProvidersResponse>("/agent/preset-providers", { signal: options.signal });
+    return { ...result, providers: result.providers.filter((provider) => provider.id !== "arcreel") };
   }
 
   static async listAgentCredentials(options: { signal?: AbortSignal } = {}): Promise<{ credentials: AgentCredential[] }> {

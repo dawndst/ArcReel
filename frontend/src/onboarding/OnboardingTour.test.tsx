@@ -50,7 +50,7 @@ describe("OnboardingTour", () => {
 
     renderAt("/app/projects");
 
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
   });
 
   it("stays out of the way once the tour has been seen", async () => {
@@ -160,7 +160,7 @@ describe("OnboardingTour", () => {
     vi.spyOn(API, "getOnboardingStatus").mockResolvedValue({ seen: false });
 
     renderAt("/app/projects");
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
 
     document.querySelector<HTMLElement>(".driver-popover-close-btn")?.click();
 
@@ -177,7 +177,7 @@ describe("OnboardingTour", () => {
 
     useOnboardingStore.getState().start();
 
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
     document.querySelector<HTMLElement>(".driver-popover-close-btn")?.click();
 
     await waitFor(() => expect(popoverTitle()).toBeNull());
@@ -193,7 +193,7 @@ describe("OnboardingTour", () => {
     document.body.appendChild(anchor);
 
     renderAt("/app/projects");
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
     document.querySelector<HTMLElement>(".driver-popover-next-btn")?.click();
     expect(popoverTitle()).toBe("新建项目");
 
@@ -222,7 +222,7 @@ describe("OnboardingTour", () => {
 
     act(() => useOnboardingStore.getState().start());
 
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
     expect(history.at(-1)).toBe("/app/projects");
   });
 
@@ -270,7 +270,7 @@ describe("OnboardingTour", () => {
         <OnboardingTour />
       </Router>,
     );
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
 
     click(".driver-popover-next-btn"); // → 新建项目入口
     click(".driver-popover-next-btn"); // → 设置入口（仍在大厅）
@@ -296,7 +296,7 @@ describe("OnboardingTour", () => {
         <OnboardingTour />
       </Router>,
     );
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
 
     click(".driver-popover-next-btn");
     click(".driver-popover-next-btn");
@@ -322,7 +322,7 @@ describe("OnboardingTour", () => {
         <OnboardingTour />
       </Router>,
     );
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
 
     for (let i = 0; i < 5; i++) click(".driver-popover-next-btn"); // → 演示卡（interactive 步，锚点在大厅）
     await waitFor(() => expect(popoverTitle()).toBe("演示项目"));
@@ -348,7 +348,7 @@ describe("OnboardingTour", () => {
         <OnboardingTour />
       </Router>,
     );
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
 
     for (let i = 0; i < 5; i++) click(".driver-popover-next-btn"); // → 演示卡（interactive 步）
     await waitFor(() => expect(popoverTitle()).toBe("演示项目"));
@@ -374,10 +374,10 @@ describe("OnboardingTour", () => {
         <OnboardingTour />
       </Router>,
     );
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
 
     for (let i = 0; i < 4; i++) click(".driver-popover-next-btn"); // → 配置 Agent
-    await waitFor(() => expect(popoverTitle()).toBe("配置 ArcReel Agent"));
+    await waitFor(() => expect(popoverTitle()).toBe("配置 拆书工作台 Agent"));
     expect(history.at(-1)).toBe("/app/settings?section=arcreel-agent");
 
     // 两步同在 /app/settings，退回时 pathname 不变——内容区必须靠 section 参数切回
@@ -402,7 +402,7 @@ describe("OnboardingTour", () => {
         <OnboardingTour />
       </Router>,
     );
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
 
     click(".driver-popover-next-btn");
     click(".driver-popover-next-btn");
@@ -432,7 +432,7 @@ describe("OnboardingTour", () => {
         <OnboardingTour />
       </Router>,
     );
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
 
     click(".driver-popover-next-btn");
     click(".driver-popover-next-btn");
@@ -476,14 +476,14 @@ describe("OnboardingTour", () => {
         <OnboardingTour />
       </Router>,
     );
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
 
     // 每一步：标题 + 该步走完后当前所在路由。跨页步骤的落点由 route 驱动。
     const expected: [string, string][] = [
       ["新建项目", "/app/projects"],
       ["设置", "/app/projects"],
       ["配置供应商", "/app/settings?section=providers"],
-      ["配置 ArcReel Agent", "/app/settings?section=arcreel-agent"],
+      ["配置 拆书工作台 Agent", "/app/settings?section=arcreel-agent"],
       ["演示项目", "/app/projects"],
       ["Agent", DEMO_WORKBENCH],
       ["项目概览", DEMO_WORKBENCH],
@@ -520,7 +520,7 @@ describe("OnboardingTour", () => {
         <OnboardingTour />
       </Router>,
     );
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
 
     for (let i = 0; i < 5; i++) click(".driver-popover-next-btn"); // → 演示卡（interactive）
     await waitFor(() => expect(popoverTitle()).toBe("演示项目"));
@@ -546,7 +546,7 @@ describe("OnboardingTour", () => {
         <OnboardingTour />
       </Router>,
     );
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
 
     for (let i = 0; i < 6; i++) click(".driver-popover-next-btn"); // → Agent（工作台第一步）
     await waitFor(() => expect(popoverTitle()).toBe("Agent"));
@@ -576,7 +576,7 @@ describe("OnboardingTour", () => {
     await waitFor(() => expect(API.getOnboardingStatus).toHaveBeenCalled());
 
     act(() => useOnboardingStore.getState().start());
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
     expect(history.at(-1)).toBe("/app/projects");
 
     for (let i = 0; i < 11; i++) click(".driver-popover-next-btn");
@@ -605,7 +605,7 @@ describe("OnboardingTour", () => {
         <OnboardingTour />
       </Router>,
     );
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
 
     for (let i = 0; i < 11; i++) click(".driver-popover-next-btn");
     await waitFor(() => expect(popoverTitle()).toBe("开始你的第一个项目"));
@@ -623,7 +623,7 @@ describe("OnboardingTour", () => {
     vi.spyOn(API, "getOnboardingStatus").mockResolvedValue({ seen: false });
 
     const { navigate } = renderWithNavigation("/app/projects");
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
 
     act(() => navigate("/login"));
 
@@ -635,7 +635,7 @@ describe("OnboardingTour", () => {
     vi.spyOn(API, "getOnboardingStatus").mockResolvedValue({ seen: false });
 
     const { unmount } = renderAt("/app/projects");
-    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 ArcReel"));
+    await waitFor(() => expect(popoverTitle()).toBe("欢迎使用 拆书工作台"));
 
     unmount();
 

@@ -397,7 +397,7 @@ MESSAGES = {
     ),
     "val_ce_infer_note_batch_size_above_one": (
         "Input {input} of node {node} ({class_type}) is {value}, so one submission yields several images; "
-        "ArcReel does not change this value"
+        "拆书工作台 does not change this value"
     ),
     "val_ce_infer_note_manual_only_node": (
         "Node {node} is a {class_type}; the {binding_keys} it carries cannot be inferred, so bind them by hand"

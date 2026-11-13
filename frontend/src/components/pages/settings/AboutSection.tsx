@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { AlertTriangle, ChevronRight, ExternalLink, Loader2, RefreshCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { API } from "@/api";
+import { BRAND } from "@/branding";
 import { StreamMarkdown } from "@/components/copilot/StreamMarkdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -90,7 +91,7 @@ export function AboutSection() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-lg font-medium">{t("about")}</h2>
+      <header className="space-y-2"><h2 className="text-lg font-medium">{BRAND.name}</h2><p className="text-sm text-muted-foreground">{BRAND.description}</p></header>
 
       <section aria-labelledby={versionLabelId} className="flex flex-col rounded-lg border border-border bg-card">
         <div className="flex flex-wrap items-start justify-between gap-4 p-4">
@@ -184,24 +185,7 @@ export function AboutSection() {
         )}
       </section>
 
-      {/* Copyright & attribution — NOTICE §7(b) 要求的署名句与仓库链接，逐字保留，不走品牌占位 */}
-      <section className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-medium">{t("about_legal_title")}</h3>
-        <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-          <p>Copyright © 2026 Pollo3470 and ArcReel contributors</p>
-          <p>
-            Powered by ArcReel —{" "}
-            <a
-              href="https://github.com/ArcReel/ArcReel"
-              target="_blank"
-              rel="noreferrer"
-              className="break-all text-primary underline-offset-4 hover:underline"
-            >
-              https://github.com/ArcReel/ArcReel
-            </a>
-          </p>
-        </div>
-      </section>
+
     </div>
   );
 }

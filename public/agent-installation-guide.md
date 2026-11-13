@@ -1,8 +1,8 @@
-# ArcReel 外部 Agent 接入任务
+# 拆书工作台 外部 Agent 接入任务
 
-你正在帮助用户把当前 Agent 宿主连接到 ArcReel。完成以下步骤后再结束任务；项目创作流程由安装后的 skill 与 MCP 工具说明提供。
+你正在帮助用户把当前 Agent 宿主连接到 拆书工作台。完成以下步骤后再结束任务；项目创作流程由安装后的 skill 与 MCP 工具说明提供。
 
-## 1. 安装 ArcReel skills
+## 1. 安装 拆书工作台 skills
 
 在当前 Agent 的工作目录运行：
 
@@ -14,7 +14,7 @@ npx skills add ArcReel/skills
 
 ## 2. 获取接入信息
 
-让用户打开 [ArcReel 设置页的「访问令牌」]({{BASE_URL}}/app/settings?section=access-tokens)，创建一个 `arc-` 前缀的访问令牌（即 API Key）。完整令牌只显示一次；用户可以把它提供给其明确选择的当前 Agent。`setup-arcreel-skills` 会按宿主与工作区的本地配置惯例持久化同一连接，供后续会话与 ArcReel skills 复用。
+让用户打开 [拆书工作台 设置页的「访问令牌」]({{BASE_URL}}/app/settings?section=access-tokens)，创建一个 `arc-` 前缀的访问令牌（即 API Key）。完整令牌只显示一次；用户可以把它提供给其明确选择的当前 Agent。`setup-arcreel-skills` 会按宿主与工作区的本地配置惯例持久化同一连接，供后续会话与 拆书工作台 skills 复用。
 
 MCP 端点：
 

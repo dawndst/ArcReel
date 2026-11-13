@@ -10,13 +10,11 @@ import { CopyableValue } from "./CopyableValue";
 import { CreateAccessTokenDialog } from "./CreateAccessTokenDialog";
 
 const MCP_ENDPOINT = `${window.location.origin}/mcp`;
-const INSTALL_COMMAND = "npx skills add ArcReel/skills";
-const SETUP_SKILL = "setup-arcreel-skills";
 const INSTALL_GUIDE_URL = `${window.location.origin}/agent-installation-guide.md`;
 
 /**
- * 全局设置「外部 Agent 接入」：按安装公开 skills、配置远程 MCP、准备访问令牌三步展示，
- * 之后给出把提示词交给 AI Agent 代为接入的做法。第三步就地创建访问令牌；令牌列表只在「访问令牌」分区管理。
+ * 全局设置「外部 Agent 接入」：按远程 MCP 地址和访问令牌两步展示，
+ * 之后给出把提示词交给 AI Agent 代为接入的做法。令牌步骤就地创建访问令牌；令牌列表只在「访问令牌」分区管理。
  */
 export function ExternalAgentSection() {
   const { t } = useTranslation("dashboard");
@@ -36,26 +34,14 @@ export function ExternalAgentSection() {
           {t("ext_agent_steps")}
         </h3>
         <ol className="flex flex-col divide-y divide-border rounded-lg border border-border bg-card">
-          <Step index={1} title={t("ext_agent_step_skills_title")} description={t("ext_agent_step_skills_desc")}>
-            <CopyableValue
-              label={t("ext_agent_install_command")}
-              value={INSTALL_COMMAND}
-              copyLabel={t("ext_agent_copy_install_command")}
-            />
-          </Step>
-          <Step index={2} title={t("ext_agent_step_mcp_title")} description={t("ext_agent_step_mcp_desc")}>
-            <CopyableValue
-              label={t("ext_agent_setup_skill")}
-              value={SETUP_SKILL}
-              copyLabel={t("ext_agent_copy_setup_skill")}
-            />
+          <Step index={1} title={t("ext_agent_step_mcp_title")} description={t("ext_agent_step_mcp_desc")}>
             <CopyableValue
               label={t("ext_agent_mcp_endpoint")}
               value={MCP_ENDPOINT}
               copyLabel={t("ext_agent_copy_mcp_endpoint")}
             />
           </Step>
-          <Step index={3} title={t("ext_agent_step_token_title")} description={t("ext_agent_step_token_desc")}>
+          <Step index={2} title={t("ext_agent_step_token_title")} description={t("ext_agent_step_token_desc")}>
             <div className="flex flex-wrap items-center gap-2">
               <Button onClick={() => setCreateOpen(true)}>
                 <Plus aria-hidden data-icon="inline-start" />

@@ -1,5 +1,6 @@
 ---
 name: manage-project
+description: 管理项目中的角色、场景、道具、项目设置和概述，并查询视频模型能力。
 user-invocable: false
 ---
 

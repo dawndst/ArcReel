@@ -405,7 +405,7 @@ MESSAGES = {
     ),
     "val_ce_infer_note_batch_size_above_one": (
         "Đầu vào {input} của node {node} ({class_type}) là {value}, mỗi lần gửi sẽ ra nhiều ảnh; "
-        "ArcReel không thay đổi giá trị này"
+        "拆书工作台 không thay đổi giá trị này"
     ),
     "val_ce_infer_note_manual_only_node": (
         "Node {node} là {class_type}; không suy luận được {binding_keys} mà nó mang, hãy liên kết thủ công"

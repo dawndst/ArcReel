@@ -296,7 +296,7 @@ MESSAGES = {
         "实际张数少于格子数时会重复填充最后一张"
     ),
     "val_ce_infer_note_batch_size_above_one": (
-        "节点 {node}（{class_type}）的 {input} 是 {value}，一次提交会出多张图；ArcReel 不改这个值"
+        "节点 {node}（{class_type}）的 {input} 是 {value}，一次提交会出多张图；拆书工作台 不改这个值"
     ),
     "val_ce_infer_note_manual_only_node": "节点 {node} 是 {class_type}，它承载的 {binding_keys} 推断不出来，请手动绑定",
     "val_ce_infer_note_computed_source": (
