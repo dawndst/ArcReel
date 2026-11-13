@@ -10,7 +10,7 @@ export function noteProductionStatus(data: NovelWorkflow | null, notes: ChapterN
   const batches = (data?.scene_batches ?? []).filter((b) => notes.some((n) => n.id === b.note_id));
   return {
     svts, batches,
-    svtComplete: notes.length > 0 && !data?.stale && !data?.svt_stale && notes.every((n) => n.status === "read" && n.svt_status === "complete" && svts.some((s) => s.id === n.svt_id && !s.stale)),
+    svtComplete: notes.length > 0 && !data?.stale && notes.every((n) => n.status === "read" && n.svt_status === "complete" && svts.some((s) => s.id === n.svt_id && !s.stale)),
     scenes: batches.reduce((count, b) => count + b.scenes.length, 0),
     shots: batches.reduce((count, b) => count + b.scenes.reduce((sum, s) => sum + s.shots.length, 0), 0),
     scenesForAll: notes.length > 0 && notes.every((n) => batches.some((b) => b.note_id === n.id)),

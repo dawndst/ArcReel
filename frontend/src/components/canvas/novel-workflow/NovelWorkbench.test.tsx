@@ -147,3 +147,16 @@ it("organizes Note information, original text and condensed text in lazy horizon
   expect(condensed).toHaveBeenCalledWith("demo", "note-1");
   expect(screen.queryByText(/原文 100 字 · 精编 20 字/)).not.toBeInTheDocument();
 });
+
+
+it("shows stale warnings only on affected SVTs and lists the current result first", async () => {
+  const base = { summary: "内容", note_ids: ["note-1"], status: "open" as const, mainline_reason: "主线", breakdown_status: "complete" as const, climaxes: [], payoffs: [], dialogues: [], evidence: [] };
+  vi.mocked(API.getNovelWorkflow).mockResolvedValue({ ...data, svt_stale: true, svts: [{ ...base, id: "old", title: "旧跨章结果", stale: true }, { ...base, id: "current", title: "当前主线", stale: false }] });
+  render(<NovelWorkbench projectName="demo" />);
+  fireEvent.click(await screen.findByRole("button", { name: /^SVT/ }));
+  expect(screen.getAllByText("部分来源已变化，请重新提炼相关 SVT。")).toHaveLength(1);
+  const current = screen.getByRole("heading", { name: /当前主线/ });
+  const old = screen.getByRole("heading", { name: /旧跨章结果/ });
+  expect(current.compareDocumentPosition(old) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(within(current.closest("article")!).queryByText("部分来源已变化，请重新提炼相关 SVT。")).not.toBeInTheDocument();
+});

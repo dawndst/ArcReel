@@ -35,6 +35,18 @@ it("requires explicit confirmation for re-extraction", async () => {
 it("does not label mixed or outdated selections complete", () => {
   const mixed = [...data.notes, { ...data.notes[0]!, id: "n2", svt_id: null, svt_status: "unassigned" }];
   expect(noteProductionStatus(data, mixed)).toMatchObject({ svtComplete: false, scenesForAll: false });
-  expect(noteProductionStatus({ ...data, svt_stale: true }, data.notes).svtComplete).toBe(false);
+  expect(noteProductionStatus({ ...data, svt_stale: true }, data.notes).svtComplete).toBe(true);
+  expect(noteProductionStatus({ ...data, svts: data.svts.map((s) => ({ ...s, stale: true })) }, data.notes).svtComplete).toBe(false);
+  expect(noteProductionStatus({ ...data, stale: true }, data.notes).svtComplete).toBe(false);
   expect(noteProductionStatus({ ...data, scene_batches: data.scene_batches!.map((b) => ({ ...b, production_stale: true })) }, data.notes).scenesStale).toBe(true);
+});
+
+
+it("keeps a current primary complete when an older cross-chapter SVT is stale", () => {
+  const mixed = { ...data, svt_stale: true, svts: [{ ...data.svts[0]!, id: "old", note_ids: ["n", "n2"], stale: true }, ...data.svts] };
+  const run = vi.fn();
+  render(<NoteProductionActions data={mixed} notes={data.notes} canSvt canScenes busy={false} run={run} viewSvt={() => {}} viewScenes={() => {}} />);
+  expect(screen.getByRole("button", { name: "查看 SVT（已完成）" })).toBeInTheDocument();
+  expect(noteProductionStatus(mixed, data.notes).svts.map((s) => s.id)).toEqual(["svt"]);
+  expect(run).not.toHaveBeenCalled();
 });
