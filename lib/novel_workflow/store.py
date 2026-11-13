@@ -26,6 +26,8 @@ def rule(path: Path, name: str) -> str:
 def effective_rule(path: Path, name: str) -> str:
     """Fingerprint the same shared rules and output contract that generation actually uses."""
     text = rule(path, name)
+    if name == "svt":
+        text += "\n" + rule(path, "svt_material")
     if name in {"quote_locations", "understand_citations"}:
         text += "\n" + rule(path, "evidence_selection")
     elif name not in {"fidelity", "evidence_selection"}:

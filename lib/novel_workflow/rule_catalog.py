@@ -7,6 +7,7 @@ from lib.novel_workflow import settings, store
 from lib.prompts.prompt_templates.builtin import builtin_templates
 
 TITLES = {
+    "svt_material": ("SVT 精简稿阅读与原文回查", "共享精简段落、完整事件索引与关键原句；缺失或疑义时回读原文"),
     "craft_review": (
         "内容承载与身份外观检查",
         "按原文片段检查因果动作承载、当前人物造型及开场状态；人工采用，不设时长门槛",

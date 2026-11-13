@@ -51,6 +51,7 @@ async def test_cumulative_svt_summary_covers_early_and_late_notes_without_changi
     again = (await finalize(tmp_path, generator, [original], book))[0]
     assert generator.calls == 1
     assert result == again
+    assert result["summary_mode"] == "cumulative"
     assert result["summary"].startswith("甲先拿起古剑")
     assert result["note_ids"] == ids
     assert result["event_ids"] == saved["event_ids"]
@@ -92,3 +93,22 @@ async def test_cumulative_summary_rejects_last_note_only_result(tmp_path):
             ],
             book,
         )
+
+
+async def test_single_note_svt_reuses_complete_validated_overview_without_model_call(tmp_path):
+    from lib.novel_workflow import store
+
+    _, book = await asyncio.to_thread(project, tmp_path)
+    note = book["notes"][0]
+    await read_notes(tmp_path, Reader(), [note["id"]], book["source_basis"])
+    reading = await asyncio.to_thread(store.note_result, tmp_path, note)
+    original = {"id": "s1", "title": "取剑", "summary": "遗漏开头", "mainline_reason": "行动", "note_ids": [note["id"]]}
+
+    class NoCalls:
+        async def generate(self, *args, **kwargs):
+            raise AssertionError("single-Note overview must not be generated again")
+
+    result = (await finalize(tmp_path, NoCalls(), [original], book))[0]
+    assert result["summary"] == reading["overview"]["summary"]
+    assert result["summary_mode"] == "chapter_overview"
+    assert result["title"] == original["title"]

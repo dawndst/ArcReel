@@ -507,6 +507,7 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
     events = []
     bases = {}
     edition_bases = {}
+    editions = {}
     for note in notes:
         result = await asyncio.to_thread(store.note_result, path, note)
         if not result:
@@ -517,18 +518,8 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
         project = await asyncio.to_thread(load_json, path / "project.json")
         edition = await ensure(path, generator, note, result, project, expected)
         edition_bases[note["id"]] = edition["basis"]
-        for event in note_events(note, result):
-            ref = event["evidence"]
-            event["edition_context"] = [
-                p["text"]
-                for part in edition["parts"]
-                for p in part["passages"]
-                if p["text"]
-                and p["evidence"]["source_file"] == ref["source_file"]
-                and p["evidence"]["start"] < ref["end"]
-                and p["evidence"]["end"] > ref["start"]
-            ]
-            events.append(event)
+        editions[note["id"]] = edition
+        events.extend(note_events(note, result))
     # Every event is retained; deduplicate only repeated extraction of the same exact source evidence.
     events = list({e["id"]: e for e in events}.values())
     rules = await asyncio.to_thread(store.effective_rule, path, "svt")
@@ -664,23 +655,16 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
             old_ids = {i for s in supplied for i in s["event_ids"]}
             available = {e["id"] for e in batch} | old_ids
             allowed_dialogues = {d["id"] for i in available for d in by_event[i]["dialogues"]}
-            prompt = (
-                rules
-                + "\n事件中的edition_context是精编转述，只用于理解，不作为原文事实或逐字台词依据；以事件证据及对白原句为准。"
-                + "\n整章方向材料："
-                + json.dumps(directions[current_note], ensure_ascii=False)
-                + "\n必须覆盖的本批事件ID（全部进入本Note唯一主归属event_ids，不能只放supporting_event_ids）："
-                + json.dumps([e["id"] for e in batch])
-                + "\n本批事件："
-                + json.dumps(batch, ensure_ascii=False)
-                + "\n可续接SVT："
-                + json.dumps(supplied, ensure_ascii=False)
-            )
-            result = await ask(
+            from lib.novel_workflow.svt_material import generate as generate_from_edition
+
+            result, material_stats = await generate_from_edition(
                 path,
                 generator,
-                SVTBatch,
-                prompt,
+                rules,
+                directions[current_note],
+                batch,
+                editions[current_note],
+                supplied,
                 partial(
                     validate_svt,
                     event_ids=available,
@@ -694,6 +678,7 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
                 ),
             )
             await asyncio.to_thread(current, path, expected)
+            run.setdefault("material_stats", []).append(material_stats)
             for alternative in result["alternatives"]:
                 run["note_candidates"][alternative["note_id"]] = [
                     {**c, "candidate_id": digest([alternative["note_id"], c]), "basis": bases[alternative["note_id"]]}

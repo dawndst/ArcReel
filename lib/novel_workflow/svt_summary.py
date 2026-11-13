@@ -39,6 +39,19 @@ async def finalize(path, generator, svts, notebook):
             cards.append({"note_ids": [note["id"]], "order": note["order"], "summary": reading["overview"]["summary"]})
         if set(bases) != set(svt["note_ids"]):
             raise ValueError("SVT 概况包含当前章节索引以外的 Note")
+        # One Note has exactly one primary SVT, including all its events. Its
+        # validated overview already covers the complete source; do not resummarize it.
+        if len(cards) == 1:
+            result.append(
+                {
+                    **svt,
+                    "summary": cards[0]["summary"],
+                    "summary_rule_basis": digest(rule),
+                    "summary_note_bases": bases,
+                    "summary_mode": "chapter_overview",
+                }
+            )
+            continue
         while True:
             reduced = []
             for batch in synthesis.packs(cards, 14000):
@@ -78,6 +91,7 @@ async def finalize(path, generator, svts, notebook):
             {
                 **svt,
                 **{k: reduced[0][k] for k in ("title", "summary", "mainline_reason")},
+                "summary_mode": "cumulative",
                 "summary_rule_basis": digest(rule),
                 "summary_note_bases": bases,
             }
