@@ -415,6 +415,7 @@ def planning_inputs(ctx, rules, shots, project, reading):
             if k
             not in (
                 "production",
+                "appearance_notes",
                 "revision",
                 "issues",
                 "speaker_suggestions",

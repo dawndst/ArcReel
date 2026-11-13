@@ -74,7 +74,7 @@ it("saves independent summary and understanding settings without starting a mode
   fireEvent.click(within(dialog).getByRole("checkbox", { name: "启用跨章理解（默认开启）" }));
   fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-  expect(save).toHaveBeenCalledWith("demo", { summary_max_chars: 2400, understanding_enabled: false, delivery_checks_enabled: true, conclusions_enabled: true, max_model_calls: 100 });
+  expect(save).toHaveBeenCalledWith("demo", { summary_max_chars: 2400, understanding_enabled: false, delivery_checks_enabled: true, craft_checks_enabled: true, conclusions_enabled: true, max_model_calls: 100 });
   expect(run).not.toHaveBeenCalled();
 });
 

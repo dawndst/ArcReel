@@ -61,6 +61,12 @@ def preview(path, project, shot_ids, title, expected):
 
         shot = deepcopy(shot)
         shot["segments"] = [effective_segment(seg, shot.get("production"), i) for i, seg in enumerate(shot["segments"])]
+        from lib.novel_workflow.craft_review import appearance_text, opening_text
+
+        for i, segment in enumerate(shot["segments"]):
+            segment["scene_description"] += appearance_text(shot)
+            if i == 0 and scene.get("opening_state") and scene.get("shots") and scene["shots"][0]["id"] == shot["id"]:
+                segment["scene_description"] += opening_text(scene)
         checks = execution.inspect(shot, project)
         if batch.get("production_stale"):
             checks.append(

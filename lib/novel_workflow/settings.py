@@ -8,6 +8,7 @@ DEFAULTS = {
     "summary_max_chars": 1200,
     "understanding_enabled": True,
     "delivery_checks_enabled": True,
+    "craft_checks_enabled": True,
     "conclusions_enabled": True,
     "max_model_calls": 100,
 }

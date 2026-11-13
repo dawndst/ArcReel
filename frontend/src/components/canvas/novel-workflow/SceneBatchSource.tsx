@@ -5,8 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { errMsg } from "@/utils/async";
 import { highlightedSource } from "./source-highlights";
 
-export interface SourceTarget { basis: string; shotId?: string; segment?: number; utterance?: number }
-export function SceneBatchSource({ projectName, basis, shotId, segment, utterance, shotLabels, close }: SourceTarget & { projectName: string; shotLabels?: Map<string, string>; close: () => void }) {
+export interface SourceTarget { basis: string; shotId?: string; segment?: number; utterance?: number; range?: { start: number; end: number } }
+export function SceneBatchSource({ projectName, basis, shotId, segment, utterance, range, shotLabels, close }: SourceTarget & { projectName: string; shotLabels?: Map<string, string>; close: () => void }) {
   const { t } = useTranslation("dashboard");
   const [value, setValue] = useState<Awaited<ReturnType<typeof API.getSceneBatchSource>> | null>(null);
   const [error, setError] = useState("");
@@ -20,12 +20,12 @@ export function SceneBatchSource({ projectName, basis, shotId, segment, utteranc
   }, [projectName, basis]);
   const shot = value?.shots.find((s) => s.id === selected);
   const dialogues = shot?.dialogues.filter((d) => manualSelection || segment === undefined || (d.segment === segment && d.utterance === utterance)) ?? [];
-  const ranges = dialogues.flatMap((d) => d.ranges);
+  const ranges = range && !manualSelection ? [range] : dialogues.flatMap((d) => d.ranges);
   const parts = value ? highlightedSource(value.text, value.start, shot, ranges) : [];
   useEffect(() => {
     const target = body.current?.querySelector("[data-source-focus]") ?? body.current?.querySelector("mark");
     target?.scrollIntoView({ block: "center" });
-  }, [value, selected, segment, utterance]);
+  }, [value, selected, segment, utterance, range]);
   return <Dialog open onOpenChange={(open) => { if (!open) close(); }}><DialogContent size="xl">
     <DialogHeader><DialogTitle>{t("nw_batch_source_title")}{value && ` · ${value.note_title} · ${value.part}`}</DialogTitle><DialogDescription>{t("nw_source_highlight_hint")}</DialogDescription>
       {value && <p className="text-xs text-muted-foreground">{value.source_file} · {value.start}–{value.end}</p>}

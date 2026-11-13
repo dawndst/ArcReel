@@ -53,6 +53,7 @@ class ReadingRequest(SourceRequest):
         "group_summary",
         "speaker_attribution",
         "shot_draft",
+        "craft_review",
         "selection_story",
     ]
     note_ids: list[str] = Field(min_length=1, max_length=10000)
@@ -232,6 +233,7 @@ class UnderstandingSettings(BaseModel):
     conclusions_enabled: bool | None = None
     max_model_calls: int | None = Field(default=None, ge=1, le=500)
     delivery_checks_enabled: bool | None = None
+    craft_checks_enabled: bool | None = None
     summary_max_chars: int = Field(ge=400, le=3000)
     understanding_enabled: bool
 
@@ -524,3 +526,16 @@ async def decide_dialogue(name: str, req: DialogueDecisionRequest):
             req.reason,
         ),
     )
+
+
+from lib.novel_workflow.craft_review import CraftDecision
+
+
+@router.post(
+    "/projects/{name}/novel-workflow/scene-batches/{basis}/craft-decision",
+    dependencies=[Depends(require_project_migration_ok)],
+)
+async def craft_decision(name: str, basis: str, req: CraftDecision):
+    from lib.novel_workflow.craft_review import decide
+
+    return await invoke(name, lambda path, project: decide(path, project, basis, req))

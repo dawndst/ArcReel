@@ -2,7 +2,7 @@ import type { NovelWorkflow } from "@/types/novel-workflow";
 
 export function workflowProgress(progress: NovelWorkflow["progress"]) {
   const labels: Record<string, string> = {
-    shot_draft: "nw_exec_ai_request", selection_story: "nw_delivery_ai", speaker_attribution: "nw_speaker_ai_running", reading: "nw_reading_running", condensing: "nw_condensing", summarizing: "nw_summarizing",
+    craft_review: "nw_craft_running", shot_draft: "nw_exec_ai_request", selection_story: "nw_delivery_ai", speaker_attribution: "nw_speaker_ai_running", reading: "nw_reading_running", condensing: "nw_condensing", summarizing: "nw_summarizing",
     scenes: progress?.step === "production" ? "nw_complete_production" : "nw_phase_scenes",
     group_summary: "nw_group_summarize", understanding: "nw_understanding_running",
     question_register: progress?.step === "merge" ? "nw_question_merging" : "nw_question_grouping",

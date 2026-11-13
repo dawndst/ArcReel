@@ -252,6 +252,14 @@ export function NovelWorkbench({ projectName }: { projectName: string }) {
       {tab === "scenes" && data.pending_assemblies?.map((pending) => <div key={pending.request_id} className="flex items-center gap-3 border-b bg-warn/10 p-3 text-sm"><span>{t("dashboard:nw_assembly_pending", { title: pending.title })}</span><Button disabled={busy || working} size="sm" onClick={() => void act(async () => { const created = await API.assembleDirectorEpisode(projectName, pending.shot_ids, pending.title, pending.source_basis, pending.request_id); if (await refreshAfterWrite(projectName, t) === "success") navigate(`/episodes/${created.episode}`); })}>{t("dashboard:nw_assembly_retry")}</Button></div>)}
       {tab === "scenes" && <SceneLibraryPanel
         projectName={projectName} assetOptions={assetOptions}
+        craftEnabled={data.settings?.craft_checks_enabled !== false}
+        reviewCraft={(note, shot) => void act(() => API.productionAdvice(projectName, "craft_review", [note], [shot], data.source_basis!))}
+        saveCraft={async (batch, revision, value) => {
+          if (busy || working) throw new Error(t("dashboard:nw_working"));
+          await API.saveCraftDecision(projectName, batch, data.source_basis!, revision, value);
+          if (await refreshAfterWrite(projectName, t) !== "success") throw new Error(t("dashboard:nw_craft_refresh_failed"));
+          setRevision((n) => n + 1);
+        }}
         saveExecution={async (shot, value) => {
           const edited = await API.editShotExecution(projectName, shot.id, data.source_basis!, shot.revision!, value);
           setShotSelection((ids) => ids.flatMap((id) => id === shot.id ? edited.shot_ids : [id]));
@@ -273,7 +281,7 @@ export function NovelWorkbench({ projectName }: { projectName: string }) {
           useAppStore.getState().triggerScrollTo({ type: asset.kind, id: asset.name, route });
           navigate(`/app/projects/${encodeURIComponent(projectName)}${route}`);
         }}
-        batchSource={(basis, shotId, segment, utterance) => setSourceBatch({ basis, shotId, segment, utterance })}
+        batchSource={(basis, shotId, segment, utterance, range) => setSourceBatch({ basis, shotId, segment, utterance, range })}
         suggestSpeakers={(note, shot) => void act(() => API.suggestShotSpeakers(projectName, note, shot, data.source_basis!))}
         characters={Object.keys(project?.characters ?? {})}
         decideDialogue={(batch, revision, dialogue, decision, reason) => void act(async () => { await API.decideDialogue(projectName, batch, data.source_basis!, revision, dialogue, decision, reason); await refreshAfterWrite(projectName, t); })}
@@ -287,7 +295,7 @@ export function NovelWorkbench({ projectName }: { projectName: string }) {
         assemble={assembleSelection} />}
 
     </>}
-    {sourceBatch && <SceneBatchSource key={`${sourceBatch.basis}:${sourceBatch.shotId}:${sourceBatch.segment}:${sourceBatch.utterance}`} projectName={projectName} {...sourceBatch} shotLabels={sceneLibraryOrder(data?.scene_batches ?? [], data?.notes ?? []).shotLabels} close={() => setSourceBatch(null)} />}
+    {sourceBatch && <SceneBatchSource key={`${sourceBatch.basis}:${sourceBatch.shotId}:${sourceBatch.segment}:${sourceBatch.utterance}:${sourceBatch.range?.start}:${sourceBatch.range?.end}`} projectName={projectName} {...sourceBatch} shotLabels={sceneLibraryOrder(data?.scene_batches ?? [], data?.notes ?? []).shotLabels} close={() => setSourceBatch(null)} />}
     <Dialog open={preview !== null} onOpenChange={(open) => { if (!open && !busy) setPreview(null); }}><DialogContent><DialogTitle>{t("dashboard:nw_preview")}</DialogTitle><DialogDescription>{t("dashboard:nw_preview_hint", { count: preview?.notes.length ?? 0 })}</DialogDescription><div className="relative max-h-80 overflow-y-auto text-sm">{preview?.notes.map((n) => <p key={n.id} className="py-1">{n.order}. {n.title} · {n.sections.length} {t("dashboard:nw_sections")}{n.needs_review && ` · ${t("dashboard:nw_review_heading")}`}</p>)}</div><DialogFooter><Button variant="outline" disabled={busy} onClick={() => setPreview(null)}>{t("common:cancel")}</Button><Button disabled={busy || working || !preview} onClick={() => void act(async () => { await API.initializeChapterNotes(projectName, preview!.source_basis); setPreview(null); setSelected([]); })}>{t("dashboard:nw_initialize")}</Button></DialogFooter></DialogContent></Dialog>
     <Dialog open={merging} onOpenChange={(open) => { if (!busy) setMerging(open); }}><DialogContent><DialogTitle>{t("dashboard:nw_merge")}</DialogTitle><DialogDescription>{t("dashboard:nw_manual_only")}</DialogDescription><Input aria-label={t("dashboard:nw_group_title")} placeholder={t("dashboard:nw_group_title")} value={title} onChange={(e) => setTitle(e.target.value)} /><ul className="relative max-h-64 list-disc overflow-y-auto pl-5 text-sm">{selectedNotes.map((n) => <li key={n.id}>{n.title}</li>)}</ul><DialogFooter><Button variant="outline" disabled={busy} onClick={() => setMerging(false)}>{t("common:cancel")}</Button><Button disabled={busy || !data?.source_basis} onClick={() => void act(async () => { await API.createNoteGroup(projectName, selected, title, data!.source_basis!); setMerging(false); setTab("groups"); })}>{t("dashboard:nw_confirm_merge")}</Button></DialogFooter></DialogContent></Dialog>
 

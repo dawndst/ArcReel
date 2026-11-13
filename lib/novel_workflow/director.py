@@ -27,6 +27,16 @@ def content_from_selection(selected, episode, title, review=None):
         shot_number += 1
         for index, segment in enumerate(shot["segments"], 1):
             segment = native_segment(segment, shot.get("production"), index - 1)
+            from lib.novel_workflow.craft_review import appearance_text, opening_text
+
+            segment["scene_description"] += appearance_text(shot)
+            if (
+                index == 1
+                and scene.get("opening_state")
+                and scene.get("shots")
+                and scene["shots"][0]["id"] == shot["id"]
+            ):
+                segment["scene_description"] += opening_text(scene)
             if review:
                 from lib.novel_workflow.delivery_review import director_notes
 

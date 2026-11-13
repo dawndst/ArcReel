@@ -114,6 +114,13 @@ def view(path, notebook, readings):
                     chunk_cache[note_id] = chapters.chunks(path, project, note)
                 if batch["part"] < len(chunk_cache[note_id]):
                     batch["dialogue_coverage"] = report(batch, coverage_reading, chunk_cache[note_id][batch["part"]])
+        from lib.novel_workflow import craft_review, settings
+
+        if settings.get(path)["craft_checks_enabled"]:
+            try:
+                batch["craft"] = craft_review.view(path, project, batch)
+            except (ValueError, FileNotFoundError):
+                batch["craft_error"] = "当前原文或对应的历史资料不可用，无法检查；已有场镜仍保留"
         if "review" in batch:
             batch["review_revision"] = digest(batch["review"])
         for scene in batch["scenes"]:
@@ -359,8 +366,7 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                 from lib.novel_workflow.dialogue_coverage import source_dialogues
 
                 key_dialogues = [
-                    {k: d[k] for k in ("id", "quote", "speaker", "purposes")}
-                    for d in source_dialogues(reading, chunk)
+                    {k: d[k] for k in ("id", "quote", "speaker", "purposes")} for d in source_dialogues(reading, chunk)
                 ]
                 payload = {
                     "key_dialogues": key_dialogues,
@@ -427,7 +433,10 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                             "quote": shot["quote"],
                         }
                     scenes.append(scene)
+                from lib.novel_workflow.scene_source import snapshot
+
                 batch = {
+                    "source_snapshot": snapshot(chunk),
                     "basis": key,
                     "note_id": note["id"],
                     "note_order": note["order"],

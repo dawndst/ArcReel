@@ -7,6 +7,10 @@ from lib.novel_workflow import settings, store
 from lib.prompts.prompt_templates.builtin import builtin_templates
 
 TITLES = {
+    "craft_review": (
+        "内容承载与身份外观检查",
+        "按原文片段检查因果动作承载、当前人物造型及开场状态；人工采用，不设时长门槛",
+    ),
     "evidence_selection": ("原文候选选择边界", "引用定位和引文修复共用，仅选择依据，不判断剧情结论"),
     "scene_review": ("场镜原文一致性审核", "局部审核画面、起止状态与台词，提供有原文依据的最小修订，人工采用"),
     "conclusions": ("问题回收与统一结论", "同章及跨章证据统一判断，整理导览、悬念和制作约束"),

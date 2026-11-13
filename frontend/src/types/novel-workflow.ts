@@ -25,7 +25,7 @@ export interface NovelWorkflow {
   scene_batches?: SceneLibraryBatch[];
   pending_assemblies?: { episode: number; title: string; source_basis: string; request_id: string; shot_ids: string[] }[];
   scope?: { configured: boolean; note_ids: string[]; available_count: number; read_count: number; total_count: number; mode: "ongoing" };
-  settings?: { summary_max_chars: number; understanding_enabled: boolean; delivery_checks_enabled?: boolean; conclusions_enabled?: boolean; max_model_calls?: number };
+  settings?: { summary_max_chars: number; understanding_enabled: boolean; delivery_checks_enabled?: boolean; craft_checks_enabled?: boolean; conclusions_enabled?: boolean; max_model_calls?: number };
   understanding?: { links: UnderstandingLink[]; reports: UnderstandingReport[] };
   initialized: boolean; source_basis?: string; notes: ChapterNote[]; groups: NoteGroup[]; stale: boolean;
   ledger?: NovelLedger | null; reviews?: NovelScopeReview[];
@@ -71,11 +71,11 @@ export interface QuestionRegister {
 }
 
 export interface LibrarySegment { start_frame?: string; end_frame?: string; asset_states?: ExecutionAssetState[]; duration_seconds: number; scene_description: string; characters_in_scene: string[]; scenes: string[]; props: string[]; utterances: { kind: string; speaker: string | null; text: string; delivery?: SpeechDelivery; origin?: "source" | "adaptation"; basis_quote?: string }[] }
-export interface LibraryShot { execution_checks?: ExecutionCheck[]; execution_draft?: ExecutionDraft; speaker_suggestions?: { items: { segment_index: number; utterance_index: number; speaker: string | null; proposed_role?: string | null; source_quote: string; reason: string }[] }; production?: ShotProduction; issues?: { code: string; blocking: boolean; segment?: number }[]; revision?: string; id: string; title: string; segments: LibrarySegment[]; evidence: NoteEvidence }
-export interface LibraryScene { id: string; title: string; location: string; time: string; purpose: string; shots: LibraryShot[] }
+export interface LibraryShot { appearance_notes?: Record<string, { text: string; reason: string }>; execution_checks?: ExecutionCheck[]; execution_draft?: ExecutionDraft; speaker_suggestions?: { items: { segment_index: number; utterance_index: number; speaker: string | null; proposed_role?: string | null; source_quote: string; reason: string }[] }; production?: ShotProduction; issues?: { code: string; blocking: boolean; segment?: number }[]; revision?: string; id: string; title: string; segments: LibrarySegment[]; evidence: NoteEvidence }
+export interface LibraryScene { opening_state?: OpeningState & { reason: string }; id: string; title: string; location: string; time: string; purpose: string; shots: LibraryShot[] }
 export interface SceneRevision { superseded?: boolean; id: string; scene_index: number; shot_index: number; segment_index: number | null; field: string; before: string | LibrarySegment["utterances"]; after: string | LibrarySegment["utterances"]; reason: string; source_quote: string; applied: boolean }
 export interface DialogueCoverage { entries: { dialogue_id: string; quote: string; speaker: string | null; purposes: string[]; status: "retained" | "partial" | "unassigned" | "omitted"; locations: { shot_id: string; segment_index: number; utterance_index: number }[]; reason?: string }[]; counts: Record<"retained" | "partial" | "unassigned" | "omitted", number>; revision: string }
-export interface SceneLibraryBatch { dialogue_coverage?: DialogueCoverage; production_stale?: boolean; production_context?: ShotProductionContext; note_order?: number; part?: number; review_revision?: string; review?: { revisions: SceneRevision[]; unresolved: string[]; resolved_questions?: { questions: string[]; reason: string; resolution?: "repaired" | "false_positive"; created_at: string }[] }; basis: string; note_id: string; stale: boolean; scenes: LibraryScene[]; skipped_reason: string }
+export interface SceneLibraryBatch { craft?: CraftView; craft_error?: string; dialogue_coverage?: DialogueCoverage; production_stale?: boolean; production_context?: ShotProductionContext; note_order?: number; part?: number; review_revision?: string; review?: { revisions: SceneRevision[]; unresolved: string[]; resolved_questions?: { questions: string[]; reason: string; resolution?: "repaired" | "false_positive"; created_at: string }[] }; basis: string; note_id: string; stale: boolean; scenes: LibraryScene[]; skipped_reason: string }
 
 export interface SVTCandidate { candidate_id: string; existing_id: string | null; title: string; summary: string; reason: string }
 export interface SVTMoment { scene: string; reason: string; note_ids: string[]; dialogue_ids: string[]; dialogues: NoteDialogue[]; evidence: NoteEvidence[] }
@@ -110,3 +110,9 @@ export interface SavedDelivery { basis: string; title: string; shot_ids: string[
 export type ConclusionStatus = "resolved" | "partial" | "unrevealed" | "check" | "conflict";
 export interface NoteConclusion extends ClaimStatus { id: string; question: string; status: ConclusionStatus; answer: string; evidence_ids: string[]; evidence: NoteEvidence[]; blocking: boolean; production_constraint: string; source_ids: string[] }
 export interface ConclusionReview { available_evidence?: (NoteEvidence & { id: string })[]; basis: string; note_id: string; created_at: string; overview: NoteOverview; conclusions: NoteConclusion[] }
+
+export interface OpeningState { present: string; positions: string; props: string; entering: string }
+export interface CraftDecision { kind: "coverage" | "appearance" | "opening"; item_id: string; decision: "confirm" | "omit" | "restore" | "accept" | "dismiss" | "save"; reason: string; shot_ids: string[]; text: string; opening?: OpeningState }
+export interface CraftItem { id: string; event_id: string; title: string; kind: string; text: string; evidence: NoteEvidence; claim_type: string; source_kind: string; suggestion: { status: "covered" | "partial" | "missing" | "uncertain"; shot_ids: string[]; reason: string } | null; decision: { decision: string; shot_ids: string[]; reason: string; stale?: boolean } | null }
+export interface AppearanceFinding { source_evidence?: NoteEvidence; current_description?: string; shot_id: string; reference: string; status: "consistent" | "conflict" | "uncertain"; reason: string; source_quote: string; suggestion: string; decision?: { decision: string; text: string; reason: string } }
+export interface CraftView { items: CraftItem[]; reading_available: boolean; basis: string; revision: string; stale: boolean; review: { created_at: string; appearance: AppearanceFinding[]; openings: { scene_id: string; state: OpeningState; source_quote: string; reason: string }[] } | null }

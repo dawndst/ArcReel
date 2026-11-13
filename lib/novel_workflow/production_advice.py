@@ -51,7 +51,9 @@ def _shot_input(path, expected, note_ids, shot_ids):
                 if batch["note_id"] not in note_ids:
                     raise ValueError("镜头不属于所选章节")
                 source = batch_source(path, project, batch["basis"])
-                reading = store.valid_readings(path, book)[batch["note_id"]]
+                reading = store.valid_readings(path, book).get(batch["note_id"])
+                if not reading:
+                    raise ValueError("此镜头的 Note 已过期；可回看原文，修订生成前请更新对应资料")
                 candidates = []
                 for item in mentions(project, reading):
                     if item["evidence"]["start"] >= source["end"]:
