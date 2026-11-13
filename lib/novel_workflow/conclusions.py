@@ -190,6 +190,11 @@ def validate(value, note, reading, evidence, questions, notebook, limit):
             + str(repeated)
         )
     records = {r["id"] for r in memory.records(reading)}
+    # Dialogue is supplied evidence too; use its owning event as the overview anchor.
+    dialogue_owners = {d["id"]: event["id"] for event in reading.get("events", []) for d in event.get("dialogues", [])}
+    value.overview.evidence_ids = list(
+        dict.fromkeys(dialogue_owners.get(key, key) for key in value.overview.evidence_ids)
+    )
     if not set(value.overview.evidence_ids) <= records or len(value.overview.summary) > limit:
         raise ValueError("概况引用必须来自本章记录，且遵守摘要字数上限。")
     orders = {n["id"]: n["order"] for n in notebook["notes"]}
@@ -201,7 +206,10 @@ def validate(value, note, reading, evidence, questions, notebook, limit):
         if c.status == "resolved" and (
             not refs or c.support != "explicit" or c.claim_type != "fact" or c.source_kind != "narrative"
         ):
-            raise ValueError("已解释结论必须有直接正文依据；人物推测和外观相似只能标部分解释或待核对。")
+            raise ValueError(
+                f"结论 {c.question!r}：已解释结论必须有直接正文依据；人物推测和外观相似只能标部分解释或待核对。"
+                "注释排除属于编辑约束，可保留说明并标partial/check，不能将批注升级为正文事实。"
+            )
         if c.status in {"unrevealed", "resolved"}:
             c.impact = "none"
         latest = max(refs, key=lambda e: (orders[e["note_id"]], e["end"])) if refs else None

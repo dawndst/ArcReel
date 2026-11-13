@@ -280,3 +280,19 @@ def test_conclusion_reuses_valid_question_register_with_original_provenance(tmp_
     _, _, stale_questions = conclusions.inputs(tmp_path, note, reading, report)
     assert any(q["text"] == "原始问题" for q in stale_questions.values())
     assert conclusions.basis(tmp_path, reading, report) == old_basis
+
+
+def test_overview_accepts_supplied_dialogue_via_parent_event_but_not_unknown_ids(tmp_path):
+    notebook, note, reading, report = fixture(tmp_path)
+    anchor = reading["assets"][0]["evidence"]
+    reading["events"] = [{"id": "event", "evidence": anchor, "dialogues": [{"id": "dialogue"}]}]
+    material, evidence, questions = conclusions.inputs(tmp_path, note, reading, report)
+    value = draft(material)
+    value["overview"]["evidence_ids"] = ["dialogue", "event"]
+    result = conclusions.validate(
+        Consolidation.model_validate(value), note, reading, evidence, questions, notebook, 1200
+    )
+    assert result["overview"]["evidence_ids"] == ["event"]
+    value["overview"]["evidence_ids"] = ["foreign-dialogue"]
+    with pytest.raises(ValueError, match="概况引用"):
+        conclusions.validate(Consolidation.model_validate(value), note, reading, evidence, questions, notebook, 1200)
