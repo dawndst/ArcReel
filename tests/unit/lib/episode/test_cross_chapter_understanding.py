@@ -95,6 +95,65 @@ class CrossReader:
         )
 
 
+def test_overlapping_source_windows_merge_without_losing_offsets_or_crossing_notes():
+    def fragment(note, start, text):
+        return {
+            "id": str((note, start)),
+            "note_id": note,
+            "source_file": "source/book.txt",
+            "start": start,
+            "end": start + len(text),
+            "text": text,
+        }
+
+    merged = retrieval.merge_fragments(
+        [
+            fragment("a", 12, "丙丁戊"),
+            fragment("a", 10, "甲乙丙丁"),
+            fragment("a", 11, "乙丙"),
+            fragment("b", 10, "另一章"),
+        ]
+    )
+    assert len(merged) == 2
+    assert (merged[0]["start"], merged[0]["end"], merged[0]["text"]) == (10, 15, "甲乙丙丁戊")
+    assert merged[1]["note_id"] == "b"
+
+
+async def test_followup_queries_are_deferred_without_repeating_paid_reread(tmp_path):
+    _project, notebook = await asyncio.to_thread(setup, tmp_path)
+
+    class Reader(CrossReader):
+        async def generate(self, request, **kwargs):
+            result = await super().generate(request, **kwargs)
+            if "\n原文片段：" in request.prompt:
+                value = json.loads(result.text)
+                value["next_queries"] = ["白玉的更早来历"]
+                result.text = json.dumps(value)
+            return result
+
+    reader = Reader()
+    await understanding.understand_notes(tmp_path, reader, [notebook["notes"][0]["id"]], notebook["source_basis"])
+    reports = await asyncio.to_thread(understanding.view, tmp_path)
+    assert len(reader.calls) == 2
+    assert len(reports["reports"][0]["inspections"]) == 1
+    assert any("白玉的更早来历" in item["question"] for item in reports["reports"][0]["unresolved"])
+
+
+def test_single_response_conflicting_links_remain_uncertain():
+    from lib.novel_workflow.understanding_reconcile import deduplicate
+
+    result = deduplicate(
+        [
+            {"id": "same-source", "description": "已确认同一人", "status": "supported"},
+            {"id": "same-source", "description": "可能只是相似外貌", "status": "supported"},
+        ]
+    )
+    assert len(result) == 1
+    assert result[0]["status"] == "uncertain"
+    assert "已确认同一人" in result[0]["description"]
+    assert "可能只是相似外貌" in result[0]["description"]
+
+
 async def test_rereads_unread_source_without_rewriting_notes_and_filters_future_revelation(tmp_path):
     project, notebook = await asyncio.to_thread(setup, tmp_path)
     first, second, third = notebook["notes"]

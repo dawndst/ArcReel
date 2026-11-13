@@ -13,7 +13,7 @@ from lib.novel_workflow import memory, retrieval, settings, store, synthesis
 from lib.novel_workflow.evidence import locate
 from lib.novel_workflow.understanding_models import Findings, Inquiry
 
-INQUIRY_INDEX_BUDGET = 14000
+INQUIRY_INDEX_BUDGET = 48000
 
 
 def inquiry_record(value):
@@ -201,51 +201,35 @@ async def understand_notes(path, generator, note_ids, expected):
     rules = await asyncio.to_thread(understanding_rules, path)
     scope_rule = await asyncio.to_thread(store.effective_rule, path, "scope")
     scope_hint = "\n" + scope_rule.strip()
-    source_rules = await asyncio.to_thread(_source_rules, path)
-    legacy_key = digest([expected, bases, source_rules, scope_basis, scope_hint, 2])
-    previous_key = digest([expected, bases, source_rules, scope_basis, scope_hint, "compact-source-index-v1"])
-    key = digest([expected, bases, rules, scope_basis, scope_hint, "compact-source-index-v1"])
+    key = digest([expected, bases, rules, scope_basis, scope_hint, "bounded-reread-v2"])
     target = store.root(path) / "understanding" / "reports" / f"{key}.json"
     if await asyncio.to_thread(target.exists):
         from lib.novel_workflow.question_register import organize_notes
 
         await organize_notes(path, generator, note_ids, expected, key)
         return {"report_id": key, "cached": True}
+    previous_reports = await asyncio.to_thread(view, path, notebook)
+    for report in previous_reports["reports"]:
+        if not report["stale"] and report["note_bases"] == bases and set(report.get("scope_note_ids", [])) == allowed:
+            return {"report_id": report["id"], "cached": True}
     project = await asyncio.to_thread(load_json, path / "project.json")
     corpus = await run_noninterruptible_sync(retrieval.index, path, project, notebook)
     units = []
     original_records = {}
-    legacy_count = 0
     for note in notes:
         reading = readings[note["id"]]
         records = memory.records(reading)
         original_records[note["id"]] = {record["id"]: record for record in records}
-        legacy_count += len(list(synthesis.packs(records, 7000)))
         units.extend(
             {"note_id": note["id"], "title": note["title"], "questions": reading["questions"], "records": batch}
             for batch in synthesis.packs([inquiry_record(record) for record in records], INQUIRY_INDEX_BUDGET)
         )
     checkpoint = store.root(path) / "understanding" / "runs" / f"{key}.json"
-    previous_checkpoint = store.root(path) / "understanding" / "runs" / f"{previous_key}.json"
-    existing_checkpoint = checkpoint
-    if not await asyncio.to_thread(checkpoint.exists) and await asyncio.to_thread(previous_checkpoint.exists):
-        existing_checkpoint = previous_checkpoint
     run = (
-        await asyncio.to_thread(load_json, existing_checkpoint)
-        if await asyncio.to_thread(existing_checkpoint.exists)
+        await asyncio.to_thread(load_json, checkpoint)
+        if await asyncio.to_thread(checkpoint.exists)
         else {"cursor": 0, "links": [], "unresolved": [], "inspections": []}
     )
-    if not await asyncio.to_thread(existing_checkpoint.exists):
-        # Reuse only completed units from the identical source, rules, Note bases and scope.
-        # Every compact unit is still inspected; reconciliation deduplicates overlapping links.
-        run["reused_units"] = 0
-        for index in range(legacy_count):
-            old_file = store.root(path) / "understanding" / "units" / f"{digest([legacy_key, index])}.json"
-            if await asyncio.to_thread(old_file.exists):
-                previous = await asyncio.to_thread(load_json, old_file)
-                for field in ("links", "unresolved", "inspections"):
-                    run[field].extend(previous[field])
-                run["reused_units"] += 1
     progress = {"phase": "understanding", "total": len(units), "done": run["cursor"], "started_at": now()}
     await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
 
@@ -256,18 +240,11 @@ async def understand_notes(path, generator, note_ids, expected):
             raise ValueError("可用章节范围已变化，请重新进行跨章理解")
         unit = units[unit_index]
         unit_key = digest([key, unit_index])
-        previous_unit_key = digest([previous_key, unit_index])
         unit_file = store.root(path) / "understanding" / "units" / f"{unit_key}.json"
         if await asyncio.to_thread(unit_file.exists):
             return await asyncio.to_thread(load_json, unit_file)
-        previous_unit_file = unit_file.with_name(f"{previous_unit_key}.json")
-        if await asyncio.to_thread(previous_unit_file.exists):
-            return await asyncio.to_thread(load_json, previous_unit_file)
         result = {"links": [], "unresolved": [], "inspections": []}
         inquiry_file = store.root(path) / "understanding" / "inquiries" / f"{unit_key}.json"
-        previous_inquiry_file = inquiry_file.with_name(f"{previous_unit_key}.json")
-        if not await asyncio.to_thread(inquiry_file.exists) and await asyncio.to_thread(previous_inquiry_file.exists):
-            inquiry_file = previous_inquiry_file
         if await asyncio.to_thread(inquiry_file.exists):
             inquiry = await asyncio.to_thread(load_json, inquiry_file)
         else:
@@ -283,13 +260,15 @@ async def understand_notes(path, generator, note_ids, expected):
         anchor_records = [original_records[unit["note_id"]][record["id"]] for record in unit["records"]]
         anchors = await asyncio.to_thread(retrieval.anchors, corpus, anchor_records)
         # Split anchor material itself when dense chapters contain many source quotations.
-        anchor_batches = list(synthesis.packs(anchors, 10000))
+        anchor_batches = list(synthesis.packs(anchors, 36000))
         unresolved = list(inquiry["questions"])
         for anchor_batch in anchor_batches:
             queries = inquiry["queries"] or [unit["title"]]
-            seen = {f["id"] for f in anchor_batch}
+            # Current Note evidence is already supplied as anchors. Search other Notes,
+            # instead of repeatedly retrieving the same source under a different window ID.
+            seen = {f["id"] for f in corpus["fragments"] if f["note_id"] == unit["note_id"]}
             previous_matches = []
-            for round_number in range(3):
+            for round_number in range(1):
                 check_stop()
                 if await asyncio.to_thread(scope.basis, path, notebook) != scope_basis:
                     raise ValueError("可用章节范围已变化，请重新进行跨章理解")
@@ -298,11 +277,6 @@ async def understand_notes(path, generator, note_ids, expected):
                 previous_matches = matches
                 round_key = digest([unit_key, supplied, queries, round_number])
                 round_file = store.root(path) / "understanding" / "rounds" / f"{round_key}.json"
-                previous_round = round_file.with_name(
-                    f"{digest([previous_unit_key, supplied, queries, round_number])}.json"
-                )
-                if not await asyncio.to_thread(round_file.exists) and await asyncio.to_thread(previous_round.exists):
-                    round_file = previous_round
                 if await asyncio.to_thread(round_file.exists):
                     findings = await asyncio.to_thread(load_json, round_file)
                 else:
@@ -379,9 +353,13 @@ async def understand_notes(path, generator, note_ids, expected):
             or await asyncio.to_thread(store.effective_rule, path, "scope") != scope_rule
         ):
             raise ValueError("Understanding sources or rules changed; completed reread caches retained")
-        from lib.novel_workflow.understanding_reconcile import reconcile
+        from lib.novel_workflow.understanding_reconcile import deduplicate, reconcile
 
-        reconciled, reconciliation_questions = await reconcile(path, generator, run["links"], notebook, wanted)
+        if len(run["inspections"]) <= 1:
+            # One grounded Findings response has no independently generated batches to reconcile.
+            reconciled, reconciliation_questions = deduplicate(run["links"]), []
+        else:
+            reconciled, reconciliation_questions = await reconcile(path, generator, run["links"], notebook, wanted)
         await asyncio.to_thread(current, path, expected)
         latest = await asyncio.to_thread(store.valid_readings, path, notebook)
         if (

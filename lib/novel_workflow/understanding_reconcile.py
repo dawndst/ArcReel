@@ -66,9 +66,13 @@ async def reconcile(path, generator, links, notebook, anchors):
         result.extend(value["links"])
         unresolved.extend(value["unresolved"])
         unresolved.extend("汇总核对仍需回查：" + q for q in value.get("next_queries", []))
-    # Conflicting prose over the exact same source span must never be silently overwritten.
+    return deduplicate(result), list(dict.fromkeys(unresolved))
+
+
+def deduplicate(links):
+    """Never silently overwrite conflicting prose over the exact same source spans."""
     by_id = {}
-    for link in result:
+    for link in links:
         old = by_id.get(link["id"])
         if old and old["description"] != link["description"]:
             link = {
@@ -77,4 +81,4 @@ async def reconcile(path, generator, links, notebook, anchors):
                 "description": old["description"] + "；另有待核实表述：" + link["description"],
             }
         by_id[link["id"]] = link
-    return list(by_id.values()), list(dict.fromkeys(unresolved))
+    return list(by_id.values())

@@ -132,4 +132,27 @@ def anchors(corpus, records):
                 }
                 fragment["id"] = digest([ev["source_file"], ev["start"], ev["quote"]])[:24]
                 selected[fragment["id"]] = fragment
-    return list(selected.values())
+    return merge_fragments(list(selected.values()))
+
+
+def merge_fragments(fragments):
+    """Read overlapping source windows once, retaining absolute citation offsets."""
+    result = []
+    for fragment in sorted(fragments, key=lambda f: (f["note_id"], f["source_file"], f["start"], f["end"])):
+        current = dict(fragment)
+        previous = result[-1] if result else None
+        if (
+            previous
+            and previous["note_id"] == current["note_id"]
+            and previous["source_file"] == current["source_file"]
+            and current["start"] <= previous["end"]
+        ):
+            if current["end"] > previous["end"]:
+                previous["text"] += current["text"][previous["end"] - current["start"] :]
+                previous["end"] = current["end"]
+            previous["id"] = digest(
+                [previous["note_id"], previous["source_file"], previous["start"], previous["end"], previous["text"]]
+            )[:24]
+        else:
+            result.append(current)
+    return result

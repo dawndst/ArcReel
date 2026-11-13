@@ -35,12 +35,16 @@ async def chapter(path, generator, extracted, rule):
     facts = {v["id"]: v for part in extracted for v in records(part)}
     if not facts:
         raise ValueError("No evidence records extracted; chapter cannot be marked complete")
+    from lib.novel_workflow.understanding import inquiry_record
+
     nodes = [
-        {"summary": part["summary"], "records": batch} for part in extracted for batch in packs(records(part), 14000)
+        {"summary": part["summary"], "records": batch}
+        for part in extracted
+        for batch in packs([inquiry_record(record) for record in records(part)], 40000)
     ]
     while True:
         reduced = []
-        for batch in packs(nodes):
+        for batch in packs(nodes, 48000):
             allowed = {v["id"] for node in batch for v in node.get("records", [])} | {
                 i for node in batch for i in node.get("evidence_ids", [])
             }
