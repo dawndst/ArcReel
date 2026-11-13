@@ -2784,9 +2784,11 @@ async def _execute_queued_text_task(
         project = await asyncio.to_thread(services.projects.load_project, scope.project_name)
         if not enabled(project):
             raise WorkflowError("Note 工作流已关闭，请刷新后重新选择操作。")
-        generator = await TextGenerator.create(
-            TextTaskType.SCRIPT, scope.project_name, purpose=CallPurpose.SCRIPT_GENERATION
-        )
+        generator = None
+        if payload["action"] != "questions" or payload.get("question_ai", False):
+            generator = await TextGenerator.create(
+                TextTaskType.SCRIPT, scope.project_name, purpose=CallPurpose.SCRIPT_GENERATION
+            )
         from lib.novel_workflow.grouping import summarize
         from lib.novel_workflow.review import review_scope
         from lib.novel_workflow.scene_library import generate as generate_scenes
@@ -2796,7 +2798,12 @@ async def _execute_queued_text_task(
             from lib.novel_workflow.question_register import organize_notes
 
             return await organize_notes(
-                path, generator, payload["note_ids"], payload["source_basis"], payload.get("report_id")
+                path,
+                generator,
+                payload["note_ids"],
+                payload["source_basis"],
+                payload.get("report_id"),
+                allow_model=bool(payload.get("question_ai", False)),
             )
 
         if payload["action"] == "group_summary":

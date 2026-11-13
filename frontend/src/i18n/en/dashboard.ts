@@ -6,7 +6,7 @@ export default {
   nw_question_organize: "AI organize questions",
   nw_question_update: "Update question register",
   nw_question_stale: "Sources or grouping rules changed. This is a saved register; update it before review.",
-  nw_question_register_hint: "Grouping organizes questions without adding facts. Track story mysteries separately from source reliability checks. Related evidence does not mean an answer is established.",
+  nw_question_register_hint: "Grouping organizes questions without adding facts. Track story mysteries separately from source reliability checks. Related evidence does not mean an answer is established. Model grouping runs only when explicitly requested: one generation, with at most one format repair. Completing a reread does not start extra paid grouping.",
   nw_question_categories: "Question categories",
   nw_question_check: "Needs checking",
   nw_question_plot: "Story mysteries",

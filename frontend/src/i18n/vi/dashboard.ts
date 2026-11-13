@@ -7,7 +7,7 @@ export default {
   nw_question_organize: "AI sắp xếp câu hỏi",
   nw_question_update: "Cập nhật sổ câu hỏi",
   nw_question_stale: "Nguồn hoặc quy tắc gộp đã thay đổi. Hãy cập nhật bản đã lưu trước khi kiểm tra.",
-  nw_question_register_hint: "Gộp chỉ sắp xếp câu hỏi, không thêm sự kiện. Tách bí ẩn cốt truyện khỏi vấn đề độ tin cậy. Bằng chứng liên quan không đồng nghĩa đã có lời giải.",
+  nw_question_register_hint: "Gộp chỉ sắp xếp câu hỏi, không thêm sự kiện. Tách bí ẩn cốt truyện khỏi vấn đề độ tin cậy. Bằng chứng liên quan không đồng nghĩa đã có lời giải. Chỉ gọi mô hình khi chủ động yêu cầu: thường một lần tạo, tối đa thêm một lần sửa cấu trúc. Đọc kỹ xong không tự phát sinh lượt gộp có phí.",
   nw_question_categories: "Loại câu hỏi",
   nw_question_check: "Cần kiểm tra",
   nw_question_plot: "Bí ẩn cốt truyện",

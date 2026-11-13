@@ -7,7 +7,7 @@ export default {
   nw_question_organize: "AI 整理待查问题",
   nw_question_update: "更新问题台账",
   nw_question_stale: "来源或归并规则已更新，当前为已保存的台账，请更新后核对。",
-  nw_question_register_hint: "归并只整理问题，不新增事实。剧情悬念与资料可靠性问题分开处理；关联证据不表示问题已解答。",
+  nw_question_register_hint: "归并只整理问题，不新增事实。剧情悬念与资料可靠性问题分开处理；关联证据不表示问题已解答。 仅在主动点击整理时调用模型：通常1次生成，最多再做1次结构修复。精读完成后不自动追加付费归并。",
   nw_question_categories: "问题分类",
   nw_question_check: "需要核对",
   nw_question_plot: "剧情悬念",

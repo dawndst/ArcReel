@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import math
 import re
 from collections import Counter
 from pathlib import Path
@@ -15,11 +14,12 @@ from lib.infra.async_thread import run_noninterruptible_sync
 from lib.infra.json_io import load_json
 from lib.novel_understanding.service import check_stop
 from lib.novel_understanding.store import digest, now
-from lib.novel_workflow import retrieval, store, synthesis
+from lib.novel_workflow import store
 from lib.novel_workflow.models import StrictModel
 
 RULE = "understand_questions"
-BATCH_BUDGET = 14000
+MAX_MODEL_CALLS = 2
+MAX_INPUT_CHARS = 120000
 
 
 class QuestionGroup(StrictModel):
@@ -90,59 +90,62 @@ def initial_cards(originals):
     return list(cards.values())
 
 
-def relevant_links(cards, links):
-    query = Counter(retrieval.tokens(" ".join(c["question"] for c in cards)))
-    documents = [(link, set(retrieval.tokens(link["subject"] + " " + link["description"]))) for link in links]
-    frequencies = Counter(token for _, words in documents for token in words)
-    ranked = sorted(
-        documents,
-        key=lambda row: sum(math.log(1 + len(documents) / frequencies[word]) for word in row[1] & query.keys()),
-        reverse=True,
-    )
-    selected, size = [], 0
-    inherited = {i for card in cards for i in card["link_ids"]}
-    ranked.sort(key=lambda row: row[0]["id"] not in inherited)
-    for link, words in ranked:
-        if not words & query.keys() and link["id"] not in inherited:
-            continue
-        card = {
-            key: link.get(key)
-            for key in ("id", "subject", "description", "status", "claim_type", "source_kind", "note_ids")
-        }
-        length = len(json.dumps(card, ensure_ascii=False))
-        if size + length > 6000:
-            continue
-        selected.append(card)
-        size += length
-        if len(selected) == 12:
-            break
-    return selected
+class Topic(StrictModel):
+    title: str = Field(min_length=1, max_length=180)
+    kind: Literal["plot_unrevealed", "extraction_check"]
+    explanation: str = Field(min_length=1, max_length=300)
+    evidence_ids: list[int] = Field(default_factory=list, max_length=12)
 
 
-def prompt_card(card, index, titles):
+class SingleGrouping(StrictModel):
+    groups: list[Topic] = Field(min_length=1)
+    assignments: list[int] = Field(min_length=1)
+
+
+class QuestionBudgetExceeded(RuntimeError):
+    """Stop before additional paid generations; caller must explicitly retry."""
+
+
+class LimitedGenerator:
+    def __init__(self, generator):
+        self.generator = generator
+        self.calls = 0
+
+    async def generate(self, request, **kwargs):
+        if self.calls >= MAX_MODEL_CALLS:
+            raise QuestionBudgetExceeded("问题整理已达到本次2次生成上限，原始提示和既有台账已保留，未继续调用模型")
+        self.calls += 1
+        return await self.generator.generate(request, **kwargs)
+
+
+def single_material(cards, links, notebook):
+    orders = {n["id"]: n["order"] for n in notebook["notes"]}
     return {
-        "source_id": index,
-        "question": card["question"],
-        "kind_hint": card.get("kind"),
-        "chapters": [titles.get(n, n) for n in card["note_ids"]],
-        "original_count": len(card["original_ids"]),
-    }
-
-
-def batches_for(cards, titles):
-    indexed = [{"index": i, "prompt": prompt_card(card, i, titles)} for i, card in enumerate(cards)]
-    return [[cards[item["index"]] for item in batch] for batch in synthesis.packs(indexed, BATCH_BUDGET)]
-
-
-def material_for(cards, links, titles):
-    relevant = relevant_links(cards, links)
-    material = {
-        "questions": [prompt_card(c, i, titles) for i, c in enumerate(cards)],
+        "questions": [{"question": c["question"], "chapters": [orders.get(n) for n in c["note_ids"]]} for c in cards],
         "existing_evidence": [
-            {**{k: v for k, v in link.items() if k != "id"}, "evidence_id": i} for i, link in enumerate(relevant)
+            {
+                **{k: link.get(k) for k in ("subject", "description", "status", "claim_type", "source_kind")},
+                "evidence_id": i,
+                "chapters": [orders.get(n) for n in link["note_ids"]],
+            }
+            for i, link in enumerate(links)
         ],
     }
-    return material, relevant
+
+
+def assignments_to_cards(value, cards, links):
+    if len(value.assignments) != len(cards):
+        raise ValueError(
+            f"assignments必须恰好包含{len(cards)}个整数，按输入顺序逐项分配；当前有{len(value.assignments)}个"
+        )
+    if any(i < 0 or i >= len(value.groups) for i in value.assignments):
+        raise ValueError("assignments只能引用实际返回的groups数组下标")
+    groups = []
+    for index, topic in enumerate(value.groups):
+        sources = [i for i, assigned in enumerate(value.assignments) if assigned == index]
+        if sources:
+            groups.append(QuestionGroup(**topic.model_dump(), source_ids=sources))
+    return regroup(Grouping(groups=groups), cards, links)
 
 
 def regroup(value, cards, relevant):
@@ -177,65 +180,6 @@ def regroup(value, cards, relevant):
     return result
 
 
-def partial_groups(value, cards, relevant):
-    counts = Counter(i for group in value.groups for i in group.source_ids)
-    affected = {i for i in range(len(cards)) if counts[i] != 1}
-    for group in value.groups:
-        if any(i < 0 or i >= len(cards) for i in group.source_ids) or any(
-            i < 0 or i >= len(relevant) for i in group.evidence_ids
-        ):
-            affected.update(i for i in group.source_ids if 0 <= i < len(cards))
-    good = [i for i in range(len(cards)) if i not in affected]
-    positions = {original: index for index, original in enumerate(good)}
-    groups = [
-        group.model_copy(update={"source_ids": [positions[i] for i in group.source_ids if i in positions]})
-        for group in value.groups
-        if any(i in positions for i in group.source_ids)
-    ]
-    complete = regroup(Grouping(groups=groups), [cards[i] for i in good], relevant) if good else []
-    return complete, [cards[i] for i in sorted(affected)]
-
-
-async def group_cards(path, generator, cards, links, titles, rule):
-    """Keep complete assignments and repair only missing or multiply assigned inputs."""
-    from lib.novel_workflow.service import ask
-
-    check_stop()
-    material, relevant = material_for(cards, links, titles)
-    key = digest([rule, cards, relevant])
-    cache = store.root(path) / "understanding/question_groups" / f"{key}.json"
-    if await asyncio.to_thread(cache.exists):
-        return await asyncio.to_thread(load_json, cache)
-    prompt = rule + "\n问题归并材料：" + json.dumps(material, ensure_ascii=False)
-    candidate_file = store.root(path) / "understanding/question_candidates" / f"{key}.json"
-    if len(cards) == 1:
-        grouped = await ask(
-            path, generator, Grouping, prompt, lambda draft: regroup(draft, cards, relevant), grow_output=True
-        )
-    else:
-        if await asyncio.to_thread(candidate_file.exists):
-            candidate = await asyncio.to_thread(load_json, candidate_file)
-        else:
-            candidate = await ask(path, generator, Grouping, prompt, lambda draft: draft.model_dump(), grow_output=True)
-            await run_noninterruptible_sync(store.write, candidate_file, candidate)
-        grouped, remaining = partial_groups(Grouping.model_validate(candidate), cards, relevant)
-        if remaining:
-            # Smaller requests avoid regenerating dozens of correct groups for one omitted ID.
-            # If none were assigned safely, halve the input so recursive repair always terminates.
-            chunks = (
-                [remaining]
-                if len(remaining) < len(cards)
-                else [
-                    remaining[: len(remaining) // 2],
-                    remaining[len(remaining) // 2 :],
-                ]
-            )
-            for batch in chunks:
-                grouped.extend(await group_cards(path, generator, batch, links, titles, rule))
-    await run_noninterruptible_sync(store.write, cache, grouped)
-    return grouped
-
-
 def publish(path, report, value, rule):
     from lib.novel_workflow.understanding import view
 
@@ -246,7 +190,9 @@ def publish(path, report, value, rule):
         store.write(target(path, report), value)
 
 
-async def build(path, generator, report, notebook):
+async def build(path, generator, report, notebook, *, allow_model=False):
+    from lib.novel_workflow.service import ask
+
     rule = await asyncio.to_thread(store.effective_rule, path, RULE)
     previous = await asyncio.to_thread(load, path, report)
     if previous and not previous["stale"]:
@@ -255,62 +201,49 @@ async def build(path, generator, report, notebook):
     allowed = set(report.get("scope_note_ids", report["selected_note_ids"]))
     if any(item["note_id"] not in allowed for item in originals):
         raise ValueError("原始待查提示引用了报告范围之外的章节，请核对回查记录")
+    if originals and not allow_model:
+        # Finishing a reread never silently starts another paid question-processing pipeline.
+        return None
     cards = initial_cards(originals)
-    titles = {n["id"]: n["title"] for n in notebook["notes"]}
-    links = report.get("links", [])
-    level = 0
-    global_checked = False
-    progress = {
-        "phase": "question_register",
-        "step": "grouping",
-        "total": len(originals),
-        "done": 0,
-        "started_at": now(),
-    }
-    await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
-    while cards:
-        # Only the compact question cards enter the next level; complete originals remain on disk.
-        batches = batches_for(cards, titles)
-        semaphore = asyncio.Semaphore(3)
-        completed = 0
-        progress.update(
-            step="grouping" if level == 0 else "merge", total=len(originals) if level == 0 else len(cards), done=0
-        )
-        await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
-
-        async def group_batch(batch, semaphore=semaphore, level=level):
-            nonlocal completed
-            async with semaphore:
-                check_stop()
-                grouped = await group_cards(path, generator, batch, links, titles, rule)
-                completed += sum(len(c["original_ids"]) for c in batch) if level == 0 else len(batch)
-                progress["done"] = completed
-                await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
-                return grouped
-
-        values = await asyncio.gather(*(group_batch(batch) for batch in batches), return_exceptions=True)
-        reduced = []
-        for value in values:
-            if isinstance(value, BaseException):
-                raise value
-            reduced.extend(value)
-        if len(batches) == 1:
-            cards = reduced
-            if level > 0 and len(cards) > 1 and not global_checked:
-                # Recheck the global list after distributed grouping and isolated repairs.
-                global_checked = True
-                level += 1
-                continue
-            break
-        # Never force unrelated topics together just to reduce a count or loop indefinitely.
-        if len(reduced) >= len(cards):
-            cards = reduced
-            break
-        cards = reduced
-        level += 1
+    grouped = []
+    model_calls = 0
+    if cards:
+        check_stop()
+        links = report.get("links", [])
+        material = single_material(cards, links, notebook)
+        prompt = rule + "\n问题归并材料：" + json.dumps(material, ensure_ascii=False)
+        if len(prompt) + len(json.dumps(SingleGrouping.model_json_schema(), ensure_ascii=False)) > MAX_INPUT_CHARS:
+            raise QuestionBudgetExceeded("问题整理输入超出本次长度上限；原始提示已保留，请缩小范围，不自动分批追加调用")
+        key = digest([rule, cards, links])
+        cache = store.root(path) / "understanding/question_single" / f"{key}.json"
+        if await asyncio.to_thread(cache.exists):
+            grouped = await asyncio.to_thread(load_json, cache)
+        else:
+            limited = LimitedGenerator(generator)
+            await run_noninterruptible_sync(
+                store.write,
+                store.root(path) / "progress.json",
+                {
+                    "phase": "question_register",
+                    "step": "grouping",
+                    "total": len(originals),
+                    "done": 0,
+                    "started_at": now(),
+                },
+            )
+            grouped = await ask(
+                path,
+                limited,
+                SingleGrouping,
+                prompt,
+                lambda draft: assignments_to_cards(draft, cards, links),
+                max_output_tokens=12000,
+            )
+            model_calls = limited.calls
+            await run_noninterruptible_sync(store.write, cache, grouped)
     grouped = [
         {**card, "id": digest(sorted(card["original_ids"]))[:24], "original_count": len(card["original_ids"])}
-        for card in cards
+        for card in grouped
     ]
     all_ids = [i for c in grouped for i in c["original_ids"]]
     if len(all_ids) != len(originals) or set(all_ids) != {o["id"] for o in originals}:
@@ -325,12 +258,13 @@ async def build(path, generator, report, notebook):
         "groups": grouped,
         "originals": originals,
         "rule_basis": digest(rule),
+        "model_calls": model_calls,
     }
     await run_noninterruptible_sync(publish, path, report, value, rule)
     return value
 
 
-async def organize_notes(path: Path, generator, note_ids, expected, report_id=None):
+async def organize_notes(path: Path, generator, note_ids, expected, report_id=None, *, allow_model=False):
     from lib.novel_workflow.service import current
     from lib.novel_workflow.understanding import view
 
@@ -347,7 +281,18 @@ async def organize_notes(path: Path, generator, note_ids, expected, report_id=No
     if not report or set(report["selected_note_ids"]) != set(note_ids):
         raise ValueError("请先完成所选章节的跨章回查，再整理对应报告的问题")
     try:
-        result = await build(path, generator, report, notebook)
+        result = await build(path, generator, report, notebook, allow_model=allow_model)
+        if result is None:
+            await run_noninterruptible_sync(
+                store.write,
+                store.root(path) / "progress.json",
+                {
+                    "phase": "complete",
+                    "total": 0,
+                    "done": 0,
+                },
+            )
+            return {"report_id": report["id"], "requires_explicit_ai": True, "model_calls": 0}
         await run_noninterruptible_sync(
             store.write,
             store.root(path) / "progress.json",

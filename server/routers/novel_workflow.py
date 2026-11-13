@@ -58,6 +58,7 @@ class ReadingRequest(SourceRequest):
 
     group_id: str | None = Field(default=None, max_length=100)
     report_id: str | None = Field(default=None, max_length=100)
+    question_ai: bool = Field(default=False, description="仅 questions 操作：显式允许付费AI归并，默认只复用已有台账")
     shot_ids: list[str] = Field(default_factory=list, max_length=300)
     title: str = Field(default="", max_length=200)
 

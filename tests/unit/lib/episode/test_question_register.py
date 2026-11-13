@@ -40,22 +40,21 @@ class Grouper:
         return SimpleNamespace(
             text=json.dumps(
                 {
+                    "assignments": [0, 0, 1],
                     "groups": [
                         {
                             "title": "景麒称阳子为主人的依据",
                             "kind": "plot_unrevealed",
                             "explanation": "身份制度仍是剧情追踪项",
-                            "source_ids": [0, 1],
                             "evidence_ids": [0] if data["existing_evidence"] else [],
                         },
                         {
                             "title": "对白说话人需核对",
                             "kind": "extraction_check",
                             "explanation": "对照上下文确认归属",
-                            "source_ids": [2],
                             "evidence_ids": [],
                         },
-                    ]
+                    ],
                 }
             )
         )
@@ -68,7 +67,7 @@ async def test_grouping_preserves_every_original_and_evidence_without_rewriting_
         understanding.production_context, tmp_path, [book["notes"][1]["id"]], source_offset=99999
     )
     generator = Grouper()
-    result = await registry.build(tmp_path, generator, report, book)
+    result = await registry.build(tmp_path, generator, report, book, allow_model=True)
     assert result["original_count"] == 3
     assert result["group_count"] == 2
     assert result["counts"] == {"plot_unrevealed": 1, "extraction_check": 1}
@@ -82,7 +81,7 @@ async def test_grouping_preserves_every_original_and_evidence_without_rewriting_
         )
         == production
     )
-    cached = await registry.build(tmp_path, generator, report, book)
+    cached = await registry.build(tmp_path, generator, report, book, allow_model=True)
     assert cached["basis"] == result["basis"]
     assert generator.calls == 1
     viewed = await asyncio.to_thread(understanding.view, tmp_path)
@@ -110,12 +109,12 @@ def test_grouping_rejects_missing_duplicate_sources_and_invented_evidence(groups
 async def test_rule_update_invalidates_register_without_invalidating_reading_or_cross_report(tmp_path):
     book, report, _ = await report_fixture(tmp_path)
     generator = Grouper()
-    await registry.build(tmp_path, generator, report, book)
+    await registry.build(tmp_path, generator, report, book, allow_model=True)
     await asyncio.to_thread((store.root(tmp_path) / "rules/understand_questions.md").write_text, "新的问题归并规则")
     current = await asyncio.to_thread(understanding.view, tmp_path)
     assert not current["reports"][0]["stale"]
     assert current["reports"][0]["question_register"]["stale"]
-    await registry.build(tmp_path, generator, report, book)
+    await registry.build(tmp_path, generator, report, book, allow_model=True)
     assert generator.calls == 2
     assert not (await asyncio.to_thread(registry.load, tmp_path, report))["stale"]
 
@@ -131,94 +130,88 @@ async def test_source_change_during_model_call_keeps_cache_without_publishing_st
             return response
 
     with pytest.raises(ValueError, match=r"来源|范围|规则"):
-        await registry.build(tmp_path, ChangingGenerator(), report, book)
+        await registry.build(tmp_path, ChangingGenerator(), report, book, allow_model=True)
     previous = await asyncio.to_thread(registry.load, tmp_path, report)
     assert previous is None or previous["stale"]
     assert (
         len(
             await asyncio.to_thread(
-                lambda: list((store.root(tmp_path) / "understanding/question_groups").glob("*.json"))
+                lambda: list((store.root(tmp_path) / "understanding/question_single").glob("*.json"))
             )
         )
         == 1
     )
 
 
-def test_batching_uses_compact_questions_instead_of_growing_provenance_lists():
+async def test_automatic_reading_does_not_start_paid_question_grouping(tmp_path):
+    book, report, file = await report_fixture(tmp_path)
+    before = await asyncio.to_thread(file.read_bytes)
+
+    class NoModel:
+        async def generate(self, request, **kwargs):
+            raise AssertionError("Automatic question processing must not call the model")
+
+    assert await registry.build(tmp_path, NoModel(), report, book) is None
+    assert await asyncio.to_thread(file.read_bytes) == before
+
+
+async def test_single_pass_stops_before_third_generation_on_bad_output(tmp_path):
+    book, report, _ = await report_fixture(tmp_path)
+
+    class InvalidGenerator:
+        calls = 0
+
+        async def generate(self, request, **kwargs):
+            self.calls += 1
+            return SimpleNamespace(
+                text=json.dumps(
+                    {
+                        "groups": [{"title": "问题", "kind": "plot_unrevealed", "explanation": "待查"}],
+                        "assignments": [0],
+                    }
+                )
+            )
+
+    generator = InvalidGenerator()
+    with pytest.raises(registry.QuestionBudgetExceeded, match="2次生成上限"):
+        await registry.build(tmp_path, generator, report, book, allow_model=True)
+    assert generator.calls == 2
+    previous = await asyncio.to_thread(registry.load, tmp_path, report)
+    assert previous is None or previous["stale"]
+
+
+async def test_oversized_input_is_rejected_before_any_model_generation(tmp_path):
+    book, report, _ = await report_fixture(tmp_path)
+    report["unresolved"][0]["question"] = "长" * (registry.MAX_INPUT_CHARS + 1)
+
+    class NoModel:
+        async def generate(self, request, **kwargs):
+            raise AssertionError("Oversized input must stop before billing")
+
+    with pytest.raises(registry.QuestionBudgetExceeded, match="长度上限"):
+        await registry.build(tmp_path, NoModel(), report, book, allow_model=True)
+
+
+def test_single_payload_keeps_provenance_locally_and_uses_positional_assignments():
     cards = [
         {
-            "question": "景麒为何称阳子为主人？",
+            "question": "主人身份依据",
             "note_ids": ["n1"],
             "original_ids": ["trace-" + str(i) for i in range(3000)],
             "link_ids": [],
         },
         {
-            "question": "阳子的外貌为何变化？",
+            "question": "外貌变化原因",
             "note_ids": ["n2"],
             "original_ids": ["other-" + str(i) for i in range(3000)],
             "link_ids": [],
         },
     ]
-    batches = registry.batches_for(cards, {"n1": "第一章", "n2": "第二章"})
-    assert len(batches) == 1
-    payload, _ = registry.material_for(batches[0], [], {"n1": "第一章", "n2": "第二章"})
-    assert [q["original_count"] for q in payload["questions"]] == [3000, 3000]
+    payload = registry.single_material(cards, [], {"notes": [{"id": "n1", "order": 1}, {"id": "n2", "order": 2}]})
+    assert len(payload["questions"]) == 2
     assert "trace-2999" not in json.dumps(payload)
-    assert "other-2999" not in json.dumps(payload)
-
-
-async def test_only_missing_and_duplicate_assignments_are_repaired_and_candidate_is_reused(tmp_path):
-    cards = [{"question": f"问题{i}", "note_ids": ["n1"], "original_ids": [f"q{i}"], "link_ids": []} for i in range(3)]
-
-    class Generator:
-        def __init__(self):
-            self.requests = []
-            self.fail_once = True
-
-        async def generate(self, request, **kwargs):
-            count = len(material(request)["questions"])
-            self.requests.append(count)
-            if count == 3:
-                groups = [
-                    {"title": "问题组合", "kind": "plot_unrevealed", "explanation": "剧情追踪", "source_ids": [0, 2]},
-                    {"title": "重复归属", "kind": "extraction_check", "explanation": "需核对", "source_ids": [0]},
-                ]
-            else:
-                if self.fail_once:
-                    self.fail_once = False
-                    raise RuntimeError("provider temporarily unavailable")
-                groups = [
-                    {
-                        "title": "补齐归属",
-                        "kind": "extraction_check",
-                        "explanation": "核对来源",
-                        "source_ids": list(range(count)),
-                    }
-                ]
-            return SimpleNamespace(text=json.dumps({"groups": groups}))
-
-    generator = Generator()
-    with pytest.raises(RuntimeError, match="provider temporarily unavailable"):
-        await registry.group_cards(tmp_path, generator, cards, [], {"n1": "第一章"}, "test-rule")
-    result = await registry.group_cards(tmp_path, generator, cards, [], {"n1": "第一章"}, "test-rule")
-    assert generator.requests == [3, 2, 2]
-    assert sorted(i for group in result for i in group["original_ids"]) == ["q0", "q1", "q2"]
-    assert any(group["original_ids"] == ["q2"] for group in result)
-    assert await registry.group_cards(tmp_path, generator, cards, [], {"n1": "第一章"}, "test-rule") == result
-    assert generator.requests == [3, 2, 2]
-
-
-def test_invented_source_or_evidence_is_not_exported_from_partial_groups():
-    cards = [
-        {"question": "原始问题", "note_ids": ["n1"], "original_ids": ["q0"], "link_ids": []},
-        {"question": "另一个问题", "note_ids": ["n1"], "original_ids": ["q1"], "link_ids": []},
-    ]
-    value = registry.Grouping(
-        groups=[
-            {"title": "混入虚构来源", "kind": "plot_unrevealed", "explanation": "待修复", "source_ids": [0, 99]},
-            {"title": "有效分组", "kind": "extraction_check", "explanation": "原始问题", "source_ids": [1]},
-        ]
+    value = registry.SingleGrouping(
+        groups=[{"title": "剧情追踪", "kind": "plot_unrevealed", "explanation": "尚待理解"}], assignments=[0, 0]
     )
-    complete, pending = registry.partial_groups(value, cards, [])
-    assert [c["original_ids"] for c in complete] == [["q1"]]
-    assert pending == [cards[0]]
+    grouped = registry.assignments_to_cards(value, cards, [])
+    assert len(grouped[0]["original_ids"]) == 6000
