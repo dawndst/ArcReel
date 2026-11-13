@@ -74,7 +74,7 @@ it("saves independent summary and understanding settings without starting a mode
   fireEvent.click(within(dialog).getByRole("checkbox", { name: "启用跨章理解（默认开启）" }));
   fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-  expect(save).toHaveBeenCalledWith("demo", { summary_max_chars: 2400, understanding_enabled: false, delivery_checks_enabled: true });
+  expect(save).toHaveBeenCalledWith("demo", { summary_max_chars: 2400, understanding_enabled: false, delivery_checks_enabled: true, conclusions_enabled: true, max_model_calls: 100 });
   expect(run).not.toHaveBeenCalled();
 });
 
@@ -107,7 +107,7 @@ it("selects a chapter range and generates only those Notes on explicit click", a
 });
 
 it("blocks scene generation for a changed primary SVT and explains the next action", async () => {
-  vi.mocked(API.getNovelWorkflow).mockResolvedValue({ ...data, settings: { summary_max_chars: 1200, understanding_enabled: false }, notes: [{ ...data.notes[0]!, status: "read", svt_id: "primary", svt_status: "needs_review" }] });
+  vi.mocked(API.getNovelWorkflow).mockResolvedValue({ ...data, settings: { summary_max_chars: 1200, understanding_enabled: false, conclusions_enabled: false }, notes: [{ ...data.notes[0]!, status: "read", svt_id: "primary", svt_status: "needs_review" }] });
   render(<NovelWorkbench projectName="demo" />);
   fireEvent.click(await screen.findByRole("checkbox", { name: /卷一 · 第1章/ }));
   expect(screen.getByRole("button", { name: "生成场与镜头" })).toBeDisabled();

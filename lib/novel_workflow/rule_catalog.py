@@ -7,6 +7,7 @@ from lib.novel_workflow import settings, store
 from lib.prompts.prompt_templates.builtin import builtin_templates
 
 TITLES = {
+    "conclusions": ("问题回收与统一结论", "同章及跨章证据统一判断，整理导览、悬念和制作约束"),
     "understand_questions": ("跨章问题归并与分类", "合并同义提示，区分剧情悬念与资料核对，保留来源并关联已有证据"),
     "svt_summary": ("SVT 跨章累计概况", "基于全部来源 Note 汇总主线起因、行动和结果，避免末批事件覆盖前章"),
     "quote_locations": ("重复引句定位", "根据原文候选上下文定位重复台词或短引句，不猜选位置、不改写台词"),

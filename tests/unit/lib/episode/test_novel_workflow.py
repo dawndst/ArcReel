@@ -17,7 +17,7 @@ def project(tmp_path):
     preview = chapters.index(tmp_path, data)
     from lib.novel_workflow.settings import update
 
-    update(tmp_path, {"understanding_enabled": False})
+    update(tmp_path, {"understanding_enabled": False, "conclusions_enabled": False})
     return data, store.initialize(tmp_path, data, preview["source_basis"])
 
 

@@ -46,6 +46,7 @@ class ReadingRequest(SourceRequest):
         "svt",
         "review",
         "understand",
+        "conclusions",
         "questions",
         "scenes",
         "condense",
@@ -228,6 +229,8 @@ async def assemble_episode(name: str, req: AssemblyRequest):
 
 
 class UnderstandingSettings(BaseModel):
+    conclusions_enabled: bool | None = None
+    max_model_calls: int | None = Field(default=None, ge=1, le=500)
     delivery_checks_enabled: bool | None = None
     summary_max_chars: int = Field(ge=400, le=3000)
     understanding_enabled: bool
@@ -472,4 +475,25 @@ async def export_delivery(name: str, req: DeliveryExport):
         content,
         media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=production-package.zip"},
+    )
+
+
+class ConclusionDecision(SourceRequest):
+    note_id: str = Field(min_length=1, max_length=100)
+    conclusion_id: str = Field(min_length=1, max_length=100)
+    status: Literal["resolved", "partial", "unrevealed", "check", "conflict"]
+    answer: str = Field(min_length=1, max_length=1600)
+    reason: str = Field(min_length=1, max_length=1000)
+    evidence_ids: list[str] = Field(default_factory=list, max_length=12)
+
+
+@router.post("/projects/{name}/novel-workflow/conclusions/decide", dependencies=[Depends(require_project_migration_ok)])
+async def decide_conclusion(name: str, req: ConclusionDecision):
+    from lib.novel_workflow.conclusions import decide
+
+    return await invoke(
+        name,
+        lambda path, _project: decide(
+            path, req.note_id, req.conclusion_id, req.status, req.answer, req.evidence_ids, req.reason, req.source_basis
+        ),
     )

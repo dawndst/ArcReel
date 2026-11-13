@@ -131,5 +131,14 @@ async def prepare(path, episode, binding, inputs, generator, *, dry_run=False):
     context += "\n本集开始前已揭示、可引用的跨章依据（不能当作新增剧情）：" + json.dumps(
         known["links"], ensure_ascii=False
     )
+    entry = next(e for e in _project["episodes"] if e["episode"] == episode)
+    constraints = [
+        {"scene_id": row["scene_id"], "conclusion_constraints": row["conclusion_constraints"]}
+        for row in entry.get("director_selection", {}).get("mapping", [])
+        if row.get("conclusion_constraints")
+    ]
+    context += "\n按原生片段编号绑定的结论制作约束，仅用于对应片段，不得提前用于其他片段：" + json.dumps(
+        constraints, ensure_ascii=False
+    )
     context += "\n原文资产依据：" + json.dumps(selected, ensure_ascii=False)
     return scoped, None if dry_run else NoteProductionGuard(path, episode, binding, generator, context)

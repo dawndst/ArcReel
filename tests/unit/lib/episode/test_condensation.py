@@ -74,3 +74,54 @@ def test_subrequest_accepts_only_its_actual_unit_ids():
     value.passages[0].unit = 0
     with pytest.raises(ValueError, match="漏段"):
         c.validate(value, source, [])
+
+
+async def test_new_material_batches_eight_units_and_resumes_cached_pairs(tmp_path, monkeypatch):
+    import asyncio
+
+    from lib.novel_understanding.store import digest
+    from lib.novel_workflow import service, store
+
+    reading = {"basis": "reading", "events": []}
+    note = {"id": "note"}
+    chunk = {"text": "甲" * 20, "start": 0, "end": 20, "source_file": "book"}
+    source = [{"unit": i, "text": "甲", "start": i, "end": i + 1, "source_file": "book"} for i in range(20)]
+    monkeypatch.setattr(service, "current", lambda *args: {})
+    monkeypatch.setattr(store, "note_result", lambda *args: reading)
+    monkeypatch.setattr(c.chapters, "chunks", lambda *args: [chunk])
+    monkeypatch.setattr(c, "units", lambda *args: source)
+    rule = await asyncio.to_thread(store.effective_rule, tmp_path, "condense")
+    group = source[4:6]
+    pair = c.Edition(
+        passages=[c.Passage(unit=u["unit"], treatment="retain", text="保留原文", reason="保留") for u in group]
+    )
+    await asyncio.to_thread(
+        store.write,
+        store.root(tmp_path) / "edition_parts" / f"{digest([rule, group, []])}.json",
+        c.validate(pair, group, []),
+    )
+
+    class Generator:
+        def __init__(self):
+            self.batches = []
+
+        async def generate(self, request, **kwargs):
+            payload = json.JSONDecoder().raw_decode(request.prompt[request.prompt.index('{"source_units"') :])[0]
+            units = payload["source_units"]
+            self.batches.append([u["unit"] for u in units])
+            return SimpleNamespace(
+                text=json.dumps(
+                    {
+                        "passages": [
+                            {"unit": u["unit"], "treatment": "retain", "text": "保留原文", "reason": "保留"}
+                            for u in units
+                        ]
+                    }
+                )
+            )
+
+    gen = Generator()
+    result = await c.ensure(tmp_path, gen, note, reading, {}, "source")
+    assert gen.batches == [list(range(4)), list(range(6, 14)), list(range(14, 20))]
+    assert [p["unit"] for p in result["parts"][0]["passages"]] == list(range(20))
+    assert all(p["text"] == "甲" for p in result["parts"][0]["passages"])

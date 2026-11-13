@@ -10,7 +10,7 @@ import pytest
 
 from lib.infra.json_io import load_json
 from lib.novel_understanding.store import digest
-from lib.novel_workflow import chapters, execution, scene_library, settings, store
+from lib.novel_workflow import chapters, execution, scene_library, settings, store, understanding
 from lib.novel_workflow import delivery_review as review
 from lib.novel_workflow.delivery_review import DirectorDecision
 from lib.novel_workflow.shot_production import context, planning_inputs
@@ -104,7 +104,7 @@ def prepared(tmp_path):
         "source_basis": book["source_basis"],
         "rule_basis": digest(store.effective_rule(path, "scenes")),
         "note_bases": {note["id"]: reading["basis"]},
-        "understanding_basis": digest([]),
+        "understanding_basis": understanding.production_context(path, [note["id"]])["basis"],
         "production_context": ctx,
         "production_basis": planning_inputs(
             ctx, store.effective_rule(path, "shot_production"), {shot["id"]: shot}, project, reading
@@ -466,3 +466,42 @@ def test_unresolved_speaker_uses_pending_asset_without_blocking_reference_episod
         == 1
     )
     assert (path / "source/book.txt").read_text().startswith("# 第一章")
+
+
+def test_batch_conclusion_constraints_survive_native_assembly_and_draft_delivery(prepared, monkeypatch):
+    from lib.novel_workflow import shot_production
+    from lib.novel_workflow.director import assemble
+
+    manager, path, project, book, shot = prepared
+    constraints = [
+        {"id": "partial-identity", "status": "partial", "production_constraint": "仅表现神似，不确认同一身份"}
+    ]
+    original_context = shot_production.context
+    monkeypatch.setattr(
+        shot_production, "context", lambda *args: {**original_context(*args), "conclusion_constraints": constraints}
+    )
+    library = scene_library.catalog(path)
+    batch = next(iter(library["batches"].values()))
+    batch["production_context"]["conclusion_constraints"] = constraints
+    reading = store.valid_readings(path, book)[batch["note_id"]]
+    batch["production_basis"] = planning_inputs(
+        batch["production_context"], store.effective_rule(path, "shot_production"), {shot["id"]: shot}, project, reading
+    )[2]
+    store.write(store.root(path) / "scene_library.json", library)
+    episode = assemble(manager, "demo", [shot["id"]], "约束传递", book["source_basis"], "constraint-review")
+    current = manager.load_project("demo")
+    entry = next(e for e in current["episodes"] if e["episode"] == episode)
+    assert entry["director_selection"]["mapping"][0]["conclusion_constraints"] == constraints
+    import asyncio
+
+    from lib.novel_workflow import production
+
+    _, guard = asyncio.run(production.prepare(path, episode, entry["note_source"], {}, object()))
+    assert "仅表现神似，不确认同一身份" in guard.context
+    assert entry["director_selection"]["mapping"][0]["scene_id"] in guard.context
+    data = review.export(path, current, [shot["id"]], "约束传递", book["source_basis"])
+    archive = zipfile.ZipFile(io.BytesIO(data))
+    manifest = json.loads(archive.read("manifest.json"))
+    assert manifest["shots"][0]["conclusion_constraints"] == constraints
+    assert "仅表现神似，不确认同一身份" in manifest["shots"][0]["segments"][0]["canvas_prompt"]
+    assert "仅表现神似，不确认同一身份" in archive.read("制作清单.md").decode()

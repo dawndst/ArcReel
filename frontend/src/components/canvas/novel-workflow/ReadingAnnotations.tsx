@@ -33,6 +33,10 @@ export function RelationDescription({ relation: r }: { relation: NoteRelation })
 
 export function ReadingQuestions({ reading }: { reading: NonNullable<ChapterNote["reading"]> }) {
   const { t } = useTranslation("dashboard");
+  if (reading.conclusion_review) {
+    const items = reading.conclusion_review.conclusions.filter((c) => c.status !== "resolved");
+    return <section className="space-y-3 rounded-xl border p-5"><h3 className="font-bold">{t("nw_conclusions_title")}</h3><p className="text-xs text-muted-foreground">{t("nw_conclusions_resolved")} · {reading.conclusion_review.conclusions.length - items.length}</p>{items.map((item) => <article key={item.id} className="space-y-2 rounded-lg border p-3"><span className={`text-xs font-semibold ${item.blocking ? "text-destructive" : "text-muted-foreground"}`}>{t(`nw_conclusions_${item.status}`)}</span><p className="font-medium">{item.question}</p><p className="text-sm leading-6">{item.answer}</p></article>)}</section>;
+  }
   const classified = new Map((reading.reading_questions ?? []).map((q) => [q.text, q.kind]));
   const questions = [...new Set([...reading.questions, ...(reading.overview?.questions ?? []), ...classified.keys()])];
   if (!questions.length) return null;

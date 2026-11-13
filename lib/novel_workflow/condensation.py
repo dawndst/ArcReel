@@ -139,7 +139,8 @@ async def ensure(path, generator, note, reading, project, expected):
             passages = await asyncio.to_thread(load_json, file)
         else:
             passages = []
-            for offset in range(0, len(source_units), 2):
+            offset = 0
+            while offset < len(source_units):
                 check_stop()
                 await run_noninterruptible_sync(
                     store.write,
@@ -149,11 +150,30 @@ async def ensure(path, generator, note, reading, project, expected):
                         "done": index,
                         "total": len(chunks),
                         "note_id": note["id"],
-                        "part": offset // 2 + 1,
-                        "parts": (len(source_units) + 1) // 2,
+                        "part": offset + 1,
+                        "parts": len(source_units),
                     },
                 )
                 group = source_units[offset : offset + 2]
+                # Reuse existing two-unit checkpoints; new material is processed in larger bounded groups.
+                small_refs = [e for e in anchors if e["start"] < group[-1]["end"] and e["end"] > group[0]["start"]]
+                small_cache = store.root(path) / "edition_parts" / f"{digest([rule, group, small_refs])}.json"
+                if not await asyncio.to_thread(small_cache.exists):
+                    end = min(offset + 8, len(source_units))
+                    for candidate in range(offset + 2, end, 2):
+                        prior_group = source_units[candidate : candidate + 2]
+                        prior_refs = [
+                            e
+                            for e in anchors
+                            if e["start"] < prior_group[-1]["end"] and e["end"] > prior_group[0]["start"]
+                        ]
+                        prior_file = (
+                            store.root(path) / "edition_parts" / f"{digest([rule, prior_group, prior_refs])}.json"
+                        )
+                        if await asyncio.to_thread(prior_file.exists):
+                            end = candidate
+                            break
+                    group = source_units[offset:end]
                 refs = [e for e in anchors if e["start"] < group[-1]["end"] and e["end"] > group[0]["start"]]
                 subfile = store.root(path) / "edition_parts" / f"{digest([rule, group, refs])}.json"
                 if await asyncio.to_thread(subfile.exists):
@@ -164,7 +184,7 @@ async def ensure(path, generator, note, reading, project, expected):
                         generator,
                         Edition,
                         rule
-                        + "\n"
+                        + "\nretain或uncertain的text可仅填写保留原文，程序会逐字回填原文；condense仍输出完整精简正文。\n"
                         + json.dumps({"source_units": group, "protected_evidence": refs}, ensure_ascii=False),
                         lambda v, group=group, refs=refs: validate(v, group, refs),
                         max_output_tokens=8000,
@@ -172,6 +192,7 @@ async def ensure(path, generator, note, reading, project, expected):
                     )
                     await run_noninterruptible_sync(store.write, subfile, rows)
                 passages.extend(rows)
+                offset += len(group)
             await run_noninterruptible_sync(store.write, file, passages)
         parts.append(
             {"source_file": chunk["source_file"], "start": chunk["start"], "end": chunk["end"], "passages": passages}

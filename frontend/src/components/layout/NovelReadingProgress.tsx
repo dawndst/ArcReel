@@ -16,7 +16,7 @@ export function NovelReadingProgress({ projectName, active }: { projectName: str
       try {
         const memory = await API.getNovelWorkflow(projectName, { signal: controller.signal });
         const value = {
-          enabled: true, phase: ["svt", "review", "understanding", "summarizing"].includes(memory?.progress?.phase ?? "") ? "synthesizing" : memory?.progress?.phase ?? "idle",
+          enabled: true, phase: ["svt", "review", "understanding", "summarizing", "conclusions"].includes(memory?.progress?.phase ?? "") ? "synthesizing" : memory?.progress?.phase ?? "idle",
           completed_chunks: memory?.progress?.done ?? 0, total_chunks: memory?.progress?.total ?? 0,
           coverage: memory?.progress?.total ? Math.round(memory.progress.done / memory.progress.total * 100) : 0, reports: [],
         };

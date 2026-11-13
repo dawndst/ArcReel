@@ -96,7 +96,32 @@ def context(path, reading, chunk):
                         "reason": m["reason"] if complete else "跨片段爆点，仅展示当前原文可见部分。",
                     }
                 )
-    return {"svt_id": svt["id"] if svt else None, "events": events, "moments": moments}
+    from lib.novel_workflow import conclusions
+
+    constraints = []
+    note = next((n for n in (notebook or {}).get("notes", []) if n["id"] == chunk["note_id"]), None)
+    review = conclusions.load(path, note, reading) if note and conclusions.enabled(path) else None
+    if review:
+        orders = {n["id"]: n["order"] for n in notebook["notes"]}
+        cutoff = (note["order"], chunk["end"])
+        for item in review["conclusions"]:
+            evidence = item.get("evidence", [])
+            if evidence and all(
+                e["note_id"] in orders and (orders[e["note_id"]], e["end"]) <= cutoff for e in evidence
+            ):
+                constraints.append(
+                    {
+                        "id": item["id"],
+                        "status": item["status"],
+                        "production_constraint": item["production_constraint"],
+                    }
+                )
+    return {
+        "svt_id": svt["id"] if svt else None,
+        "events": events,
+        "moments": moments,
+        "conclusion_constraints": constraints,
+    }
 
 
 def validate_decisions(value, shots, ctx):

@@ -32,6 +32,9 @@ async def finalize(path, generator, svts, notebook):
             reading = await asyncio.to_thread(store.note_result, path, note)
             if not reading:
                 raise ValueError("SVT 概况缺少有效的来源 Note")
+            from lib.novel_workflow.conclusions import effective_reading
+
+            reading = await asyncio.to_thread(effective_reading, path, note, reading)
             bases[note["id"]] = reading["basis"]
             cards.append({"note_ids": [note["id"]], "order": note["order"], "summary": reading["overview"]["summary"]})
         if set(bases) != set(svt["note_ids"]):

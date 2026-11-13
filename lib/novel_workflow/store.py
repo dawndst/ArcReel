@@ -199,6 +199,10 @@ def view(path: Path, project: dict) -> dict:
         older = any((root(path) / "notes" / note["id"]).glob("*.json")) if result is None else False
         if result is not None:
             display_readings[note["id"]] = result
+        from lib.novel_workflow.conclusions import effective_reading
+
+        if result is not None:
+            result = effective_reading(path, note, result, notebook=current, readings=readings if not stale else None)
         notes.append(
             {
                 **note,
@@ -230,6 +234,8 @@ def view(path: Path, project: dict) -> dict:
     from lib.novel_workflow.svt_contract import assignments, valid_svts
 
     display_svts = valid_svts(path, svts, display_readings)
+    live_svt_ids = {s["id"] for s in display_svts}
+    svt_stale = svt_stale or any(s["id"] not in live_svt_ids for s in (svts or {}).get("svts", []))
     primary = assignments(display_svts)
     by_svt = {s["id"]: s for s in display_svts}
     for note in notes:
@@ -280,6 +286,9 @@ def view(path: Path, project: dict) -> dict:
             if e.get("director_selection", {}).get("pending")
         ],
         "settings": settings.get(path),
+        "call_budget": load_json(root(path) / "call_budget.json")
+        if (root(path) / "call_budget.json").exists()
+        else None,
         "scope": scope.view(path, current, readings),
         "understanding": understanding.view(path, current) if not stale else {"links": [], "reports": []},
         "ledger": book,
@@ -287,7 +296,7 @@ def view(path: Path, project: dict) -> dict:
         "initialized": True,
         "notes": notes,
         "stale": stale,
-        "svts": svts.get("svts", []) if svts else [],
+        "svts": [{**s, "stale": s["id"] not in live_svt_ids} for s in svts.get("svts", [])] if svts else [],
         "svt_stale": svt_stale,
         "suggestions": svts.get("suggestions", []) if svts else [],
         "progress": load_json(progress_file) if progress_file.exists() else None,

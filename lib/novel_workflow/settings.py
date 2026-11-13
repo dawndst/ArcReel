@@ -4,7 +4,13 @@ from lib.artifacts.formal_write import project_metadata_lock
 from lib.infra.json_io import load_json
 from lib.novel_workflow import store
 
-DEFAULTS = {"summary_max_chars": 1200, "understanding_enabled": True, "delivery_checks_enabled": True}
+DEFAULTS = {
+    "summary_max_chars": 1200,
+    "understanding_enabled": True,
+    "delivery_checks_enabled": True,
+    "conclusions_enabled": True,
+    "max_model_calls": 100,
+}
 
 
 def get(path):
@@ -16,6 +22,9 @@ def update(path, values):
     limit = values.get("summary_max_chars", get(path)["summary_max_chars"])
     if not isinstance(limit, int) or isinstance(limit, bool) or not 400 <= limit <= 3000:
         raise ValueError("Summary limit must be between 400 and 3000 characters")
+    calls = values.get("max_model_calls", get(path)["max_model_calls"])
+    if not isinstance(calls, int) or isinstance(calls, bool) or not 1 <= calls <= 500:
+        raise ValueError("Model generation limit must be between 1 and 500")
     with project_metadata_lock(path):
         result = {**get(path), **values}
         store.write(store.root(path) / "settings.json", result)

@@ -2789,6 +2789,10 @@ async def _execute_queued_text_task(
             generator = await TextGenerator.create(
                 TextTaskType.SCRIPT, scope.project_name, purpose=CallPurpose.SCRIPT_GENERATION
             )
+        if generator is not None:
+            from lib.novel_workflow.call_budget import WorkflowGenerator
+
+            generator = await WorkflowGenerator.create(generator, path, str(task["task_id"]), payload["action"])
         from lib.novel_workflow.grouping import summarize
         from lib.novel_workflow.review import review_scope
         from lib.novel_workflow.scene_library import generate as generate_scenes
@@ -2834,7 +2838,10 @@ async def _execute_queued_text_task(
                 path, generator, payload["note_ids"], payload["source_basis"], payload.get("shot_ids", [])
             )
 
+        from lib.novel_workflow.conclusions import prepare as prepare_conclusions
+
         action = {
+            "conclusions": prepare_conclusions,
             "condense": condense_notes,
             "read": read_notes,
             "svt": generate_svts,

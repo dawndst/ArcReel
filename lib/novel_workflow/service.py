@@ -361,6 +361,10 @@ async def read_notes(path: Path, generator, note_ids: list[str], expected: str) 
                 if latest_progress.get("phase") in {"understanding", "failed", "stopped"}:
                     progress = latest_progress
                 raise
+        else:
+            from lib.novel_workflow.conclusions import prepare
+
+            await prepare(path, generator, note_ids, expected)
         progress.update(phase="complete", done=len(notes), completed_at=now())
         return {"read_notes": len(notes)}
     except Exception as exc:
@@ -490,6 +494,10 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
     from lib.novel_workflow.understanding import require_understood
 
     await asyncio.to_thread(require_understood, path, note_ids)
+    from lib.novel_workflow.conclusions import effective_reading, prepare, require_ready
+
+    await prepare(path, generator, note_ids, expected)
+    await asyncio.to_thread(require_ready, path, note_ids)
     notebook = await asyncio.to_thread(current, path, expected)
     wanted = set(note_ids)
     notes = [n for n in notebook["notes"] if n["id"] in wanted]
@@ -537,11 +545,15 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
             context_bases[note["id"]] = reading["basis"]
             context_events.extend(note_events(note, reading))
     valid_ids = {e["id"] for e in context_events}
+    from lib.novel_workflow.conclusions import input_bases
+
+    conclusion_bases = await asyncio.to_thread(input_bases, path, list(context_bases))
     prior_svts = [
         s
         for s in previous.get("svts", [])
         if previous.get("schema_version") == 2
         and not s.get("stale")
+        and all(previous.get("conclusion_bases", {}).get(i) == conclusion_bases.get(i) for i in s["note_ids"])
         and previous.get("rule_basis") == digest(rules)
         and set(s["event_ids"]) <= valid_ids
         and all(
@@ -550,7 +562,16 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
     ]
     summary_rules = await asyncio.to_thread(store.effective_rule, path, "svt_summary")
     run_key = digest(
-        [bases, rules, prior_svts, edition_bases, await asyncio.to_thread(understanding.view, path), summary_rules, 3]
+        [
+            bases,
+            rules,
+            prior_svts,
+            edition_bases,
+            await asyncio.to_thread(understanding.view, path),
+            summary_rules,
+            conclusion_bases,
+            4,
+        ]
     )
     run_file = store.root(path) / "svt_runs" / f"{run_key}.json"
     run = (
@@ -582,9 +603,14 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
             index_value = {"events": note_events_index}
         end = max(section["end"] for section in note["sections"])
         related = await asyncio.to_thread(understanding.production_context, path, [note["id"]], source_offset=end)
+        reviewed = await asyncio.to_thread(effective_reading, path, note, reading)
         directions[note["id"]] = {
             "note_id": note["id"],
-            "overview": reading.get("overview"),
+            "overview": reviewed.get("overview"),
+            "conclusions": [
+                {k: c.get(k) for k in ("question", "status", "answer", "production_constraint")}
+                for c in reviewed.get("conclusion_review", {}).get("conclusions", [])
+            ],
             "index": index_value,
             "verified_links": related["links"],
         }
@@ -740,7 +766,10 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
             "note_candidates": {**old.get("note_candidates", {}), **run["note_candidates"]},
             "note_bases": {**old.get("note_bases", {}), **context_bases},
             "completed_at": now(),
+            "conclusion_bases": conclusion_bases,
         }
+        if await asyncio.to_thread(input_bases, path, list(context_bases)) != conclusion_bases:
+            raise ValueError("结论整理版本已变化，请从已保存进度继续生成SVT。")
         from lib.novel_workflow.svt_contract import assignments
 
         combined["note_assignments"] = assignments(combined["svts"])

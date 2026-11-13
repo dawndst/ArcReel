@@ -14,6 +14,7 @@ THIRD = "景麒转身离开。"
 
 
 def setup(path):
+    settings.update(path, {"conclusions_enabled": False})
     (path / "source").mkdir()
     (path / "source/book.txt").write_text(f"# 第一章\n{FIRST}\n# 第二章\n{SECOND}\n# 第三章\n{THIRD}\n")
     project = {"whole_source_files": [{"source_file": "source/book.txt"}]}

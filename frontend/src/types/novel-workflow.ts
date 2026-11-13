@@ -11,7 +11,7 @@ export interface ChapterNote {
   id: string; order: number; title: string; volume: string; chapter: string; chars: number; basis: string; needs_review?: boolean;
   sections: { source_file: string; start: number; end: number; title: string }[];
   status?: "read" | "unread" | "stale" | "outdated";
-  reading?: { reading_questions?: { text: string; kind: "plot_unrevealed" | "extraction_check" | "unclassified" }[]; overview?: NoteOverview; aliases?: NoteAlias[]; relations?: NoteRelation[]; threads?: NoteThread[]; highlights?: NoteHighlight[]; basis: string; summaries: string[]; assets: NoteAsset[]; changes: NoteChange[]; events: NoteEvent[]; questions: string[] } | null;
+  reading?: { conclusion_review?: ConclusionReview; conclusion_basis?: string; reading_questions?: { text: string; kind: "plot_unrevealed" | "extraction_check" | "unclassified" }[]; overview?: NoteOverview; aliases?: NoteAlias[]; relations?: NoteRelation[]; threads?: NoteThread[]; highlights?: NoteHighlight[]; basis: string; summaries: string[]; assets: NoteAsset[]; changes: NoteChange[]; events: NoteEvent[]; questions: string[] } | null;
 }
 export interface NoteGroup { usage?: "reference" | "candidate"; synopsis?: NoteOverview; summary_stale?: boolean; id: string; title: string; note_ids: string[]; source_basis: string; created_by: string }
 export interface NovelSVT {
@@ -21,10 +21,11 @@ export interface NovelSVT {
   dialogues: NoteDialogue[]; evidence: NoteEvidence[];
 }
 export interface NovelWorkflow {
+  call_budget?: { task_id: string; action: string; limit: number; used: number; limit_reached: boolean } | null;
   scene_batches?: SceneLibraryBatch[];
   pending_assemblies?: { episode: number; title: string; source_basis: string; request_id: string; shot_ids: string[] }[];
   scope?: { configured: boolean; note_ids: string[]; available_count: number; read_count: number; total_count: number; mode: "ongoing" };
-  settings?: { summary_max_chars: number; understanding_enabled: boolean; delivery_checks_enabled?: boolean };
+  settings?: { summary_max_chars: number; understanding_enabled: boolean; delivery_checks_enabled?: boolean; conclusions_enabled?: boolean; max_model_calls?: number };
   understanding?: { links: UnderstandingLink[]; reports: UnderstandingReport[] };
   initialized: boolean; source_basis?: string; notes: ChapterNote[]; groups: NoteGroup[]; stale: boolean;
   ledger?: NovelLedger | null; reviews?: NovelScopeReview[];
@@ -104,3 +105,7 @@ export interface StoryFinding { evidence?: { id: string; segments: { scene_descr
 export interface DeliveryAsset { kind: "character" | "scene" | "prop"; name: string; asset_id: string; asset_code: string; visible: boolean; voice: boolean; description: string; voice_style: string; image: string | null; image_hash: string | null; image_approved?: boolean }
 export interface DeliveryPlan { basis: string; title: string; shot_ids: string[]; note_ids: string[]; seconds: number; aspect_ratio: string; approved: boolean; decision: DirectorDecision | null; issues: ExecutionCheck[]; assets: DeliveryAsset[]; ai_review: { recovered_from_task?: string; summary: string; audience_understanding: string; findings: StoryFinding[] } | null; shots: { id: string; scene_id: string; scene?: { title: string; location: string; time: string; purpose: string }; story_links?: ShotProductionContext; title: string; segments: LibrarySegment[]; design: Record<string, string>; source: NoteEvidence }[]; ready?: boolean; episode?: number | null; missing_materials?: { code: string; name: string; asset_id: string | null }[] }
 export interface SavedDelivery { basis: string; title: string; shot_ids: string[]; source_basis: string; confirmed_at: string }
+
+export type ConclusionStatus = "resolved" | "partial" | "unrevealed" | "check" | "conflict";
+export interface NoteConclusion extends ClaimStatus { id: string; question: string; status: ConclusionStatus; answer: string; evidence_ids: string[]; evidence: NoteEvidence[]; blocking: boolean; production_constraint: string; source_ids: string[] }
+export interface ConclusionReview { available_evidence?: (NoteEvidence & { id: string })[]; basis: string; note_id: string; created_at: string; overview: NoteOverview; conclusions: NoteConclusion[] }

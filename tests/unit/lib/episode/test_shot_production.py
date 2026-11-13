@@ -113,3 +113,47 @@ def test_explicit_derivative_reference_survives_native_assembly():
     result = p.native_segment(segment, shot["production"], 0)
     assert result["characters_in_scene"] == ["景麒/兽形"]
     assert result["utterances"][0] == {"kind": "dialogue", "speaker": "景麒/兽形", "text": "走吧"}
+
+
+def test_conclusion_constraints_are_bounded_by_chunk_end(tmp_path, monkeypatch):
+    from lib.novel_workflow import conclusions, svt_contract
+
+    note = {"id": "n1", "order": 1}
+    monkeypatch.setattr(store, "state", lambda path: {"notes": [note]})
+    monkeypatch.setattr(store, "valid_readings", lambda *args: {})
+    monkeypatch.setattr(svt_contract, "valid_svts", lambda *args: [])
+    monkeypatch.setattr(conclusions, "enabled", lambda path: True)
+    items = [
+        {
+            "id": str(end),
+            "status": "partial",
+            "production_constraint": "不得表现为已确认身份",
+            "answer": "后文秘密",
+            "evidence": [{"note_id": "n1", "end": end}],
+        }
+        for end in (20, 100, 101)
+    ]
+    monkeypatch.setattr(conclusions, "load", lambda *args: {"conclusions": items})
+    chunk = {"note_id": "n1", "source_file": "book", "start": 50, "end": 100}
+    result = p.context(tmp_path, {}, chunk)
+    assert [c["id"] for c in result["conclusion_constraints"]] == ["20", "100"]
+    assert "后文秘密" not in json.dumps(result, ensure_ascii=False)
+    monkeypatch.setattr(conclusions, "enabled", lambda path: False)
+    assert p.context(tmp_path, {}, chunk)["conclusion_constraints"] == []
+
+
+def test_conclusion_context_survives_disabled_understanding(tmp_path, monkeypatch):
+    from lib.novel_workflow import conclusions, settings, understanding
+
+    monkeypatch.setattr(settings, "get", lambda path: {"understanding_enabled": False})
+    monkeypatch.setattr(store, "state", lambda path: {"notes": [{"id": "n", "order": 1}]})
+    monkeypatch.setattr(store, "valid_readings", lambda *args: {"n": {"assets": []}})
+    monkeypatch.setattr(conclusions, "enabled", lambda path: True)
+    monkeypatch.setattr(conclusions, "production_links", lambda *args: [])
+    basis = {"n": "v1"}
+    monkeypatch.setattr(conclusions, "input_bases", lambda *args: dict(basis))
+    first = understanding.production_context(tmp_path, ["n"])
+    basis["n"] = "v2"
+    assert understanding.production_context(tmp_path, ["n"])["basis"] != first["basis"]
+    monkeypatch.setattr(conclusions, "enabled", lambda path: False)
+    assert understanding.production_context(tmp_path, ["n"])["basis"] != first["basis"]

@@ -97,6 +97,7 @@ def preview(path, project, shot_ids, title, expected):
                 "segments": shot["segments"],
                 "design": shot.get("production", {}).get("design", {}),
                 "source": shot["evidence"],
+                "conclusion_constraints": batch.get("production_context", {}).get("conclusion_constraints", []),
             }
         )
         for seg in shot["segments"]:
@@ -159,6 +160,7 @@ def preview(path, project, shot_ids, title, expected):
             expected,
             title.strip(),
             [execution.content_basis(s) for _, _, s in selected],
+            [shot["conclusion_constraints"] for shot in shots],
             [{k: v for k, v in a.items() if k not in {"image", "image_hash"}} for a in assets],
             store.effective_rule(path, "shot_execution"),
             store.effective_rule(path, "selection_story"),
@@ -325,7 +327,7 @@ def handoff(path, project, shot_ids, title, expected):
                 for s in segment.get("asset_states", [])
             )
             segment["canvas_prompt"] = (
-                f"画幅：{current['aspect_ratio']}；模型原生配音；使用供应商最低可用画质；参考时长{segment['duration_seconds']}秒（实际生成与剪辑时长可调整）。\n仅导入以下出镜参考：{references}\n发声角色声音设定：{voices}\n编导处理：{human_notes}\n画面：{segment['scene_description']}\n起始：{segment.get('start_frame', '')}\n结束：{segment.get('end_frame', '')}\n状态约束：{states}\n镜头设计：{json.dumps(shot['design'], ensure_ascii=False)}\n有序发声（逐句保留，不添加字幕或额外台词）：\n{spoken}"
+                f"画幅：{current['aspect_ratio']}；模型原生配音；使用供应商最低可用画质；参考时长{segment['duration_seconds']}秒（实际生成与剪辑时长可调整）。\n仅导入以下出镜参考：{references}\n发声角色声音设定：{voices}\n编导处理：{human_notes}\n画面：{segment['scene_description']}\n起始：{segment.get('start_frame', '')}\n结束：{segment.get('end_frame', '')}\n状态约束：{states}\n结论制作约束：{json.dumps(shot['conclusion_constraints'], ensure_ascii=False)}\n镜头设计：{json.dumps(shot['design'], ensure_ascii=False)}\n有序发声（逐句保留，不添加字幕或额外台词）：\n{spoken}"
             )
             segment["delivery_id"] = shot["display_id"] + (f"-SEG{i}" if len(shot["segments"]) > 1 else "")
     if not episode:

@@ -149,8 +149,11 @@ def view(path: Path, notebook=None):
 
 def production_context(path, selected_note_ids, *, source_offset=None):
     """Use only facts revealed before the supplied source position; episodes default to their start."""
-    if not settings.get(path)["understanding_enabled"]:
-        return {"links": [], "basis": digest([])}
+    from lib.novel_workflow import conclusions
+
+    understanding_enabled = settings.get(path)["understanding_enabled"]
+    if not understanding_enabled and not conclusions.enabled(path):
+        return {"links": [], "basis": digest([[], conclusions.input_bases(path, selected_note_ids)])}
     notebook = store.state(path)
     if not notebook:
         return {"links": [], "basis": digest([])}
@@ -158,9 +161,16 @@ def production_context(path, selected_note_ids, *, source_offset=None):
     if not selected:
         return {"links": [], "basis": digest([])}
     cutoff = min(n["order"] for n in selected)
+
+    current_readings = store.valid_readings(path, notebook)
+    source_links = (
+        conclusions.production_links(path, notebook, current_readings)
+        if conclusions.enabled(path)
+        else view(path, notebook)["links"]
+    )
     links = [
         v
-        for v in view(path, notebook)["links"]
+        for v in source_links
         if v["status"] == "supported"
         and v.get("claim_type") == "fact"
         and v.get("source_kind") == "narrative"
@@ -171,11 +181,16 @@ def production_context(path, selected_note_ids, *, source_offset=None):
     current_readings = store.valid_readings(path, notebook)
     names = {v["name"] for n in selected for v in current_readings.get(n["id"], {}).get("assets", [])}
     for link in links:
-        if (set(link["note_ids"]) & set(selected_note_ids) or any(name in link["subject"] for name in names)) and len(
-            json.dumps([*relevant, link], ensure_ascii=False)
-        ) <= 10000:
+        if (
+            set(link["note_ids"]) & set(selected_note_ids)
+            or any(name in link["subject"] + " " + link["description"] for name in names)
+        ) and len(json.dumps([*relevant, link], ensure_ascii=False)) <= 10000:
             relevant.append(link)
-    return {"links": relevant, "basis": digest(relevant), "before_order": cutoff}
+    return {
+        "links": relevant,
+        "basis": digest([relevant, conclusions.input_bases(path, selected_note_ids)]),
+        "before_order": cutoff,
+    }
 
 
 async def understand_notes(path, generator, note_ids, expected):
@@ -201,27 +216,46 @@ async def understand_notes(path, generator, note_ids, expected):
     rules = await asyncio.to_thread(understanding_rules, path)
     scope_rule = await asyncio.to_thread(store.effective_rule, path, "scope")
     scope_hint = "\n" + scope_rule.strip()
-    key = digest([expected, bases, rules, scope_basis, scope_hint, "bounded-reread-v2"])
+    key = digest([expected, bases, rules, scope_basis, scope_hint, "bounded-reread-v3-conclusions"])
     target = store.root(path) / "understanding" / "reports" / f"{key}.json"
     if await asyncio.to_thread(target.exists):
         from lib.novel_workflow.question_register import organize_notes
 
         await organize_notes(path, generator, note_ids, expected, key)
+        from lib.novel_workflow.conclusions import ensure
+
+        await ensure(path, generator, note_ids, expected, await asyncio.to_thread(load_json, target))
         return {"report_id": key, "cached": True}
     previous_reports = await asyncio.to_thread(view, path, notebook)
     for report in previous_reports["reports"]:
         if not report["stale"] and report["note_bases"] == bases and set(report.get("scope_note_ids", [])) == allowed:
+            from lib.novel_workflow.conclusions import ensure
+
+            await ensure(path, generator, note_ids, expected, report)
             return {"report_id": report["id"], "cached": True}
+    from lib.novel_workflow.conclusions import effective_reading, ensure
+
+    await ensure(path, generator, note_ids, expected)
     project = await asyncio.to_thread(load_json, path / "project.json")
     corpus = await run_noninterruptible_sync(retrieval.index, path, project, notebook)
     units = []
     original_records = {}
     for note in notes:
-        reading = readings[note["id"]]
+        reading = await asyncio.to_thread(effective_reading, path, note, readings[note["id"]])
         records = memory.records(reading)
         original_records[note["id"]] = {record["id"]: record for record in records}
         units.extend(
-            {"note_id": note["id"], "title": note["title"], "questions": reading["questions"], "records": batch}
+            {
+                "note_id": note["id"],
+                "title": note["title"],
+                "questions": reading["questions"],
+                "resolved_questions": [
+                    c["question"]
+                    for c in reading.get("conclusion_review", {}).get("conclusions", [])
+                    if c["status"] == "resolved"
+                ],
+                "records": batch,
+            }
             for batch in synthesis.packs([inquiry_record(record) for record in records], INQUIRY_INDEX_BUDGET)
         )
     checkpoint = store.root(path) / "understanding" / "runs" / f"{key}.json"
@@ -253,7 +287,10 @@ async def understand_notes(path, generator, note_ids, expected):
                     path,
                     generator,
                     Inquiry,
-                    rules + scope_hint + "\n查询规划材料：" + json.dumps(unit, ensure_ascii=False),
+                    rules
+                    + scope_hint
+                    + "\nresolved_questions已由正文解释，不要重复检索；只回查尚缺其他章节证据的问题。\n查询规划材料："
+                    + json.dumps(unit, ensure_ascii=False),
                 )
             ).model_dump()
             await run_noninterruptible_sync(store.write, inquiry_file, inquiry)
@@ -394,6 +431,9 @@ async def understand_notes(path, generator, note_ids, expected):
         from lib.novel_workflow.question_register import build
 
         await build(path, generator, report, notebook)
+        from lib.novel_workflow.conclusions import ensure
+
+        await ensure(path, generator, note_ids, expected, report)
         progress.update(phase="complete", done=len(units))
         return {"report_id": key, "links": len(report["links"])}
     except Exception as exc:

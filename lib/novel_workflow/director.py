@@ -51,6 +51,7 @@ def content_from_selection(selected, episode, title, review=None):
                     "library_shot_id": shot["id"],
                     "evidence": shot["evidence"],
                     "production": shot.get("production"),
+                    "conclusion_constraints": _batch.get("production_context", {}).get("conclusion_constraints", []),
                 }
             )
     return DramaNormalizedScript.model_validate({"title": title, "scenes": rows}).model_dump(), mapping

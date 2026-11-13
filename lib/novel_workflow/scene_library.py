@@ -9,7 +9,7 @@ from uuid import uuid4
 from lib.artifacts.formal_write import formal_write_transaction, project_metadata_lock
 from lib.infra.async_thread import run_noninterruptible_sync
 from lib.infra.json_io import load_json
-from lib.novel_understanding.service import check_stop
+from lib.novel_understanding.service import NovelReadingInterrupted, check_stop
 from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import chapters, store, understanding
 from lib.novel_workflow.evidence import expand_scene_excerpt, locate
@@ -229,6 +229,9 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
     if any(s.get("breakdown_status") == "needs_review" and set(s["note_ids"]) & set(note_ids) for s in live_svts):
         raise ValueError("主归属 SVT 已调整，请先选中该 SVT 的来源 Notes 重新提炼，核对梗概和爆点后再生成场镜")
     await asyncio.to_thread(understanding.require_understood, path, note_ids)
+    from lib.novel_workflow.conclusions import require_ready
+
+    await asyncio.to_thread(require_ready, path, note_ids)
     project = await asyncio.to_thread(load_json, path / "project.json")
     if project.get("content_mode") != "drama" or project.get("generation_mode") == "reference_video":
         raise ValueError("场镜素材库目前适用于剧情演绎的分镜制作模式")
@@ -343,6 +346,7 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                     ],
                     "events": [e for e in reading["events"] if in_chunk(e["evidence"], chunk)],
                     "moments": story_context["moments"],
+                    "conclusion_constraints": story_context["conclusion_constraints"],
                 }
                 draft_file = store.root(path) / "scene_drafts" / f"{key}.json"
                 if await asyncio.to_thread(draft_file.exists):
@@ -439,7 +443,12 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
         await run_noninterruptible_sync(
             store.write,
             store.root(path) / "progress.json",
-            {"phase": "scenes", "done": completed, "total": total, "error": str(exc)},
+            {
+                "phase": "stopped" if isinstance(exc, NovelReadingInterrupted) else "failed",
+                "done": completed,
+                "total": total,
+                "error": str(exc),
+            },
         )
         raise
     await run_noninterruptible_sync(

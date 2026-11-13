@@ -27,10 +27,14 @@ def valid_svts(path, value, readings):
         or value.get("rule_basis") != digest(store.effective_rule(path, "svt"))
     ):
         return []
+    from lib.novel_workflow.conclusions import input_bases
+
+    current_conclusions = input_bases(path, list(value.get("note_bases", {})))
     return [
         s
         for s in value["svts"]
         if not s.get("stale")
+        and all(value.get("conclusion_bases", {}).get(i) == current_conclusions.get(i) for i in s["note_ids"])
         and all(
             readings.get(i, {}).get("basis") == value.get("note_bases", {}).get(i) and i in readings
             for i in s["note_ids"]

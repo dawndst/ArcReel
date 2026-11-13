@@ -2159,7 +2159,7 @@ class API {
   static async setNoteScope(name: string, note_ids: string[], source_basis: string, extend = true): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/scope`, { method: "PUT", body: JSON.stringify({ note_ids, source_basis, extend }) });
   }
-  static async updateNoteSettings(name: string, values: { summary_max_chars: number; understanding_enabled: boolean; delivery_checks_enabled?: boolean }): Promise<unknown> {
+  static async updateNoteSettings(name: string, values: { summary_max_chars: number; understanding_enabled: boolean; delivery_checks_enabled?: boolean; conclusions_enabled?: boolean; max_model_calls?: number }): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/settings`, { method: "PATCH", body: JSON.stringify(values) });
   }
 
@@ -2169,8 +2169,11 @@ class API {
   static async adoptNoteSVT(name: string, note_id: string, candidate_id: string, source_basis: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/notes/${encodeURIComponent(note_id)}/svt`, { method: "POST", body: JSON.stringify({ candidate_id, source_basis }) });
   }
-  static async runNoteWorkflow(name: string, action: "read" | "svt" | "review" | "understand" | "scenes" | "condense" | "group_summary", note_ids: string[], source_basis: string, group_id?: string): Promise<unknown> {
+  static async runNoteWorkflow(name: string, action: "read" | "svt" | "review" | "understand" | "conclusions" | "scenes" | "condense" | "group_summary", note_ids: string[], source_basis: string, group_id?: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action, note_ids, source_basis, group_id }) });
+  }
+  static async decideNoteConclusion(name: string, value: { source_basis: string; note_id: string; conclusion_id: string; status: import("@/types/novel-workflow").ConclusionStatus; answer: string; reason: string; evidence_ids: string[] }): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/conclusions/decide`, { method: "POST", body: JSON.stringify(value) });
   }
   static async organizeCrossQuestions(name: string, report_id: string, note_ids: string[], source_basis: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action: "questions", report_id, note_ids, source_basis, question_ai: true }) });
