@@ -40,25 +40,56 @@ def target(scenes, revision):
     raise ValueError("修订字段与位置不匹配")
 
 
+def validate_review(value, scenes, original):
+    """Keep unsafe suggestions visible for human review, outside adoptable revisions."""
+    revisions, seen, by_field, conflicts = [], set(), {}, set()
+    unresolved = list(value.unresolved)
+    for draft in value.revisions:
+        item = draft.model_dump()
+        if draft.after == draft.before:
+            continue
+        fingerprint = json.dumps(item, sort_keys=True, ensure_ascii=False)
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        key = (draft.scene_index, draft.shot_index, draft.segment_index, draft.field)
+        field = "标题" if draft.field == "title" else "画面描述"
+        location = f"第{draft.scene_index + 1}场、第{draft.shot_index + 1}镜"
+        if draft.segment_index is not None:
+            location += f"、第{draft.segment_index + 1}片段"
+        location += f"的{field}"
+        reason = None
+        try:
+            previous = target(scenes, item)[item["field"]]
+        except (IndexError, KeyError, ValueError):
+            reason = "位置索引或字段与片段的对应关系无效"
+        else:
+            if previous != draft.before:
+                reason = "修订前文字与当前字段不逐字一致"
+            else:
+                try:
+                    start, end = locate(original, draft.source_quote)
+                except ValueError:
+                    reason = "原文依据不是当前原文中的连续逐字摘录（允许排版空白差异），可能含改写或拼接"
+        if reason:
+            unresolved.append(f"{location}：审核建议未采用，{reason}。请核对原文后处理。")
+            continue
+        if key in by_field:
+            conflicts.add(key)
+            unresolved.append(f"{location}：同一字段有不同的修订建议，相关建议均未采用，请核对原文后处理。")
+            continue
+        by_field[key] = item
+        item.update(id=uuid4().hex, source_quote=original[start:end], applied=False)
+        revisions.append((key, item))
+    return {
+        "revisions": [item for key, item in revisions if key not in conflicts],
+        "unresolved": list(dict.fromkeys(unresolved)),
+        "reviewed_at": now(),
+    }
+
+
 async def review(path, generator, scenes, original):
     from lib.novel_workflow.service import ask
-
-    def validate(value):
-        revisions, seen = [], set()
-        for draft in value.revisions:
-            item = draft.model_dump()
-            try:
-                previous = target(scenes, item)[item["field"]]
-            except (IndexError, KeyError) as exc:
-                raise ValueError("修订必须指向输入中的场镜字段") from exc
-            key = (draft.scene_index, draft.shot_index, draft.segment_index, draft.field)
-            if key in seen or previous != draft.before or draft.after == draft.before:
-                raise ValueError("只返回有变化的、逐字匹配 before 的局部修订；同一字段只修订一次")
-            seen.add(key)
-            start, end = locate(original, draft.source_quote)
-            item.update(id=uuid4().hex, source_quote=original[start:end], applied=False)
-            revisions.append(item)
-        return {"revisions": revisions, "unresolved": value.unresolved, "reviewed_at": now()}
 
     return await ask(
         path,
@@ -74,7 +105,7 @@ async def review(path, generator, scenes, original):
         "疑点用工作人员能理解的中文描述，写出本片段第几场、第几镜、镜头标题及相关原句；输入没有镜头ID时不得编造编号；用台词、说话人，不使用utterances等字段名。"
         "不要将没有把握的猜测写为修订。只审核，不替导演组集。\n"
         + json.dumps({"source": original, "scenes": scenes}, ensure_ascii=False),
-        validate,
+        lambda value: validate_review(value, scenes, original),
         max_output_tokens=8000,
         grow_output=True,
     )
