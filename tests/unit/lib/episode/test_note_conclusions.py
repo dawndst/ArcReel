@@ -245,3 +245,38 @@ def test_conclusion_inputs_reject_report_evidence_outside_available_scope(tmp_pa
     material, evidence, _questions = conclusions.inputs(tmp_path, note, reading, None)
     assert material["note_id"] == note["id"]
     assert {e["note_id"] for e in evidence.values()} == {note["id"]}
+
+
+def test_conclusion_reuses_valid_question_register_with_original_provenance(tmp_path):
+    from lib.novel_workflow import question_register
+
+    _notebook, note, reading, report = fixture(tmp_path)
+    report["unresolved"] = [{"note_id": note["id"], "question": "原始问题"}]
+    old_basis = conclusions.basis(tmp_path, reading, report)
+    register = {
+        "basis": question_register.basis(report, store.effective_rule(tmp_path, question_register.RULE)),
+        "groups": [
+            {
+                "id": "group-one",
+                "question": "归并问题",
+                "explanation": "归并说明",
+                "original_ids": ["original-one"],
+                "note_ids": [note["id"]],
+                "link_ids": ["identity"],
+            }
+        ],
+    }
+    store.write(question_register.target(tmp_path, report), register)
+    material, evidence, questions = conclusions.inputs(tmp_path, note, reading, report)
+    grouped = next(q for q in questions.values() if q["text"] == "归并问题：归并说明")
+    assert grouped["original_ids"] == ["original-one"]
+    presented, aliases = conclusions.model_input(material)
+    assert conclusions.remap(presented, {value: key for key, value in aliases.items()}) == material
+    assert not any(q["text"] == "原始问题" or "link:identity" in q["origins"] for q in questions.values())
+    assert material["draft_links"]
+    assert evidence
+    assert conclusions.basis(tmp_path, reading, report) != old_basis
+    report["unresolved"].append({"note_id": note["id"], "question": "新增问题"})
+    _, _, stale_questions = conclusions.inputs(tmp_path, note, reading, report)
+    assert any(q["text"] == "原始问题" for q in stale_questions.values())
+    assert conclusions.basis(tmp_path, reading, report) == old_basis

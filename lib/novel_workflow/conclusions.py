@@ -37,6 +37,13 @@ def enabled(path):
     return settings.get(path).get("conclusions_enabled", True)
 
 
+def active_register(path, report):
+    from lib.novel_workflow import question_register
+
+    value = question_register.load(path, report) if report else None
+    return value if value and not value["stale"] else None
+
+
 def inputs(path, note, reading, report):
     """One source pool shared across identity, state, causality and question types."""
     from lib.novel_workflow import scope
@@ -48,6 +55,7 @@ def inputs(path, note, reading, report):
     def question(text, origin):
         key = digest([note["id"], "".join(text.split())])[:24]
         questions.setdefault(key, {"id": key, "text": text, "origins": []})["origins"].append(origin)
+        return questions[key]
 
     for q in reading.get("reading_questions", []):
         question(q["text"], "reading")
@@ -55,12 +63,22 @@ def inputs(path, note, reading, report):
         question(q, "reading_legacy")
     for q in reading.get("overview", {}).get("questions", []):
         question(q, "overview")
-    for q in (report or {}).get("unresolved", []):
-        if q["note_id"] == note["id"]:
-            question(q["question"], "reread")
+    register = active_register(path, report)
+    groups = [g for g in register["groups"] if note["id"] in g["note_ids"]] if register else []
+    if register:
+        for group in groups:
+            item = question(group["question"] + "：" + group["explanation"], "question_register:" + group["id"])
+            item.setdefault("original_ids", []).extend(group["original_ids"])
+    else:
+        for q in (report or {}).get("unresolved", []):
+            if q["note_id"] == note["id"]:
+                question(q["question"], "reread")
     links = [v for v in (report or {}).get("links", []) if note["id"] in v["note_ids"]]
+    covered_links = {i for group in groups for i in group.get("link_ids", [])}
     for link in links:
-        question(link["subject"] + "：" + link["description"], "link:" + link["id"])
+        if link["id"] not in covered_links:
+            text = link["subject"] if register else link["subject"] + "：" + link["description"]
+            question(text, "link:" + link["id"])
     if not questions:
         question("本章是否存在影响改编的未解信息或结论冲突？", "chapter_review")
     evidence = {}
@@ -105,15 +123,17 @@ def inputs(path, note, reading, report):
 def basis(path, reading, report):
     records = memory.records(reading)
     note_id = records[0]["evidence"]["note_id"] if records else ""
-    return digest(
-        [
-            reading["basis"],
-            (report or {}).get("id"),
-            store.effective_rule(path, "conclusions"),
-            settings.get(path)["summary_max_chars"],
-            decisions(path, note_id, reading),
-        ]
-    )
+    material = [
+        reading["basis"],
+        (report or {}).get("id"),
+        store.effective_rule(path, "conclusions"),
+        settings.get(path)["summary_max_chars"],
+        decisions(path, note_id, reading),
+    ]
+    register = active_register(path, report)
+    if register:
+        material.append(register["basis"])
+    return digest(material)
 
 
 def load(path, note, reading, report=None, *, notebook=None, readings=None):
@@ -222,6 +242,8 @@ def model_input(material):
     # Short IDs reduce transcription errors; persisted provenance retains its stable identifiers.
     aliases = {q["id"]: f"Q{i + 1:03d}" for i, q in enumerate(material["questions"])}
     aliases.update({e["id"]: f"E{i + 1:03d}" for i, e in enumerate(material["evidence"])})
+    original_ids = list(dict.fromkeys(i for q in material["questions"] for i in q.get("original_ids", [])))
+    aliases.update({key: f"R{i + 1:04d}" for i, key in enumerate(original_ids)})
     return remap(material, aliases), aliases
 
 
