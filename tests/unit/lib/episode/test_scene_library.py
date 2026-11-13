@@ -239,3 +239,19 @@ def test_short_logical_shot_merges_segments_without_losing_actions_or_dialogue()
     assert merged[0]["duration_seconds"] == 8
     assert merged[0]["scene_description"] == "甲拿起古剑\n甲转身"
     assert [u["text"] for u in merged[0]["utterances"]] == ["走吧。", "快点。"]
+
+
+def test_failed_quote_grounding_includes_only_reliable_bounded_original_hint():
+    assets = {"character": {"甲"}, "scene": set(), "prop": set()}
+    original = "她走进房间，达姐爽朗地笑着。窗外落着雨。"
+    wrong = "她走进房间，达姐爽朗地笑着说："
+    value = SceneBatch.model_validate(scene_output(wrong))
+    with pytest.raises(ValueError, match="逐字摘录") as caught:
+        scene_library.ground(value, {"text": original}, assets, [8])
+    assert "补正参考" in str(caught.value)
+    assert "达姐爽朗地笑着。" in str(caught.value)
+    assert value.scenes[0].shots[0].quote == wrong
+    unrelated = SceneBatch.model_validate(scene_output("毫无关联的另一个场景中的人物和对白。"))
+    with pytest.raises(ValueError, match="逐字摘录") as caught:
+        scene_library.ground(unrelated, {"text": original}, assets, [8])
+    assert "补正参考" not in str(caught.value)

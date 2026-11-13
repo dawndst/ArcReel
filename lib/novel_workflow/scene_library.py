@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from difflib import SequenceMatcher
 from uuid import uuid4
 
 from lib.artifacts.formal_write import formal_write_transaction, project_metadata_lock
@@ -154,8 +155,16 @@ def ground(value, chunk, assets, durations):
                 try:
                     start, end = expand_scene_excerpt(chunk["text"], shot.quote)
                 except ValueError as exc:
+                    match = SequenceMatcher(None, shot.quote[:600], chunk["text"]).find_longest_match()
+                    matched = chunk["text"][match.b : match.b + match.size]
+                    hint = ""
+                    if len("".join(matched.split())) >= 8 and chunk["text"].count(matched) == 1:
+                        start = max(0, match.b - 60)
+                        excerpt = chunk["text"][start : start + 240]
+                        hint = f"。补正参考（附近连续原文，仍须逐字核对，不代表完整镜头依据）：{excerpt}"
                     raise ValueError(
                         f"镜头《{shot.title}》依据必须是当前原文中的逐字摘录（允许排版空白差异）：{shot.quote[:600]}"
+                        + hint
                     ) from exc
             shot.quote = chunk["text"][start:end]
             uttered = []
