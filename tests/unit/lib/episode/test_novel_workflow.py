@@ -107,7 +107,20 @@ class Reader:
         )
 
 
+def chapter_story_response(request):
+    if "本章SVT材料：" not in request.prompt:
+        return None
+    material = json.loads(request.prompt.split("本章SVT材料：", 1)[1].split("\n只输出 JSON", 1)[0])
+    return SimpleNamespace(text=json.dumps({
+        "note_id": material["note_id"], "title": material["events"][0]["title"],
+        "summary": material["events"][0]["title"] + material["overview"]["summary"], "advancement": material["overview"]["outcome"],
+        "event_ids": [e["id"] for e in material["events"]],
+    }))
+
+
 def synopsis_response(request):
+    if response := chapter_story_response(request):
+        return response
     if "SVT累计概况材料：" not in request.prompt:
         return None
     material = json.loads(request.prompt.split("SVT累计概况材料：", 1)[1].split("\n只输出 JSON", 1)[0])

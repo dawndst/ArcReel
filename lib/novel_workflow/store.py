@@ -28,7 +28,7 @@ def effective_rule(path: Path, name: str) -> str:
     """Fingerprint the same shared rules and output contract that generation actually uses."""
     text = rule(path, name)
     if name == "svt":
-        text += "\n" + rule(path, "svt_material")
+        text += "\n" + rule(path, "svt_material") + "\n" + rule(path, "svt_chapter")
     if name in {"quote_locations", "understand_citations"}:
         text += "\n" + rule(path, "evidence_selection")
     elif name not in {"fidelity", "evidence_selection"}:
@@ -253,9 +253,16 @@ def _view(path: Path, project: dict) -> dict:
     by_svt = {s["id"]: s for s in display_svts}
     for note in notes:
         assigned = by_svt.get(primary.get(note["id"]))
+        story = assigned.get("note_stories", {}).get(note["id"]) if assigned else None
         note["svt_id"] = assigned["id"] if assigned else None
-        note["svt_title"] = assigned["title"] if assigned else None
-        note["svt_status"] = assigned.get("breakdown_status", "needs_details") if assigned else "unassigned"
+        note["svt_title"] = story["title"] if story else None
+        note["svt_story"] = story
+        note["svt_mainline_title"] = assigned["title"] if assigned else None
+        local_climaxes = [m for m in assigned.get("climaxes", []) if note["id"] in m["note_ids"]] if assigned else []
+        note["svt_status"] = (
+            "unassigned" if not assigned else "needs_review" if assigned.get("breakdown_status") == "needs_review"
+            else "complete" if story and len(local_climaxes) >= 2 else "needs_details"
+        )
         note["svt_candidates"] = [
             c
             for c in (svts or {}).get("note_candidates", {}).get(note["id"], [])

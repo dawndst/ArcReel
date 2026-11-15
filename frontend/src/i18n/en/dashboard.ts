@@ -1,5 +1,19 @@
 
 export default {
+  nw_chapter_shared_scene: "This scene spans chapters; only this chapter’s dialogue and source evidence are shown here.",
+  nw_chapter_svt_running: "Generating chapter SVT stories",
+  nw_mainline_summary_running: "Summarizing shared mainline background",
+  nw_chapter_svt_source: "SVT source chapter",
+  nw_chapter_svt: "Chapter SVT",
+  nw_chapter_story_missing: "Generate the chapter story by extracting SVT again",
+  nw_chapter_advancement: "Progress in this chapter",
+  nw_chapter_climaxes: "Climaxes added by this chapter",
+  nw_chapter_payoffs: "Payoffs added by this chapter",
+  nw_chapter_dialogues: "Key dialogue from this chapter",
+  nw_chapter_shared_moment: "Cross-chapter climax · only this chapter’s dialogue is listed",
+  nw_chapter_mainline: "Related mainline and cumulative synopsis",
+  nw_chapter_mainline_hint: "This shared background does not replace the chapter’s SVT title, synopsis or story progress.",
+
   nw_scene_only_history: "No current shots are ready for assembly. Historical versions remain below for inspection. Update the chapter Note, understanding and SVT, then generate its shots. Nothing has been deleted.",
   nw_scene_history: "History · inspection only",
   nw_scene_current: "Current version",

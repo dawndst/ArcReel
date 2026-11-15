@@ -1,6 +1,20 @@
 import type enDashboard from "@/i18n/en/dashboard";
 
 export default {
+  nw_chapter_shared_scene: "Cảnh trải qua nhiều chương; tại đây chỉ hiển thị lời thoại và nguồn của chương này.",
+  nw_chapter_svt_running: "Đang tạo SVT riêng cho từng chương",
+  nw_mainline_summary_running: "Đang tổng hợp bối cảnh mạch truyện chung",
+  nw_chapter_svt_source: "Chương nguồn SVT",
+  nw_chapter_svt: "SVT của chương",
+  nw_chapter_story_missing: "Trích xuất lại SVT để tạo cốt truyện của chương",
+  nw_chapter_advancement: "Diễn biến trong chương",
+  nw_chapter_climaxes: "Cao trào mới của chương",
+  nw_chapter_payoffs: "Điểm thỏa mãn mới của chương",
+  nw_chapter_dialogues: "Lời thoại quan trọng của chương",
+  nw_chapter_shared_moment: "Cao trào liên chương · chỉ liệt kê lời thoại của chương này",
+  nw_chapter_mainline: "Mạch truyện liên quan và tóm tắt liên chương",
+  nw_chapter_mainline_hint: "Bối cảnh chung không thay thế tiêu đề, tóm tắt SVT hoặc diễn biến riêng của chương.",
+
   nw_scene_only_history: "Chưa có cảnh quay hiện hành để ghép tập. Các phiên bản cũ vẫn ở bên dưới. Cập nhật Note, đọc sâu và SVT rồi tạo cảnh quay. Nội dung không bị xóa.",
   nw_scene_history: "Lịch sử · chỉ xem",
   nw_scene_current: "Phiên bản hiện hành",

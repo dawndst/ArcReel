@@ -106,3 +106,4 @@ async def test_note_batches_keep_single_primary_and_alternatives_can_replace_it(
     assert assignments(fresh["svts"]) == {note_id: adopted["svt_id"]}
     assert len(fresh["svts"][0]["event_ids"]) == 11
     assert fresh["notes"][0]["svt_status"] == "needs_review"
+    assert fresh["notes"][0]["svt_story"]["title"] == "甲拿起古剑。"

@@ -149,16 +149,13 @@ it("organizes Note information, original text and condensed text in lazy horizon
 });
 
 
-it("shows stale warnings only on affected SVTs and lists the current result first", async () => {
+it("omits obsolete SVTs from the current chapter view", async () => {
   const base = { summary: "内容", note_ids: ["note-1"], status: "open" as const, mainline_reason: "主线", breakdown_status: "complete" as const, climaxes: [], payoffs: [], dialogues: [], evidence: [] };
   vi.mocked(API.getNovelWorkflow).mockResolvedValue({ ...data, svt_stale: true, svts: [{ ...base, id: "old", title: "旧跨章结果", stale: true }, { ...base, id: "current", title: "当前主线", stale: false }] });
   render(<NovelWorkbench projectName="demo" />);
   fireEvent.click(await screen.findByRole("button", { name: /^SVT/ }));
-  expect(screen.getAllByText("部分来源已变化，请重新提炼相关 SVT。")).toHaveLength(1);
-  const current = screen.getByRole("heading", { name: /当前主线/ });
-  const old = screen.getByRole("heading", { name: /旧跨章结果/ });
-  expect(current.compareDocumentPosition(old) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(within(current.closest("article")!).queryByText("部分来源已变化，请重新提炼相关 SVT。")).not.toBeInTheDocument();
+  expect(screen.getByText(/关联主线与跨章概况 · 当前主线/)).toBeInTheDocument();
+  expect(screen.queryByText(/旧跨章结果/)).not.toBeInTheDocument();
 });
 
 
@@ -177,8 +174,8 @@ it("filters SVTs by current Note and retains shared-event chapter membership", a
   const svt = { id: "shared", title: "跨章追逐", note_ids: ["note-1", "note-2"], summary: "共同事件", status: "open" as const, mainline_reason: "主线", dialogues: [], evidence: [], event_ids: [], climaxes: [], payoffs: [], breakdown_status: "complete" as const };
   vi.mocked(API.getNovelWorkflow).mockResolvedValue({ ...data, svts: [svt, { ...svt, id: "other", title: "范围外事件", note_ids: ["other-note"] }] } as NovelWorkflow);
   render(<NovelWorkbench projectName="demo" />);
-  fireEvent.click(await screen.findByRole("button", { name: /^SVT 主线事件/ }));
-  expect(screen.getByRole("heading", { name: /跨章追逐/ })).toBeInTheDocument();
+  fireEvent.click(await screen.findByRole("button", { name: /^SVT/ }));
+  expect(screen.getByText(/关联主线与跨章概况 · 跨章追逐/)).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: /范围外事件/ })).not.toBeInTheDocument();
 });
 

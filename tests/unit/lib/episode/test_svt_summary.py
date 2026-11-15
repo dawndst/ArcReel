@@ -7,7 +7,7 @@ import pytest
 
 from lib.novel_workflow.service import read_notes
 from lib.novel_workflow.svt_summary import finalize
-from tests.unit.lib.episode.test_novel_workflow import Reader, project
+from tests.unit.lib.episode.test_novel_workflow import Reader, project, chapter_story_response
 
 
 async def test_cumulative_svt_summary_covers_early_and_late_notes_without_changing_ownership(tmp_path):
@@ -29,6 +29,8 @@ async def test_cumulative_svt_summary_covers_early_and_late_notes_without_changi
         calls = 0
 
         async def generate(self, request, **kwargs):
+            if response := chapter_story_response(request):
+                return response
             self.calls += 1
             material = json.loads(request.prompt.split("SVT累计概况材料：", 1)[1].split("\n只输出 JSON", 1)[0])
             assert len(material["sources"]) == 2
@@ -58,6 +60,9 @@ async def test_cumulative_svt_summary_covers_early_and_late_notes_without_changi
     assert result["climaxes"] == saved["climaxes"]
     assert original == saved
     assert set(result["summary_note_bases"]) == set(ids)
+    assert result["note_stories"][ids[0]]["title"] == "甲拿起古剑。"
+    assert result["note_stories"][ids[1]]["title"] == "乙推开城门。"
+    assert result["note_stories"][ids[0]]["summary"] != result["note_stories"][ids[1]]["summary"]
 
 
 async def test_cumulative_summary_rejects_last_note_only_result(tmp_path):
@@ -67,6 +72,8 @@ async def test_cumulative_summary_rejects_last_note_only_result(tmp_path):
 
     class Generator:
         async def generate(self, request, **kwargs):
+            if response := chapter_story_response(request):
+                return response
             return SimpleNamespace(
                 text=json.dumps(
                     {
@@ -95,7 +102,7 @@ async def test_cumulative_summary_rejects_last_note_only_result(tmp_path):
         )
 
 
-async def test_single_note_svt_reuses_complete_validated_overview_without_model_call(tmp_path):
+async def test_single_note_svt_reuses_overview_and_generates_its_own_story_title(tmp_path):
     from lib.novel_workflow import store
 
     _, book = await asyncio.to_thread(project, tmp_path)
@@ -105,10 +112,13 @@ async def test_single_note_svt_reuses_complete_validated_overview_without_model_
     original = {"id": "s1", "title": "取剑", "summary": "遗漏开头", "mainline_reason": "行动", "note_ids": [note["id"]]}
 
     class NoCalls:
-        async def generate(self, *args, **kwargs):
-            raise AssertionError("single-Note overview must not be generated again")
+        async def generate(self, request, **kwargs):
+            if response := chapter_story_response(request):
+                return response
+            raise AssertionError("shared single-Note overview must not be generated again")
 
     result = (await finalize(tmp_path, NoCalls(), [original], book))[0]
     assert result["summary"] == reading["overview"]["summary"]
     assert result["summary_mode"] == "chapter_overview"
     assert result["title"] == original["title"]
+    assert result["note_stories"][note["id"]]["title"] == "甲拿起古剑。"

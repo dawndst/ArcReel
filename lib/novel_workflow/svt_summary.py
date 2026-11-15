@@ -19,13 +19,13 @@ class Synopsis(StrictModel):
     note_ids: list[str] = Field(min_length=1)
 
 
-async def finalize(path, generator, svts, notebook):
+async def finalize(path, generator, svts, notebook, *, progress=None):
     from lib.novel_workflow.service import ask
 
     rule = await asyncio.to_thread(store.effective_rule, path, "svt_summary")
     result = []
     for svt in svts:
-        cards, bases = [], {}
+        cards, bases, stories = [], {}, {}
         for note in notebook["notes"]:
             if note["id"] not in svt["note_ids"]:
                 continue
@@ -35,8 +35,15 @@ async def finalize(path, generator, svts, notebook):
             from lib.novel_workflow.conclusions import effective_reading
 
             reading = await asyncio.to_thread(effective_reading, path, note, reading)
+            from lib.novel_workflow.svt_chapters import generate
+
+            if progress is not None:
+                progress.update(phase="svt_chapter", total=len(svt["note_ids"]), done=len(stories), note_id=note["id"])
+                await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
+            stories[note["id"]] = await generate(path, generator, note, reading)
             bases[note["id"]] = reading["basis"]
             cards.append({"note_ids": [note["id"]], "order": note["order"], "summary": reading["overview"]["summary"]})
+        svt = {**svt, "note_stories": stories}
         if set(bases) != set(svt["note_ids"]):
             raise ValueError("SVT 概况包含当前章节索引以外的 Note")
         # One Note has exactly one primary SVT, including all its events. Its
@@ -52,6 +59,9 @@ async def finalize(path, generator, svts, notebook):
                 }
             )
             continue
+        if progress is not None:
+            progress.update(phase="svt_summary", total=len(cards), done=0, note_id=None)
+            await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
         while True:
             reduced = []
             for batch in synthesis.packs(cards, 14000):

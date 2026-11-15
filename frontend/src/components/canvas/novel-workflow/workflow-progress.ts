@@ -7,7 +7,7 @@ export function workflowProgress(progress: NovelWorkflow["progress"]) {
     group_summary: "nw_group_summarize", understanding: "nw_understanding_running",
     question_register: progress?.step === "merge" ? "nw_question_merging" : "nw_question_grouping",
     review: progress?.step === "overview" ? "nw_review_stage_overview" : progress?.step === "conclusion" ? "nw_review_stage_conclusion" : "nw_review_running",
-    svt: "nw_svt_running", conclusions: "nw_phase_conclusions",
+    svt: "nw_svt_running", svt_chapter: "nw_chapter_svt_running", svt_summary: "nw_mainline_summary_running", conclusions: "nw_phase_conclusions",
   };
   const label = progress ? labels[progress.phase] : undefined;
   return { label: label ?? "nw_task_preparing", showCounts: !!label };

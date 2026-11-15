@@ -100,6 +100,9 @@ def adopt(path, project, note_id, candidate_id, expected):
         previous["evidence"] = [e for _, e in keep]
         previous["note_ids"] = [i for i in previous["note_ids"] if i != note_id]
         target["note_ids"] = list(dict.fromkeys(target["note_ids"] + [note_id]))
+        story = previous.get("note_stories", {}).pop(note_id, None)
+        if story:
+            target.setdefault("note_stories", {})[note_id] = story
         for kind in ("climaxes", "payoffs"):
             moved = [m for m in previous[kind] if set(m["note_ids"]) == {note_id}]
             mixed = [m for m in previous[kind] if note_id in m["note_ids"] and len(set(m["note_ids"])) > 1]

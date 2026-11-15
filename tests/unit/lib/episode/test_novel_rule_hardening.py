@@ -58,7 +58,7 @@ async def test_omitted_classification_is_repaired_before_generation_can_succeed(
     assert len(responses) == 2
 
 
-def test_fidelity_change_invalidates_cached_reading_without_hiding_saved_material(tmp_path):
+def test_fidelity_change_does_not_expose_invalid_reading_as_current(tmp_path):
     data, book = project(tmp_path)
     note = book["notes"][0]
     key = store.reading_key(tmp_path, note)
@@ -68,7 +68,7 @@ def test_fidelity_change_invalidates_cached_reading_without_hiding_saved_materia
     assert key != store.reading_key(tmp_path, note)
     assert store.note_result(tmp_path, note) is None
     view = store.view(tmp_path, data)
-    assert view["notes"][0]["reading"]["summaries"] == ["旧版已保存"]
+    assert view["notes"][0]["reading"] is None
     assert view["notes"][0]["status"] == "outdated"
 
 
@@ -107,7 +107,7 @@ async def test_svt_first_batch_receives_whole_chapter_context(tmp_path):
         async def generate(self, request, **kwargs):
             if "整章方向材料：" in request.prompt:
                 direction = json.loads(
-                    request.prompt.split("整章方向材料：", 1)[1].split("\n必须覆盖的本批事件ID", 1)[0]
+                    request.prompt.split("整章方向材料：", 1)[1].split("\n精简稿与原句：", 1)[0]
                 )
                 assert direction["overview"]["summary"]
                 assert direction["index"]["events"][0]["title"] == "甲拿起古剑。"

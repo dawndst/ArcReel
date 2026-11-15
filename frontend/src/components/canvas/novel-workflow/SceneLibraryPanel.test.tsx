@@ -87,12 +87,15 @@ it("keeps shot assets and design while moving global coverage to adaptation deci
   draft.production_context = { svt_id: "svt", events: [], moments: [{ id: "moment", kind: "climaxes", svt_id: "svt", note_ids: ["n"], event_ids: ["event"], partial: false, scene: "拒绝同行", reason: "冲突升级", dialogues: [{ id: "line", speaker: "阳子", quote: "不要", value: "拒绝", evidence: shot.evidence }] }] };
   shot.production = { shot_id: shot.id, event_ids: ["event"], moment_ids: ["moment"], design, svt_id: "svt", assets: [{ kind: "character", name: "阳子", asset_code: "CHR-001", asset_id: "asset", variant: "人形", segments: [0], missing: false }], dialogue_sources: [{ segment: 0, utterance: 0, dialogue_id: "line" }] };
   const openAsset = vi.fn();
-  render(<SceneLibraryPanel batches={[draft]} notes={[]} disabled={false} selection={[shot.id]} setSelection={() => {}} title="" setTitle={() => {}} assemble={() => {}} source={() => {}} openAsset={openAsset} />);
+  const openSvt = vi.fn();
+  render(<SceneLibraryPanel batches={[draft]} notes={[]} disabled={false} selection={[shot.id]} setSelection={() => {}} title="" setTitle={() => {}} assemble={() => {}} source={() => {}} openAsset={openAsset} openSvt={openSvt} />);
   expect(screen.getByText("近景 · 平视 · 固定")).toBeInTheDocument();
   expect(screen.queryByText("关联 1 镜 · 关键台词 1 / 1")).not.toBeInTheDocument();
   fireEvent.click(screen.getAllByText("镜头设计与资产")[0]!);
   fireEvent.click(screen.getByRole("button", { name: "CHR-001 · 阳子 / 人形" }));
   expect(openAsset).toHaveBeenCalledWith(shot.production.assets[0]);
+  fireEvent.click(screen.getByRole("button", { name: "查看本章 SVT" }));
+  expect(openSvt).toHaveBeenCalledWith("svt", "n");
 });
 
 it("offers completion without regenerating selection and blocks missing production details", () => {

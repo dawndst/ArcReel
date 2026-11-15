@@ -1,6 +1,20 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_chapter_shared_scene: "Сцена охватывает несколько глав; здесь показаны только реплики и источники этой главы.",
+  nw_chapter_svt_running: "Создание SVT отдельных глав",
+  nw_mainline_summary_running: "Обобщение общей сюжетной линии",
+  nw_chapter_svt_source: "Глава — источник SVT",
+  nw_chapter_svt: "SVT главы",
+  nw_chapter_story_missing: "Повторите извлечение SVT для создания сюжета главы",
+  nw_chapter_advancement: "Развитие сюжета в этой главе",
+  nw_chapter_climaxes: "Кульминации этой главы",
+  nw_chapter_payoffs: "Развязки этой главы",
+  nw_chapter_dialogues: "Ключевые реплики этой главы",
+  nw_chapter_shared_moment: "Кульминация нескольких глав · реплики только из этой главы",
+  nw_chapter_mainline: "Общая сюжетная линия и сводка",
+  nw_chapter_mainline_hint: "Общий контекст не заменяет название SVT, описание и развитие сюжета отдельной главы.",
+
   nw_scene_only_history: "Нет актуальных кадров для сборки. История сохранена ниже. Обновите Note главы, понимание и SVT, затем создайте кадры. Ничего не удалено.",
   nw_scene_history: "История · только просмотр",
   nw_scene_current: "Текущая версия",

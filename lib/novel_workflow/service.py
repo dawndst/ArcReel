@@ -728,7 +728,7 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
             await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
         from lib.novel_workflow.svt_summary import finalize
 
-        run["svts"] = await finalize(path, generator, run["svts"], notebook)
+        run["svts"] = await finalize(path, generator, run["svts"], notebook, progress=progress)
         await asyncio.to_thread(current, path, expected)
         if await asyncio.to_thread(store.effective_rule, path, "svt_summary") != summary_rules:
             raise ValueError("SVT 累计概况规则已变化，请重新生成")
@@ -782,12 +782,12 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
                     raise ValueError("SVT 规则已变化，请使用当前规则重新拆分")
                 if store.effective_rule(path, "svt_summary") != summary_rules:
                     raise ValueError("SVT 累计概况规则已变化，请重新生成")
-                if live_svt:
+                if live_svt and live_svt.get("rule_basis") == digest(rules):
                     store.write(store.root(path) / "history" / f"svt-{uuid4().hex}.json", live_svt)
                 store.write(target, combined)
 
         await run_noninterruptible_sync(commit)
-        progress.update(phase="complete", done=len(events))
+        progress.update(phase="complete", total=len(events), done=len(events))
         return {"svts": len(run["svts"])}
     except Exception as exc:
         progress.update(phase="stopped" if isinstance(exc, NovelReadingInterrupted) else "failed", error=str(exc))

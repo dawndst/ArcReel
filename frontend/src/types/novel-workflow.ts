@@ -6,7 +6,7 @@ export interface NoteDialogue extends ClaimStatus { id: string; speaker: string;
 export interface NoteEvent extends ClaimStatus { id: string; title: string; cause: string; conflict: string; action: string; outcome: string; open_thread: string; dialogues: NoteDialogue[]; evidence: NoteEvidence }
 export interface ChapterNote {
   edition?: Omit<ChapterEdition, "parts"> | null;
-  svt_id?: string | null; svt_title?: string | null; svt_status?: string; svt_candidates?: SVTCandidate[];
+  svt_id?: string | null; svt_title?: string | null; svt_story?: ChapterSVTStory | null; svt_mainline_title?: string | null; svt_status?: string; svt_candidates?: SVTCandidate[];
   in_scope?: boolean;
   id: string; order: number; title: string; volume: string; chapter: string; chars: number; basis: string; needs_review?: boolean;
   sections: { source_file: string; start: number; end: number; title: string }[];
@@ -14,9 +14,14 @@ export interface ChapterNote {
   reading?: { conclusion_review?: ConclusionReview; conclusion_basis?: string; reading_questions?: { text: string; kind: "plot_unrevealed" | "extraction_check" | "unclassified" }[]; overview?: NoteOverview; aliases?: NoteAlias[]; relations?: NoteRelation[]; threads?: NoteThread[]; highlights?: NoteHighlight[]; basis: string; summaries: string[]; assets: NoteAsset[]; changes: NoteChange[]; events: NoteEvent[]; questions: string[] } | null;
 }
 export interface NoteGroup { usage?: "reference" | "candidate"; synopsis?: NoteOverview; summary_stale?: boolean; id: string; title: string; note_ids: string[]; source_basis: string; created_by: string }
+export interface ChapterSVTStory {
+  note_id: string; title: string; summary: string; advancement: string; event_ids: string[];
+  basis: string; reading_basis: string; rule_basis: string;
+}
 export interface NovelSVT {
   id: string; title: string; summary: string; note_ids: string[]; status: "open" | "closed"; mainline_reason: string; stale?: boolean;
   breakdown_status?: string;
+  note_stories?: Record<string, ChapterSVTStory>;
   climaxes: SVTMoment[]; payoffs: SVTMoment[];
   dialogues: NoteDialogue[]; evidence: NoteEvidence[];
 }
@@ -78,7 +83,7 @@ export interface DialogueCoverage { entries: { dialogue_id: string; quote: strin
 export interface SceneLibraryBatch { stale_reasons?: string[]; craft?: CraftView; craft_error?: string; dialogue_coverage?: DialogueCoverage; production_stale?: boolean; production_context?: ShotProductionContext; note_order?: number; part?: number; review_revision?: string; review?: { revisions: SceneRevision[]; unresolved: string[]; resolved_questions?: { questions: string[]; reason: string; resolution?: "repaired" | "false_positive"; created_at: string }[] }; basis: string; note_id: string; stale: boolean; scenes: LibraryScene[]; skipped_reason: string }
 
 export interface SVTCandidate { candidate_id: string; existing_id: string | null; title: string; summary: string; reason: string }
-export interface SVTMoment { scene: string; reason: string; note_ids: string[]; dialogue_ids: string[]; dialogues: NoteDialogue[]; evidence: NoteEvidence[] }
+export interface SVTMoment { event_ids?: string[]; scene: string; reason: string; note_ids: string[]; dialogue_ids: string[]; dialogues: NoteDialogue[]; evidence: NoteEvidence[] }
 export interface PromptRule { id: string; title: string; purpose: string; category: string; content: string; source: "project" | "default"; location: string; version: string }
 
 export interface ShotDesign { purpose: string; shot_size: string; camera_angle: string; camera_movement: string; framing: string; continuity: string; sound: string }
