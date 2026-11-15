@@ -1,4 +1,4 @@
-"""Register source-backed speaking roles omitted by the original Note extraction."""
+"""Register source-backed assets omitted by the original Note extraction."""
 
 from lib.novel_workflow.common import digest
 from lib.project.asset_codes import ensure_asset_codes, keep_first_note
@@ -64,4 +64,52 @@ def register(project, note, reading_basis, label, evidence):
         "variant_kind": "none",
         "appearance_context": "current",
     }
+    return name
+
+
+def register_existing_asset(project, note, reading_basis, kind, entity_id, evidence, source_text):
+    """Supplement an omitted physical appearance without changing the Note's claims.
+
+    Callers must verify the identity; only a literal source span attributed to this Note is accepted.
+    No new asset or ownership/identity claim is inferred here.
+    """
+    from lib.novel_workflow.assets import BUCKETS, entity_key
+
+    if kind not in BUCKETS or evidence.get("note_id") != note["id"]:
+        raise ValueError("资产类型或原文 Note 不匹配")
+    start, end = evidence["start"], evidence["end"]
+    if not (0 <= start < end <= len(source_text)) or source_text[start:end] != evidence["quote"]:
+        raise ValueError("补充资产必须提供准确的连续原文")
+    found = next(
+        ((name, asset) for name, asset in project.get(BUCKETS[kind], {}).items() if asset.get("asset_id") == entity_id),
+        None,
+    )
+    if not found:
+        raise ValueError("关联资产不存在")
+    name, asset = found
+    key = digest([note["id"], kind, entity_id, "source-appearance"])
+    record = {
+        "id": "source-asset-" + key[:24],
+        "kind": kind,
+        "claim_type": "fact",
+        "source_kind": "narrative",
+        "name": name,
+        "identity_scope": f"Note {note['order']:03d} · {name}",
+        "description": "原文补充出场依据：" + evidence["quote"],
+        "variant": "",
+        "reading_basis": reading_basis,
+        "evidence": evidence,
+        "entity_id": entity_id,
+    }
+    project.setdefault("note_source_roles", {})[key] = record
+    project.setdefault("note_asset_entities", {})[entity_key(record, note["id"])] = entity_id
+    project.setdefault("note_asset_links", {})[record["id"]] = {
+        "asset_id": entity_id,
+        "entity_id": entity_id,
+        "asset_code": asset["asset_code"],
+        "note_id": note["id"],
+        "variant_kind": "none",
+        "appearance_context": "current",
+    }
+    keep_first_note(asset, {"id": note["id"], "order": note["order"], "title": note["title"]})
     return name

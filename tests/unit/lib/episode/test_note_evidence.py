@@ -237,3 +237,23 @@ def test_asset_identity_anchor_cannot_reference_unsupplied_or_future_records():
     with pytest.raises(ValueError, match="supplied earlier asset"):
         ground(value, part)
     assert ground(value, part, identity_ids={"earlier-asset"})["assets"][0]["same_entity_as"] == "earlier-asset"
+
+
+def test_scene_excerpt_restores_dialogue_with_its_own_ellipsis():
+    from lib.novel_workflow.evidence import expand_scene_excerpt
+
+    source = "前文。『台辅。』他回过头。『……危险是什么意思？』她低头回答。『同意……』后文。"
+    quote = "『台辅。』……『……危险是什么意思？』……『同意……』"
+    start, end = expand_scene_excerpt(source, quote)
+    assert source[start:end] == "台辅。』他回过头。『……危险是什么意思？』她低头回答。『同意……"
+    with pytest.raises(ValueError, match="省略摘录"):
+        expand_scene_excerpt(source + source, quote)
+    with pytest.raises(ValueError, match="省略摘录"):
+        expand_scene_excerpt(source, "『台辅。』……『我愿意。』")
+
+
+def test_scene_excerpt_never_discards_ellipsis_inside_spoken_words():
+    from lib.novel_workflow.evidence import expand_scene_excerpt
+
+    with pytest.raises(ValueError, match="省略摘录"):
+        expand_scene_excerpt("『你快逃！』他停下。『好。』", "『你……快逃！』……『好。』")

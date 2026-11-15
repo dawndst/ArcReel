@@ -237,7 +237,8 @@ def synchronize(path: Path) -> dict:
             if not note or readings.get(note["id"], {}).get("basis") != role["reading_basis"]:
                 continue
             asset = next(
-                (a for a in project.get("characters", {}).values() if a.get("asset_id") == role["entity_id"]), None
+                (a for a in project.get(BUCKETS[role["kind"]], {}).values() if a.get("asset_id") == role["entity_id"]),
+                None,
             )
             if asset:
                 keep_first_note(asset, {"id": note["id"], "order": note["order"], "title": note["title"]})

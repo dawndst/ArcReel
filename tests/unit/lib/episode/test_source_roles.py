@@ -49,9 +49,9 @@ def test_unnamed_role_reuses_code_and_keeps_note_evidence_after_synchronization(
 
 
 def test_register_and_attribute_is_versioned_and_reuses_one_asset(tmp_path):
+    from lib.novel_workflow import chapters, scene_library, settings, understanding
     from lib.novel_workflow.common import digest
-    from lib.novel_workflow import chapters, scene_library, settings
-    from lib.novel_workflow.shot_production import planning_inputs
+    from lib.novel_workflow.shot_production import context, planning_inputs
 
     (tmp_path / "source").mkdir()
     text = "# 第一章\n一个女生跑来说：“借书。”又说：“谢谢。”\n"
@@ -104,7 +104,7 @@ def test_register_and_attribute_is_versioned_and_reuses_one_asset(tmp_path):
         },
     }
     reading = store.valid_readings(tmp_path, book)[note["id"]]
-    ctx = {"svt_id": None, "events": [], "moments": []}
+    ctx = context(tmp_path, reading, chapters.chunks(tmp_path, data, note)[0])
     rules = store.effective_rule(tmp_path, "shot_production")
     batch = {
         "basis": "batch",
@@ -114,8 +114,10 @@ def test_register_and_attribute_is_versioned_and_reuses_one_asset(tmp_path):
         "source_basis": book["source_basis"],
         "rule_basis": digest(store.effective_rule(tmp_path, "scenes")),
         "note_bases": {note["id"]: reading["basis"]},
-        "understanding_basis": digest([]),
-        "scenes": [{"id": "SCN-1", "shots": [shot]}],
+        "understanding_basis": understanding.production_context(tmp_path, [note["id"]])["basis"],
+        "scenes": [
+            {"id": "SCN-1", "title": "借书", "location": "教室", "time": "白天", "purpose": "借书", "shots": [shot]}
+        ],
         "production_context": ctx,
         "production_basis": planning_inputs(ctx, rules, {"SH-1": shot}, data, reading)[2],
     }
@@ -142,3 +144,24 @@ def test_register_and_attribute_is_versioned_and_reuses_one_asset(tmp_path):
     assert [u["text"] for u in current["segments"][0]["utterances"]] == ["借书。", "谢谢。"]
     assert current["attribution_history"][0]["ai_suggestion"]["proposed_role"] == "借书的女生"
     assert not scene_library.view(tmp_path, book, {note["id"]: reading})[0]["production_stale"]
+
+
+def test_supplement_existing_prop_preserves_claims_and_rejects_false_quote(tmp_path):
+    from lib.novel_workflow.source_roles import register_existing_asset
+
+    data, book = project(tmp_path)
+    note = book["notes"][0]
+    data["props"] = {"古剑": {"asset_id": "sword", "asset_code": "PRP-001"}}
+    text = "甲拿起古剑。"
+    ev = {"note_id": note["id"], "source_file": "source/book.txt", "start": 0, "end": len(text), "quote": text}
+    reading = {"basis": "current", "assets": [{"claim_type": "statement", "name": "古剑"}]}
+    register_existing_asset(data, note, "current", "prop", "sword", ev, text)
+    register_existing_asset(data, note, "current", "prop", "sword", ev, text)
+    assert len(data["props"]) == len(data["note_source_roles"]) == 1
+    assert reading["assets"][0]["claim_type"] == "statement"
+    mention = assets.mentions(data, reading)[-1]
+    assert mention["kind"] == "prop"
+    assert assets.reference(data, mention)["asset_code"] == "PRP-001"
+    assert len(assets.mentions(data, {"basis": "other", "assets": []})) == 0
+    with pytest.raises(ValueError, match="准确的连续原文"):
+        register_existing_asset(data, note, "current", "prop", "sword", {**ev, "quote": "古剑属于甲"}, text)

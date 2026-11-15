@@ -32,7 +32,26 @@ def expand_scene_excerpt(text: str, quote: str) -> tuple[int, int]:
     """
     import re
 
-    pieces = [part.strip().strip('「」『』“”‘’"') for part in re.split(r"…{2,}|\.{3,}", quote) if part.strip()]
+    # Ellipses inside dialogue are literal speech, not excerpt separators.
+    pairs = {"「": "」", "『": "』", "“": "”", "‘": "’", '"': '"'}
+    closers = []
+    fragments = []
+    start = 0
+    index = 0
+    while index < len(quote):
+        char = quote[index]
+        if closers and char == closers[-1]:
+            closers.pop()
+        elif char in pairs:
+            closers.append(pairs[char])
+        if not closers and (separator := re.match(r"…{2,}|\.{3,}", quote[index:])):
+            fragments.append(quote[start:index])
+            index += len(separator.group())
+            start = index
+        else:
+            index += 1
+    fragments.append(quote[start:])
+    pieces = [clean for part in fragments if (clean := part.strip().strip('「」『』“”‘’"')).strip()]
     if len(pieces) < 2 or len(pieces) > 32:
         raise ValueError("不是可恢复的省略摘录")
     positions = [i for i, char in enumerate(text) if not char.isspace()]
