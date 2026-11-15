@@ -34,11 +34,7 @@
 
 #### A. 显式记录改编取舍，而非仅记录来源
 
-对方要求说明原著内容在改编中是保留、合并、换载体、压缩、省略、提前、冷开场还是新增；重排需处理因果和原位置的功能缺口。我们已有来源追溯，建议进一步增加一张轻量改编账本：
-
-`原文事件 → 戏剧功能 → 改编动作 → 所属集/场/镜 → 损失与新增理由`
-
-这能把「忠实」和「好看」之间的选择交给可审查的编导决策，而不是藏在生成过程里。依据：[改编方法](https://github.com/zenstory-ai/drama-skills/blob/main/skills/short-drama-develop/references/adaptation-craft.md)、[小说分析](https://github.com/zenstory-ai/drama-skills/blob/main/skills/short-drama-novel-analyze/SKILL.md)。
+对方要求说明原著内容在改编中是保留、合并、换载体、压缩、省略、提前、冷开场还是新增；重排需处理因果和原位置的功能缺口。我们已有改编决策辅助：记录来源 Note 和证据、保留 / 压缩 / 组合 / 候选省略、理由、人物 / 伏笔 / 对白影响及必须保留内容，并在界面展示。它生成的是建议，不自动应用。建议**扩展现有结构，而非另建平行取舍表**：补充戏剧功能、人工采纳或驳回结果，以及与目标集 / 场 / 镜的映射，形成 `原文证据 → 改编建议 → 实际编导选择 → 成片承载` 的可追踪闭环。章节精编中的阅读删减是另一层，不等于导演已决定不拍。依据：[现有建议结构](https://github.com/dawndst/ArcReel/blob/c478ce6a34096f12563b75292d4388e40c77c2d3/lib/novel_workflow/models.py#L195-L209)、[审核实现](https://github.com/dawndst/ArcReel/blob/c478ce6a34096f12563b75292d4388e40c77c2d3/lib/novel_workflow/review.py)、[精编规则](https://github.com/dawndst/ArcReel/blob/c478ce6a34096f12563b75292d4388e40c77c2d3/lib/novel_workflow/rules/condense.md)。这些缺口是对已检查 schema、输出及界面的静态判断，尚未重跑验证。依据：[改编方法](https://github.com/zenstory-ai/drama-skills/blob/main/skills/short-drama-develop/references/adaptation-craft.md)、[小说分析](https://github.com/zenstory-ai/drama-skills/blob/main/skills/short-drama-novel-analyze/SKILL.md)。
 
 #### B. 将连续性从抽象要求落实为镜头状态
 
@@ -246,7 +242,7 @@ flowchart TD
 |---|---|---|
 | P0 | 修复不完整建集入口，测试参考视频模式 | 不产生下游必然拒绝的剧情集；支持边界明确 |
 | P1 | 旧逻辑清理与文档统一 | 新流程及其他模式回归通过，公共依赖不被误删 |
-| P1 | 改编取舍与镜头状态校验 | 来源可追溯，事件实际可见/可听，交接和站位不矛盾 |
+| P1 | 改编决策落地闭环与镜头状态校验 | 来源可追溯，事件实际可见/可听，交接和站位不矛盾 |
 | P2 | 快速/严谨两档及项目预算 | 记录耗时、费用、人工修订量，而非只计算调用次数 |
 | P2 | 白模预演小样 | 先验证少量场景的构图、调度和剪辑节奏，不追求最终美术 |
 | P3 | 真实素材审片与失败恢复 | 生成产物确实可用，任务可恢复，避免重复花费 |
