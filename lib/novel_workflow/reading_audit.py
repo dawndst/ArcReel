@@ -4,6 +4,7 @@ import json
 
 from lib.novel_workflow import store
 from lib.novel_workflow.models import Reading
+from lib.novel_workflow.reading_patches import ReviewEdits, apply, material
 
 
 def draft_claims(value):
@@ -24,16 +25,18 @@ async def audit(path, generator, extracted, part, seed_ids, identity_ids):
     async def validate(value):
         from lib.novel_workflow.quote_locations import resolve
 
-        if not value.complete:
-            return reject_incomplete()
+        value = apply(draft, value)
         value = await resolve(path, generator, value, part)
         return ground(value, part, seed_ids, identity_ids)
 
+    draft = draft_claims(extracted)
+    protocol = await asyncio.to_thread(store.effective_rule, path, "read_review_patch")
     return await ask(
         path,
         generator,
-        Reading,
-        rules
+        ReviewEdits,
+        rules.replace("返回 complete=true 的完整结果，不只返回差异。", "完成所有栏目审查后返回complete=true。")
+        + protocol
         + "\n抽取审核材料："
         + json.dumps(
             {
@@ -42,7 +45,8 @@ async def audit(path, generator, extracted, part, seed_ids, identity_ids):
                     "before": part.get("before_context", ""),
                     "after": part.get("after_context", ""),
                 },
-                "draft": draft_claims(extracted),
+                **material(draft),
+                "record_schema": Reading.model_json_schema(),
             },
             ensure_ascii=False,
         ),
@@ -50,7 +54,3 @@ async def audit(path, generator, extracted, part, seed_ids, identity_ids):
         grow_output=True,
         max_output_tokens=min(getattr(generator, "max_output_tokens", 24000), max(12000, len(part["text"]) * 4)),
     )
-
-
-def reject_incomplete():
-    raise ValueError("抽取审核必须返回完整修订稿；无法确认的结论保留未判定及原因，不能以未完成代替审核")

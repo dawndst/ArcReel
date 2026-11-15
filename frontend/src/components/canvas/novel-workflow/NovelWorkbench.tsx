@@ -1,3 +1,4 @@
+import { WorkflowGuide } from "./WorkflowGuide";
 import { AdaptationDecisionPanel } from "./AdaptationDecisionPanel";
 import { sceneLibraryOrder } from "./scene-library-order";
 import { SceneBatchSource, type SourceTarget } from "./SceneBatchSource";
@@ -101,7 +102,7 @@ function revealSceneElement(id: string) {
   element?.scrollIntoView({ block: "start" });
 }
 
-const WORKBENCH_TABS = ["notes", "svt", "groups", "ledger", "review", "understanding", "scenes"] as const;
+const WORKBENCH_TABS = ["notes", "svt", "groups", "ledger", "review", "understanding", "scenes", "guide"] as const;
 type WorkbenchTab = typeof WORKBENCH_TABS[number];
 
 export function NovelWorkbench({ projectName }: { projectName: string }) {
@@ -221,8 +222,9 @@ export function NovelWorkbench({ projectName }: { projectName: string }) {
     {!working && progress?.error && <details className={`border-b px-5 py-2 text-sm ${progress.phase === "stopped" ? "text-muted-foreground" : "text-destructive"}`}><summary>{t(progress.phase === "stopped" ? "dashboard:nw_task_stopped" : "dashboard:nw_last_error")}</summary>{progress.error}</details>}
     {data?.stale && <p className="border-b bg-muted px-5 py-3 text-sm">{t("dashboard:nw_stale")}</p>}
     {!data?.initialized ? <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center"><BookOpen className="size-8 text-primary" /><h2 className="font-semibold">{t("dashboard:nw_start")}</h2><p className="max-w-xl text-sm text-muted-foreground">{t("dashboard:nw_start_hint")}</p><Button disabled={busy || !data} onClick={() => void act(async () => setPreview(await API.previewChapterNotes(projectName)))}>{t("dashboard:nw_preview")}</Button></div> : <>
-      <nav aria-label={t("dashboard:nw_title")} className="flex shrink-0 flex-wrap gap-2 border-b px-5 py-2">{(["notes", "groups", "ledger", "understanding", "svt", "review", "scenes"] as const).map((key) => <Button key={key} size="sm" variant={tab === key ? "default" : "ghost"} onClick={() => setTab(key)}>{key === "review" ? "改编决策" : t(`dashboard:nw_tab_${key}`)} ({key === "scenes" ? (data.scene_batches ?? []).reduce((n, b) => n + b.scenes.length, 0) : key === "notes" ? data.notes.length : key === "svt" ? data.svts.length : key === "understanding" ? data.understanding?.links.length ?? 0 : key === "ledger" ? data.ledger?.characters.length ?? 0 : key === "review" ? (data.scene_batches ?? []).filter((b) => !b.stale).reduce((n, b) => n + (b.craft?.items.length ?? 0), 0) : data.groups.length})</Button>)}<Button size="sm" variant="ghost" disabled={busy || working} onClick={() => void act(async () => setPreview(await API.previewChapterNotes(projectName)))}>{t("dashboard:nw_preview")}</Button></nav>
+      <nav aria-label={t("dashboard:nw_title")} className="flex shrink-0 flex-wrap gap-2 border-b px-5 py-2">{(["notes", "groups", "ledger", "understanding", "svt", "review", "scenes", "guide"] as const).map((key) => <Button key={key} size="sm" variant={tab === key ? "default" : "ghost"} onClick={() => setTab(key)}>{key === "guide" ? "工作流程" : key === "review" ? "改编决策" : t(`dashboard:nw_tab_${key}`)} {key !== "guide" && <>({key === "scenes" ? (data.scene_batches ?? []).reduce((n, b) => n + b.scenes.length, 0) : key === "notes" ? data.notes.length : key === "svt" ? data.svts.length : key === "understanding" ? data.understanding?.links.length ?? 0 : key === "ledger" ? data.ledger?.characters.length ?? 0 : key === "review" ? (data.scene_batches ?? []).filter((b) => !b.stale).reduce((n, b) => n + (b.craft?.items.length ?? 0), 0) : data.groups.length})</>}</Button>)}<Button size="sm" variant="ghost" disabled={busy || working} onClick={() => void act(async () => setPreview(await API.previewChapterNotes(projectName)))}>{t("dashboard:nw_preview")}</Button></nav>
       {(tab === "review" || tab === "svt") && <div className="flex shrink-0 items-center gap-3 border-b px-5 py-3"><label className="text-sm font-semibold" htmlFor="adaptation-chapter">当前章节</label><select id="adaptation-chapter" className="min-w-0 max-w-full rounded-md border bg-background px-3 py-2 text-sm" value={note?.id ?? ""} onChange={(event) => { setFocused(event.target.value); setFocusedSvt(null); }}>{data.notes.filter((n) => !!n.reading).map((n) => <option key={n.id} value={n.id}>{n.order}. {n.title}{n.status !== "read" ? "（旧版资料）" : ""}</option>)}</select></div>}
+      {tab === "guide" && <WorkflowGuide />}
       {tab === "notes" && <>
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-5 py-2">
         <span className="mr-2 text-xs text-muted-foreground">{t("dashboard:nw_selected", { count: selectedNotes.length })}</span>

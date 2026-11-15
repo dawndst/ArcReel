@@ -40,7 +40,16 @@ class Reader:
             )
         if "抽取审核材料：" in request.prompt:
             payload = json.JSONDecoder().raw_decode(request.prompt.split("抽取审核材料：", 1)[1])[0]
-            return SimpleNamespace(text=json.dumps(payload["draft"]))
+            return SimpleNamespace(
+                text=json.dumps(
+                    {
+                        "snapshot": payload["snapshot"],
+                        "complete": True,
+                        "reviewed_sections": payload["review_sections"],
+                        "edits": [],
+                    }
+                )
+            )
         self.calls += 1
         if "章节材料：" in request.prompt:
             nodes = json.loads(request.prompt.split("章节材料：", 1)[1].split("\n只输出 JSON", 1)[0])
