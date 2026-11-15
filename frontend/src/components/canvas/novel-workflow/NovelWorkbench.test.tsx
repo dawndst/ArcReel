@@ -56,7 +56,7 @@ it("shows a consolidated chapter summary and lets review suggestions select sour
   render(<NovelWorkbench projectName="demo" />);
   expect(await screen.findByText("为了脱身，甲取剑应对阻力，最终找到出路。")).toBeInTheDocument();
   expect(screen.queryByText("分块内部摘要，不应冒充整章概况")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "改编收敛建议 (1)" }));
+  fireEvent.click(screen.getByRole("button", { name: "改编决策 (0)" }));
   expect(screen.getByText("建立主动性")).toBeInTheDocument();
   expect(screen.getByText("保留剑的来历")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "选择来源 Note" }));
@@ -159,4 +159,25 @@ it("shows stale warnings only on affected SVTs and lists the current result firs
   const old = screen.getByRole("heading", { name: /旧跨章结果/ });
   expect(current.compareDocumentPosition(old) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(within(current.closest("article")!).queryByText("部分来源已变化，请重新提炼相关 SVT。")).not.toBeInTheDocument();
+});
+
+
+it("analyzes the chapter shown in adaptation decisions without hidden Note selection", async () => {
+  const ready = { ...data, notes: data.notes.map((note) => ({ ...note, status: "read" as const, reading: { basis: note.basis, assets: [], changes: [], events: [], summaries: [], questions: [] } })) };
+  vi.mocked(API.getNovelWorkflow).mockResolvedValue(ready);
+  const run = vi.spyOn(API, "runNoteWorkflow").mockResolvedValue({} as never);
+  render(<NovelWorkbench projectName="demo" />);
+  fireEvent.click(await screen.findByRole("button", { name: "改编决策 (0)" }));
+  fireEvent.change(screen.getByLabelText("当前章节"), { target: { value: "note-2" } });
+  fireEvent.click(screen.getByRole("button", { name: "AI 分析本章改编取舍" }));
+  await waitFor(() => expect(run).toHaveBeenCalledWith("demo", "review", ["note-2"], "source-version"));
+});
+
+it("filters SVTs by current Note and retains shared-event chapter membership", async () => {
+  const svt = { id: "shared", title: "跨章追逐", note_ids: ["note-1", "note-2"], summary: "共同事件", status: "open" as const, mainline_reason: "主线", dialogues: [], evidence: [], event_ids: [], climaxes: [], payoffs: [], breakdown_status: "complete" as const };
+  vi.mocked(API.getNovelWorkflow).mockResolvedValue({ ...data, svts: [svt, { ...svt, id: "other", title: "范围外事件", note_ids: ["other-note"] }] } as NovelWorkflow);
+  render(<NovelWorkbench projectName="demo" />);
+  fireEvent.click(await screen.findByRole("button", { name: /^SVT 主线事件/ }));
+  expect(screen.getByRole("heading", { name: /跨章追逐/ })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: /范围外事件/ })).not.toBeInTheDocument();
 });

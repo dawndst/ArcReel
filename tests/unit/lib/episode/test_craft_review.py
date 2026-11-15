@@ -246,3 +246,21 @@ def test_adaptation_compression_preserves_tradeoff_and_source(tmp_path, monkeypa
     assert decision["tradeoff"] == request.tradeoff
     assert decision["dramatic_function"] == "推动行动"
     assert reading == before
+
+
+def test_simple_retain_needs_shot_link_but_no_explanatory_form(tmp_path, monkeypatch):
+    project, batch, _, _ = fixture(tmp_path, monkeypatch)
+    current = craft.view(tmp_path, project, batch)
+    req = craft.CraftDecision(
+        source_basis="src",
+        revision=current["revision"],
+        kind="coverage",
+        item_id="E1:action",
+        decision="confirm",
+        shot_ids=["SH-1"],
+    )
+    craft.decide(tmp_path, project, "b", req)
+    _, saved = craft.find_batch(tmp_path, "b")
+    decision = craft.view(tmp_path, project, saved)["items"][0]["decision"]
+    assert decision["shot_ids"] == ["SH-1"]
+    assert decision["reason"] == ""

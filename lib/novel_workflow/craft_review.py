@@ -349,7 +349,8 @@ def decide(path, project, batch_basis, req):
         current = view(path, project, batch)
         if current["revision"] != req.revision:
             raise ValueError("场镜、资产或检查结果已变化，请刷新后处理")
-        if req.decision != "restore" and len(req.reason.strip()) < 5:
+        simple_retain = req.kind == "coverage" and req.decision == "confirm" and req.adaptation_action == "retain"
+        if req.decision != "restore" and not simple_retain and len(req.reason.strip()) < 5:
             raise ValueError("请填写至少5字的处理依据")
         shots = {s["id"]: s for sc in batch["scenes"] for s in sc["shots"]}
         previous = deepcopy(batch)
