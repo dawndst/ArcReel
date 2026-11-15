@@ -42,7 +42,7 @@ function Editor({ initial, title, batch, labels, disabled, save, close }: { init
   </DialogContent></Dialog>;
 }
 
-export function CraftPanel({ batch, disabled, labels, run, save, locate, source, openCharacter }: { batch: SceneLibraryBatch; disabled: boolean; labels: Map<string, string>; run?: (note: string, shot: string) => void; save?: SaveCraft; locate: (id: string) => void; source: (shot?: string, range?: NoteEvidence) => void; openCharacter?: (reference: string) => void }) {
+export function CraftPanel({ batch, disabled, labels, run, save, locate, source, openCharacter, mode = "all" }: { mode?: "all" | "decisions" | "production"; batch: SceneLibraryBatch; disabled: boolean; labels: Map<string, string>; run?: (note: string, shot: string) => void; save?: SaveCraft; locate: (id: string) => void; source: (shot?: string, range?: NoteEvidence) => void; openCharacter?: (reference: string) => void }) {
   const { t } = useTranslation("dashboard");
   const [editor, setEditor] = useState<{ value: CraftDecision; title: string } | null>(null);
   const [notice, setNotice] = useState("");
@@ -58,7 +58,7 @@ export function CraftPanel({ batch, disabled, labels, run, save, locate, source,
     {craft.stale && <p role="status" className="text-sm text-warn">{t("nw_craft_stale")}</p>}
     {!craft.reading_available && <p role="status">{t("nw_craft_no_reading")}</p>}
     {notice && <p role="status" className="text-sm text-primary">{notice}</p>}
-    <details open className="rounded-lg border p-3"><summary className="cursor-pointer font-semibold">{t("nw_adaptation_title")} · {confirmed}/{craft.items.length} {t("nw_craft_decided")}</summary>
+    {mode !== "production" && <details open={mode === "all"} className="rounded-lg border p-3"><summary className="cursor-pointer font-semibold">{t("nw_adaptation_title")} · {confirmed}/{craft.items.length} {t("nw_craft_decided")}</summary>
       <div className="mt-3 space-y-3">{craft.items.map((item) => <article key={item.id} className="space-y-2 rounded border bg-muted/20 p-3 text-sm">
         <p className="font-semibold">{item.kind} · {item.title}</p><p className="leading-7">{item.text}</p>
         <p className="text-xs text-muted-foreground">{t(`nw_claim_${item.claim_type}`, { defaultValue: item.claim_type })}</p>
@@ -67,8 +67,8 @@ export function CraftPanel({ batch, disabled, labels, run, save, locate, source,
         {item.decision?.adaptation_action && <p className="text-sm"><strong>{t(`nw_adaptation_${item.decision.adaptation_action}`)}</strong> · {item.decision.dramatic_function}{item.decision.tradeoff && <span className="block text-muted-foreground">{item.decision.tradeoff}</span>}</p>}
         <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => source(undefined, item.evidence)}>{t("nw_craft_source")}</Button>{[...new Set([...(item.decision?.shot_ids ?? []), ...(item.suggestion?.shot_ids ?? [])])].map((id) => <Button key={id} variant="link" size="sm" onClick={() => locate(id)}>{labels.get(id) ?? id}</Button>)}{save && <Button size="sm" variant="outline" disabled={disabled} onClick={() => start("coverage", item.id, item.title, { shot_ids: item.decision?.shot_ids ?? item.suggestion?.shot_ids ?? [], adaptation_action: item.decision?.adaptation_action === "omit" ? "retain" : item.decision?.adaptation_action ?? "retain", dramatic_function: item.decision?.dramatic_function ?? "", tradeoff: item.decision?.tradeoff ?? "", reason: item.decision?.reason ?? "" })}>{t("nw_craft_handle")}</Button>}</div>
       </article>)}</div>
-    </details>
-    <details className="rounded-lg border p-3"><summary className="cursor-pointer font-semibold">{t("nw_craft_appearance")} · {craft.review?.appearance.length ?? 0}</summary>
+    </details>}
+    {mode !== "decisions" && <><details className="rounded-lg border p-3"><summary className="cursor-pointer font-semibold">{t("nw_craft_appearance")} · {craft.review?.appearance.length ?? 0}</summary>
       {!craft.review && <p className="mt-2 text-sm text-muted-foreground">{t("nw_craft_pending")}</p>}
       <div className="mt-3 space-y-3">{craft.review?.appearance.map((finding) => <article key={`${finding.shot_id}:${finding.reference}`} className="space-y-2 rounded border p-3 text-sm">
         <p className="font-semibold">{labels.get(finding.shot_id) ?? finding.shot_id} · {finding.reference} · {t(`nw_craft_${finding.status}`)}</p>
@@ -82,6 +82,7 @@ export function CraftPanel({ batch, disabled, labels, run, save, locate, source,
       const state = scene.opening_state ?? suggestion?.state;
       return <article key={scene.id} className="space-y-2 rounded border p-3 text-sm"><p className="font-semibold">{scene.title} · {t(scene.opening_state ? "nw_craft_human" : "nw_craft_ai")}</p>{state ? <dl className="space-y-2">{openingKeys.map((key) => <div key={key}><dt className="font-semibold text-muted-foreground">{t(`nw_craft_${key}`)}</dt><dd className="whitespace-pre-wrap">{state[key] || t("nw_craft_unknown")}</dd></div>)}</dl> : <p>{t("nw_craft_pending")}</p>}{suggestion && <blockquote className="border-l-2 pl-2">{suggestion.source_quote}</blockquote>}{save && <Button size="sm" variant="outline" disabled={disabled} onClick={() => start("opening", scene.id, scene.title, { opening: state ?? emptyOpening, reason: scene.opening_state?.reason ?? "" })}>{t("nw_craft_opening_edit")}</Button>}</article>;
     })}</div></details>
+    </>}
     {editor && save && <Editor initial={editor.value} title={editor.title} batch={batch} labels={labels} disabled={disabled} save={async (...args) => { await save(...args); setNotice(t("nw_craft_saved")); }} close={() => setEditor(null)} />}
   </section>;
 }

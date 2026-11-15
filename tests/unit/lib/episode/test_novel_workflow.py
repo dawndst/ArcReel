@@ -371,3 +371,32 @@ async def test_new_earlier_memory_invalidates_later_reading_until_refreshed(tmp_
     await read_notes(tmp_path, Reader(), [second], index["source_basis"])
     fresh = await asyncio.to_thread(store.view, tmp_path, data)
     assert all(n["status"] == "read" for n in fresh["notes"])
+
+
+def test_ledger_groups_confirmed_identity_but_keeps_unresolved_scopes(tmp_path, monkeypatch):
+    from lib.novel_workflow import memory
+
+    _, book = project(tmp_path)
+    note = book["notes"][0]
+    rows = [
+        {"id": str(i), "kind": "character", "name": "甲", "identity_scope": scope, "evidence": {"note_id": note["id"]}}
+        for i, scope in enumerate(("现实", "梦境", "身份未知甲", "身份未知乙"))
+    ]
+    monkeypatch.setattr(
+        memory, "reference", lambda _p, item: {"entity_id": "same-person"} if item["id"] in {"0", "1"} else {}
+    )
+    result = memory.ledger(
+        tmp_path,
+        book,
+        readings={
+            note["id"]: {
+                "basis": "current",
+                "assets": rows,
+                "changes": [{"id": "change", "character": "甲", "evidence": {"note_id": note["id"]}}],
+            }
+        },
+    )
+    assert len(result["characters"]) == 3
+    assert len(result["characters"][0]["mentions"]) == 2
+    # Same name alone cannot establish identity with the two unresolved records.
+    assert not result["characters"][0]["changes"]

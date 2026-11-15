@@ -266,7 +266,7 @@ def _view(path: Path, project: dict) -> dict:
         ]
     from lib.novel_workflow import memory, settings, understanding
 
-    book = memory.ledger(path, current, readings=display_readings) if not stale else None
+    book = memory.ledger(path, current, readings=readings) if not stale else None
     reviews = []
     for file in sorted((root(path) / "reviews").glob("*.json")):
         review = load_json(file)

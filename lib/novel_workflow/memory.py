@@ -6,7 +6,7 @@ import json
 from itertools import zip_longest
 
 from lib.novel_workflow import store
-from lib.novel_workflow.assets import mentions
+from lib.novel_workflow.assets import mentions, reference
 from lib.novel_workflow.common import digest
 from lib.novel_workflow.storage import load_json
 
@@ -60,7 +60,9 @@ def ledger(path, notebook, *, through=None, extra=(), readings=None):
         matches = {a["name"] for a in aliases if a["alias"] == name and a.get("identity_scope", "") == scope}
         if len(matches) == 1:
             name = next(iter(matches))
-        identity = digest([name, scope])[:24]
+        ref = reference(project, item)
+        entity = ref.get("entity_id") if not ref.get("asset_issue") and not ref.get("asset_missing") else None
+        identity = digest(["entity", entity] if entity else [name, scope])[:24]
         person = people.setdefault(
             identity,
             {

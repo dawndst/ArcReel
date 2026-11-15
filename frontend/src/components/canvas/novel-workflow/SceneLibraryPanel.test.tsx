@@ -80,7 +80,7 @@ it("numbers recovered batches in source order and keeps stable IDs for selection
   expect(select).toHaveBeenCalledWith(["SH-0018"]);
 });
 
-it("shows linked moments, registered assets, design and dialogue coverage together", () => {
+it("keeps shot assets and design while moving global coverage to adaptation decisions", () => {
   const draft = structuredClone(batch);
   const shot = draft.scenes[0].shots[0];
   const design = { purpose: "建立压迫", shot_size: "近景", camera_angle: "平视", camera_movement: "固定", framing: "阳子在画面右侧", continuity: "保持视线方向", sound: "只保留环境声" };
@@ -89,7 +89,8 @@ it("shows linked moments, registered assets, design and dialogue coverage togeth
   const openAsset = vi.fn();
   render(<SceneLibraryPanel batches={[draft]} notes={[]} disabled={false} selection={[shot.id]} setSelection={() => {}} title="" setTitle={() => {}} assemble={() => {}} source={() => {}} openAsset={openAsset} />);
   expect(screen.getByText("近景 · 平视 · 固定")).toBeInTheDocument();
-  expect(screen.getByText("关联 1 镜 · 关键台词 1 / 1")).toBeInTheDocument();
+  expect(screen.queryByText("关联 1 镜 · 关键台词 1 / 1")).not.toBeInTheDocument();
+  fireEvent.click(screen.getAllByText("镜头设计与资产")[0]!);
   fireEvent.click(screen.getByRole("button", { name: "CHR-001 · 阳子 / 人形" }));
   expect(openAsset).toHaveBeenCalledWith(shot.production.assets[0]);
 });
