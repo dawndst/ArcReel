@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from lib.novel_workflow.common import digest
 from lib.novel_workflow import conclusions, settings, store, understanding
+from lib.novel_workflow.common import digest
 from lib.novel_workflow.conclusions import Consolidation
 from tests.unit.lib.episode.test_cross_chapter_understanding import FIRST, SECOND, setup
 
@@ -143,8 +143,8 @@ def test_resolution_requires_explicit_evidence_and_covers_every_original_questio
 
 
 async def test_call_limit_stops_before_extra_generation_and_keeps_visible_counter(tmp_path):
-    from lib.novel_workflow.cancellation import NovelReadingInterrupted
     from lib.novel_workflow.call_budget import WorkflowGenerator
+    from lib.novel_workflow.cancellation import NovelReadingInterrupted
 
     await asyncio.to_thread(settings.update, tmp_path, {"max_model_calls": 1})
 
@@ -296,3 +296,19 @@ def test_overview_accepts_supplied_dialogue_via_parent_event_but_not_unknown_ids
     value["overview"]["evidence_ids"] = ["foreign-dialogue"]
     with pytest.raises(ValueError, match="概况引用"):
         conclusions.validate(Consolidation.model_validate(value), note, reading, evidence, questions, notebook, 1200)
+
+
+def test_dialogue_uncertainty_does_not_block_svt_but_still_blocks_production(tmp_path, monkeypatch):
+    item = {"question": "闭眼是否影响操纵？", "blocking": True, "impact": "dialogue"}
+    note = {"id": "n"}
+    monkeypatch.setattr(conclusions, "enabled", lambda _p: True)
+    monkeypatch.setattr(store, "state", lambda _p: {"notes": [note]})
+    monkeypatch.setattr(store, "valid_readings", lambda *_a: {"n": {}})
+    monkeypatch.setattr(conclusions, "load", lambda *_a, **_k: {"conclusions": [item]})
+    conclusions.require_ready(tmp_path, ["n"], stage="svt")
+    with pytest.raises(ValueError, match="闭眼"):
+        conclusions.require_ready(tmp_path, ["n"])
+    for impact in ("identity", "causal", None):
+        item["impact"] = impact
+        with pytest.raises(ValueError, match="闭眼"):
+            conclusions.require_ready(tmp_path, ["n"], stage="svt")

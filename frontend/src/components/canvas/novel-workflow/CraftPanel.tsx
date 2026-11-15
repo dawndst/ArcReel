@@ -54,7 +54,6 @@ export function CraftPanel({ batch, disabled, labels, run, save, locate, source,
   return <section className="space-y-3 rounded-xl border border-primary/25 bg-background p-4">
     <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-bold">{mode === "decisions" ? "内容取舍记录" : t("nw_craft_title")}</h3>{run && first && <Button size="sm" disabled={disabled || !craft.reading_available} onClick={() => run(batch.note_id, first.id)}>{t(craft.review ? "nw_craft_recheck" : "nw_craft_check")}</Button>}</div>
     {mode !== "decisions" && <p className="text-xs text-muted-foreground">{t("nw_craft_scope")}</p>}
-    {batch.stale && <p className="text-xs text-warn">{t("nw_craft_historical")}</p>}
     {craft.stale && <p role="status" className="text-sm text-warn">{t("nw_craft_stale")}</p>}
     {!craft.reading_available && <p role="status">{t("nw_craft_no_reading")}</p>}
     {notice && <p role="status" className="text-sm text-primary">{notice}</p>}

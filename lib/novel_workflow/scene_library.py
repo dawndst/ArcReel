@@ -84,9 +84,13 @@ def view(path, notebook, readings):
     batches = list(catalog(path)["batches"].values())
     project = load_json(path / "project.json")
     chunk_cache = {}
+    current_batches = []
     for batch in batches:
         batch["stale_reasons"] = stale_reasons(path, batch, notebook, readings)
         batch["stale"] = bool(batch["stale_reasons"])
+        if batch["stale"]:
+            continue
+        current_batches.append(batch)
         batch["production_stale"] = False
         if not batch["stale"] and batch.get("production_context") and batch["note_id"] in readings:
             note_id = batch["note_id"]
@@ -105,18 +109,6 @@ def view(path, notebook, readings):
 
             note_id = batch["note_id"]
             coverage_reading = readings.get(note_id)
-            if not coverage_reading or coverage_reading["basis"] != batch["note_bases"].get(note_id):
-                # Historical coverage is display-only: never inject old evidence into production.
-                from lib.novel_workflow.storage import reading_version
-
-                coverage_reading = reading_version(path, note_id, batch["note_bases"].get(note_id)) or next(
-                    (
-                        r
-                        for f in (store.root(path) / "notes" / note_id).glob("*.json")
-                        if (r := load_json(f)).get("basis") == batch["note_bases"].get(note_id)
-                    ),
-                    None,
-                )
             if coverage_reading:
                 if note_id not in chunk_cache:
                     note = next(n for n in notebook["notes"] if n["id"] == note_id)
@@ -146,7 +138,7 @@ def view(path, notebook, readings):
                     draft["stale"] = draft["basis"] != content_basis(shot) or draft.get("rule_basis") != digest(
                         store.effective_rule(path, "shot_execution")
                     )
-    return sorted(batches, key=lambda b: (b["note_order"], b["part"]))
+    return sorted(current_batches, key=lambda b: (b["note_order"], b["part"]))
 
 
 def selected_shots(path, notebook, readings, ids):

@@ -15,6 +15,10 @@ def test_catalog_reads_effective_project_rules_and_templates_without_mutation(tm
     assert entries["novel/svt"]["content"].startswith("项目专属主归属规则")
     assert entries["novel/svt"]["source"] == "project"
     assert "1200" in entries["novel/chapter"]["content"]
+    assert "ReviewEdits" in entries["novel/read_review"]["content"]
+    assert "返回 complete=true 的完整结果，不只返回差异。" not in entries["novel/read_review"]["content"]
+    assert "novel/read_review_patch" in entries
+    assert "novel/conclusion_evidence" in entries
     assert any(k.startswith("template/") for k in entries)
     assert any(k.startswith("partial/") for k in entries)
     assert any(k.startswith("agent/") for k in entries)

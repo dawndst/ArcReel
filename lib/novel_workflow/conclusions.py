@@ -399,7 +399,11 @@ def commit(path, note, expected, report, key, value):
         store.write(target, value)
 
 
-def require_ready(path, note_ids):
+def blocks_stage(item, stage="production"):
+    return bool(item.get("blocking") and not (stage == "svt" and item.get("impact") == "dialogue"))
+
+
+def require_ready(path, note_ids, *, stage="production"):
     if not enabled(path):
         return
     notebook = store.state(path)
@@ -410,7 +414,7 @@ def require_ready(path, note_ids):
         value = load(path, note, readings.get(note["id"]), notebook=notebook, readings=readings)
         if not value:
             raise ValueError("请先完成所选章节的问题与结论整理。")
-        blocking = [c["question"] for c in value["conclusions"] if c["blocking"]]
+        blocking = [c["question"] for c in value["conclusions"] if blocks_stage(c, stage)]
         if blocking:
             raise ValueError("这些结论影响人物身份、因果或对白，请先处理：" + "；".join(blocking))
 
@@ -421,6 +425,7 @@ def effective_reading(path, note, reading, *, notebook=None, readings=None):
         return reading
     from lib.novel_workflow.conclusion_evidence import enrich
 
+    value = {**value, "conclusions": [{**c, "svt_blocking": blocks_stage(c, "svt")} for c in value["conclusions"]]}
     value = enrich(path, note, reading, value)
     pending = [c for c in value["conclusions"] if c["status"] != "resolved"]
     return {

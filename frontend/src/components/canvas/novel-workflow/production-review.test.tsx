@@ -21,6 +21,7 @@ it("requires an explicit human story decision before assembly; no automatic AI o
   fireEvent.click(screen.getByRole("button", { name: "组集参考与制作资料" }));
   expect(await screen.findByRole("heading", { name: "1 · 核对实际画面与台词" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "组为正式剧集" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("tab", {name:/^2 ·/}));
   const save = screen.getByRole("button", { name: "保存当前版本的编导确认" }); expect(save).toBeDisabled();
   fireEvent.change(screen.getByRole("textbox", { name: /本集要讲清楚/ }), { target: { value: "让观众看懂人物携剑出发的行动" } });
   fireEvent.change(screen.getByRole("textbox", { name: /有意保留的悬念/ }), { target: { value: "保留身份悬念" } });

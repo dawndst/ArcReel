@@ -181,3 +181,12 @@ it("filters SVTs by current Note and retains shared-event chapter membership", a
   expect(screen.getByRole("heading", { name: /跨章追逐/ })).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: /范围外事件/ })).not.toBeInTheDocument();
 });
+
+it("allows SVT with a dialogue-only unresolved conclusion and keeps the production warning", async () => {
+  const original=data.notes[0]!;
+  vi.mocked(API.getNovelWorkflow).mockResolvedValue({...data,settings:{summary_max_chars:1200,understanding_enabled:false},notes:[{...original,status:'read',reading:{basis:original.basis,summaries:[],assets:[],changes:[],events:[],questions:[],conclusion_review:{basis:'c',note_id:original.id,created_at:'2026-11-15T00:00:00Z',overview:{summary:'',cause:'',conflict:'',action:'',outcome:'',hook:'',questions:[],evidence_ids:[]},conclusions:[{id:'q',question:'闭眼是否影响操纵？',status:'check',blocking:true,impact:'dialogue',svt_blocking:false,answer:'保留疑点',production_constraint:'不要扩展成通用规则',evidence:[],evidence_ids:[],source_ids:[]}]}}}]} as NovelWorkflow);
+  render(<NovelWorkbench projectName="demo" />);
+  fireEvent.click(await screen.findByRole('checkbox',{name:'选择 卷一 · 第1章'}));
+  expect(screen.getByRole('button',{name:'从所选 Note 提炼 SVT'})).toBeEnabled();
+  expect(screen.getByText('SVT 可继续提炼；以下问题仅需在生成场镜前核对。')).toBeVisible();
+});

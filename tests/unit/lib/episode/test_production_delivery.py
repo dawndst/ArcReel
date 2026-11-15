@@ -9,9 +9,9 @@ from copy import deepcopy
 import pytest
 
 from lib.infra.json_io import load_json
-from lib.novel_workflow.common import digest
 from lib.novel_workflow import chapters, execution, scene_library, settings, store, understanding
 from lib.novel_workflow import delivery_review as review
+from lib.novel_workflow.common import digest
 from lib.novel_workflow.delivery_review import DirectorDecision
 from lib.novel_workflow.shot_production import context, planning_inputs
 from tests.unit.lib.episode.test_note_assets import save_reading
@@ -176,7 +176,9 @@ def test_human_review_then_assembly_then_current_artwork_handoff(prepared):
                 asset["image_hash"],
                 "美术",
                 actor_id="art",
-                policy=review.reference_policy.ReferencePolicy(controls=["appearance"], excludes="不参考图片背景和机位"),
+                policy=review.reference_policy.ReferencePolicy(
+                    controls=["appearance"], excludes="不参考图片背景和机位"
+                ),
             )
     final = review.handoff(path, current, [shot["id"]], "出发", book["source_basis"])
     assert final["ready"]
@@ -508,3 +510,27 @@ def test_batch_conclusion_constraints_survive_native_assembly_and_draft_delivery
     assert manifest["shots"][0]["conclusion_constraints"] == constraints
     assert "仅表现神似，不确认同一身份" in manifest["shots"][0]["segments"][0]["canvas_prompt"]
     assert "仅表现神似，不确认同一身份" in archive.read("制作清单.md").decode()
+
+
+def test_literal_continuity_differences_need_review_but_not_one_reason_per_boundary(prepared, monkeypatch):
+    _, path, _, book, shot = prepared
+    plan = {
+        "basis": "continuity-review",
+        "ai_review": None,
+        "issues": [{"code": "continuity_boundary", "decision_key": "continuity:1", "hard": False}],
+    }
+    monkeypatch.setattr(review, "preview", lambda *_a, **_k: plan)
+    d = DirectorDecision(
+        basis=plan["basis"],
+        reviewer="导演",
+        story_intent="本集讲清楚人物携剑离开的行动",
+        withheld="保留人物身份悬念",
+        story_checked=True,
+        timing_checked=True,
+        continuity_checked=True,
+        decisions={},
+    )
+    review.approve(path, [shot["id"]], "出发", book["source_basis"], d)
+    plan["issues"].append({"code": "source_review", "hard": False})
+    with pytest.raises(ValueError, match="至少10字"):
+        review.approve(path, [shot["id"]], "出发", book["source_basis"], d)

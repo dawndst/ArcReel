@@ -229,7 +229,11 @@ def approve(path, shot_ids, title, expected, decision, *, actor_id=None):
             raise ValueError("请先修复结构、对白归属和引用错误，人工确认不能跳过这些错误")
         if not (decision.story_checked and decision.timing_checked and decision.continuity_checked):
             raise ValueError("编导须确认故事、节奏和连续性")
-        codes = {continuity.decision_key(i) for i in current["issues"] if not i["hard"]}
+        codes = {
+            continuity.decision_key(i)
+            for i in current["issues"]
+            if not i["hard"] and i["code"] != "continuity_boundary"
+        }
         codes.update("story:" + i["kind"] for i in (current.get("ai_review") or {}).get("findings", []))
         if any(len(decision.decisions.get(code, "").strip()) < 10 for code in codes):
             raise ValueError("每类待判断提示须记录具体处理依据，至少10字")

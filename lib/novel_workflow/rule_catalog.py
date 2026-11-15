@@ -7,6 +7,8 @@ from lib.novel_workflow.common import digest
 from lib.prompts.prompt_templates.builtin import builtin_templates
 
 TITLES = {
+    "read_review_patch": ("Note 审核局部修订协议", "保留原稿，按版本和原始编号应用局部修订，再校验原文"),
+    "conclusion_evidence": ("单条疑点定向回查", "逐条解释候选原文的支持关系，给出建议，不自动作出人工决定"),
     "svt_material": ("SVT 精简稿阅读与原文回查", "共享精简段落、完整事件索引与关键原句；缺失或疑义时回读原文"),
     "craft_review": (
         "内容承载与身份外观检查",
@@ -65,6 +67,10 @@ def catalog(path, project):
             from lib.novel_workflow.service import reading_rules
 
             text = reading_rules(path)
+        elif name == "read_review":
+            from lib.novel_workflow.reading_audit import review_rules
+
+            text = review_rules(path)
         elif name == "understand":
             from lib.novel_workflow.understanding import understanding_rules
 

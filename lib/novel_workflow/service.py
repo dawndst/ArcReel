@@ -506,7 +506,7 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
     from lib.novel_workflow.conclusions import effective_reading, prepare, require_ready
 
     await prepare(path, generator, note_ids, expected)
-    await asyncio.to_thread(require_ready, path, note_ids)
+    await asyncio.to_thread(require_ready, path, note_ids, stage="svt")
     notebook = await asyncio.to_thread(current, path, expected)
     wanted = set(note_ids)
     notes = [n for n in notebook["notes"] if n["id"] in wanted]
@@ -608,7 +608,7 @@ async def generate_svts(path: Path, generator, note_ids: list[str], expected: st
             "note_id": note["id"],
             "overview": reviewed.get("overview"),
             "conclusions": [
-                {k: c.get(k) for k in ("question", "status", "answer", "production_constraint")}
+                {k: c.get(k) for k in ("question", "status", "claim_type", "impact", "answer", "production_constraint")}
                 for c in reviewed.get("conclusion_review", {}).get("conclusions", [])
             ],
             "index": index_value,

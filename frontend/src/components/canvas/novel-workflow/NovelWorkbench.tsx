@@ -197,6 +197,7 @@ export function NovelWorkbench({ projectName }: { projectName: string }) {
   const needsUnderstanding = data?.settings?.understanding_enabled !== false && selectedNotes.some((n) => !understoodIds.has(n.id));
   const needsConclusions = data?.settings?.conclusions_enabled !== false && selectedNotes.some((n) => !n.reading?.conclusion_review);
   const blockingConclusions = data?.settings?.conclusions_enabled !== false && selectedNotes.some((n) => n.reading?.conclusion_review?.conclusions.some((c) => c.blocking));
+  const blockingSvt = data?.settings?.conclusions_enabled !== false && selectedNotes.some((n) => n.reading?.conclusion_review?.conclusions.some((c) => c.svt_blocking ?? (c.blocking && c.impact !== "dialogue")));
   const needsSvtReview = selectedNotes.some((n) => n.svt_status === "needs_review");
   const referenceOnly = data?.groups.some((g) => g.usage === "reference" && g.note_ids.some((id) => selected.includes(id)));
   const outputStatus = noteProductionStatus(data, selectedNotes);
@@ -205,7 +206,7 @@ export function NovelWorkbench({ projectName }: { projectName: string }) {
     : selectedNotes.some((n) => n.status !== "read") ? "nw_next_read"
     : needsUnderstanding ? "nw_understanding_required"
     : needsConclusions ? "nw_conclusions_pending"
-    : blockingConclusions ? "nw_conclusions_blocking"
+    : blockingSvt ? "nw_conclusions_blocking"
     : selectedNotes.some((n) => !n.svt_id) ? "nw_next_svt"
     : needsSvtReview ? "nw_svt_review_required"
     : referenceOnly ? "nw_reference_block"
@@ -237,7 +238,7 @@ export function NovelWorkbench({ projectName }: { projectName: string }) {
         <Button size="sm" variant="outline" title={t("dashboard:nw_understand_single_hint")} disabled={!canRun || data.settings?.understanding_enabled === false || selectedNotes.some((n) => n.status !== "read")} onClick={() => void act(async () => { await API.runNoteWorkflow(projectName, "understand", selected, data.source_basis!); setTab("understanding"); })}>{t("dashboard:nw_understand")}</Button></div>
         {data.settings?.conclusions_enabled !== false && <Button size="sm" variant="outline" disabled={!canRun || selectedNotes.some((n) => n.status !== "read")} onClick={() => void act(async () => { if (NOVEL_WORKFLOW_SLOTS.some((slot) => isResourceBusy("text_novel_workflow", projectName, slot))) return; await API.runNoteWorkflow(projectName, "conclusions", selected, data.source_basis!); setTab("understanding"); })}>{t("dashboard:nw_conclusions_run")}</Button>}
         <NoteProductionActions data={data} notes={selectedNotes} busy={busy || working}
-          canSvt={canRun && !needsConclusions && !blockingConclusions && !needsUnderstanding && !selectedNotes.some((n) => n.status !== "read")}
+          canSvt={canRun && !needsConclusions && !blockingSvt && !needsUnderstanding && !selectedNotes.some((n) => n.status !== "read")}
           canScenes={canRun && !needsConclusions && !blockingConclusions && !needsUnderstanding && !selectedNotes.some((n) => n.status !== "read" || !n.svt_id) && !needsSvtReview && !referenceOnly}
           viewSvt={(id) => { setFocusedSvt(id); const target = data?.svts.find((svt) => svt.id === id); if (target && !target.note_ids.includes(note?.id ?? "")) setFocused(target.note_ids[0]); setTab("svt"); }}
           viewScenes={(id) => { setFocusedBatch(id); setTab("scenes"); }}
@@ -248,7 +249,7 @@ export function NovelWorkbench({ projectName }: { projectName: string }) {
         <Button size="sm" variant="outline" disabled={!canRun || needsUnderstanding || selectedNotes.some((n) => n.status !== "read")} onClick={() => void act(async () => { await API.runNoteWorkflow(projectName, "review", selected, data.source_basis!); setTab("review"); })}>AI 分析所选章节改编取舍</Button>
         <Button size="sm" variant="outline" disabled={busy || selectedNotes.length < 1 || data.stale} onClick={() => { setTitle(""); setMerging(true); }}><Layers data-icon="inline-start" />{t("dashboard:nw_merge")}</Button>
       </div>
-      {!working && <div role="status" className="shrink-0 space-y-1 border-b px-5 py-1 text-xs text-muted-foreground"><p>{t(`dashboard:${nextStep}`)}</p>{blockingConclusions && <div role="status" className="space-y-2 border-b bg-warn/5 px-5 py-3 text-sm"><p className="font-semibold">暂不能提炼 SVT：以下结论需要核对，已完成的跨章理解无需重跑。</p><ul className="list-disc space-y-1 pl-5">{selectedNotes.flatMap((n) => (n.reading?.conclusion_review?.conclusions ?? []).filter((c) => c.blocking).map((c) => <li key={`${n.id}:${c.id}`}>{n.title}：{c.question}<span className="block text-xs text-muted-foreground">{c.production_constraint}</span></li>))}</ul><Button size="sm" variant="outline" onClick={() => { const blocked = selectedNotes.find((n) => n.reading?.conclusion_review?.conclusions.some((c) => c.blocking)); if (blocked) setFocused(blocked.id); setTab("understanding"); }}>前往跨章理解核对结论</Button></div>}{selectedNotes.some((n) => n.svt_status === "needs_details") && <p className="text-warn">{t("dashboard:nw_svt_incomplete_hint")}</p>}</div>}
+      {!working && <div role="status" className="shrink-0 space-y-1 border-b px-5 py-1 text-xs text-muted-foreground"><p>{t(`dashboard:${nextStep}`)}</p>{blockingConclusions && <div role="status" className="space-y-2 border-b bg-warn/5 px-5 py-3 text-sm"><p className="font-semibold">{blockingSvt ? "以下问题阻挡 SVT，需先核对。" : "SVT 可继续提炼；以下问题仅需在生成场镜前核对。"}</p><ul className="list-disc space-y-1 pl-5">{selectedNotes.flatMap((n) => (n.reading?.conclusion_review?.conclusions ?? []).filter((c) => c.blocking).map((c) => <li key={`${n.id}:${c.id}`}>{n.title}：{c.question}<span className="block text-xs text-muted-foreground">{c.production_constraint}</span></li>))}</ul><Button size="sm" variant="outline" onClick={() => { const blocked = selectedNotes.find((n) => n.reading?.conclusion_review?.conclusions.some((c) => c.blocking)); if (blocked) setFocused(blocked.id); setTab("understanding"); }}>前往跨章理解核对结论</Button></div>}{selectedNotes.some((n) => n.svt_status === "needs_details") && <p className="text-warn">{t("dashboard:nw_svt_incomplete_hint")}</p>}</div>}
       </>}
       {tab === "notes" && <div className="@container/notebook flex min-h-0 min-w-0 flex-1">
         <aside className="relative w-56 shrink-0 overflow-y-auto border-r [scrollbar-gutter:stable] @max-[640px]/notebook:w-36">{data.groups.map((group) => <details key={group.id} className="border-b p-2"><summary className="cursor-pointer text-sm font-semibold">{group.title} ({group.note_ids.length})</summary>{renderNotes(data.notes.filter((n) => group.note_ids.includes(n.id)))}</details>)}{renderNotes(data.notes.filter((n) => !data.groups.some((g) => g.note_ids.includes(n.id))))}</aside>

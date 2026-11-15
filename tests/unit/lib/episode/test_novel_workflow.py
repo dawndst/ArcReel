@@ -357,7 +357,7 @@ async def test_review_is_scoped_cited_and_does_not_modify_human_groups(tmp_path)
         validate(invalid, review["evidence"], {ids[0]})
     await asyncio.to_thread((store.root(tmp_path) / "rules/review.md").write_text, "Changed rules")
     result = await asyncio.to_thread(store.view, tmp_path, data)
-    assert result["reviews"][0]["stale"] is True
+    assert result["reviews"] == []
 
 
 async def test_earlier_scope_never_receives_valid_future_svt(tmp_path):
@@ -377,6 +377,7 @@ async def test_new_earlier_memory_invalidates_later_reading_until_refreshed(tmp_
     await read_notes(tmp_path, Reader(), [first], index["source_basis"])
     stale = await asyncio.to_thread(store.view, tmp_path, data)
     assert stale["notes"][1]["status"] == "outdated"
+    assert stale["notes"][1]["reading"] is None
     await read_notes(tmp_path, Reader(), [second], index["source_basis"])
     fresh = await asyncio.to_thread(store.view, tmp_path, data)
     assert all(n["status"] == "read" for n in fresh["notes"])

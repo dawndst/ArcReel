@@ -208,9 +208,6 @@ def _view(path: Path, project: dict) -> dict:
     display_readings = {**valid_readings(path, current, respect_scope=False), **readings} if not stale else {}
     for note in current["notes"]:
         result = display_readings.get(note["id"])
-        if result is None and not stale:
-            cached = root(path) / "notes" / note["id"] / f"{reading_key(path, note)}.json"
-            result = load_json(cached) if cached.exists() else saved_reading(path, note)
         current_reading = note["id"] in (readings if note["id"] in allowed else display_readings)
         older = any((root(path) / "notes" / note["id"]).glob("*.json")) if result is None else False
         if result is not None:
@@ -267,6 +264,8 @@ def _view(path: Path, project: dict) -> dict:
     from lib.novel_workflow import memory, settings, understanding
 
     book = memory.ledger(path, current, readings=readings) if not stale else None
+    current_understanding = understanding.view(path, current) if not stale else {"links": [], "reports": []}
+    current_understanding["reports"] = [r for r in current_understanding["reports"] if not r["stale"]]
     reviews = []
     for file in sorted((root(path) / "reviews").glob("*.json")):
         review = load_json(file)
@@ -290,7 +289,7 @@ def _view(path: Path, project: dict) -> dict:
     return {
         **current,
         "groups": groups,
-        "scene_batches": scene_library.view(path, current, readings),
+        "scene_batches": [b for b in scene_library.view(path, current, readings) if not b["stale"]],
         "pending_assemblies": [
             {
                 "episode": e["episode"],
@@ -306,13 +305,13 @@ def _view(path: Path, project: dict) -> dict:
         if (root(path) / "call_budget.json").exists()
         else None,
         "scope": scope.view(path, current, readings),
-        "understanding": understanding.view(path, current) if not stale else {"links": [], "reports": []},
+        "understanding": current_understanding,
         "ledger": book,
-        "reviews": sorted(reviews, key=lambda r: r["created_at"], reverse=True),
+        "reviews": sorted((r for r in reviews if not r["stale"]), key=lambda r: r["created_at"], reverse=True),
         "initialized": True,
         "notes": notes,
         "stale": stale,
-        "svts": [{**s, "stale": s["id"] not in live_svt_ids} for s in svts.get("svts", [])] if svts else [],
+        "svts": display_svts,
         "svt_stale": svt_stale,
         "suggestions": svts.get("suggestions", []) if svts else [],
         "progress": load_json(progress_file) if progress_file.exists() else None,

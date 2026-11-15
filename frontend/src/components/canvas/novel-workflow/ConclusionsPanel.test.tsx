@@ -45,3 +45,19 @@ it("lets a human search and select source evidence omitted by the model", () => 
   fireEvent.click(evidence);
   expect(save).toBeDisabled();
 });
+
+it("separates production blockers from later checks and explains that SVT can continue", () => {
+  const grouped=structuredClone(notes);
+  const base=grouped[0]!.reading!.conclusion_review!.conclusions[0]!;
+  grouped[0]!.reading!.conclusion_review!.conclusions=[
+    {...base,id:'block',question:'闭眼是否影响冗佑？',status:'check',blocking:true,impact:'dialogue',svt_blocking:false},
+    ...[1,2,3].map((i) => ({...base,id:`later${i}`,question:`普通疑点${i}`,status:'check' as const,blocking:false,impact:'none' as const,svt_blocking:false})),
+  ];
+  render(<ConclusionsPanel notes={grouped} busy={false} />);
+  expect(screen.getByRole('heading',{name:'场镜制作前需处理 · 1'})).toBeVisible();
+  expect(screen.getByRole('heading',{name:'可稍后核对 · 3'})).toBeVisible();
+  expect(screen.getByText(/当前没有阻挡 SVT 的结论/)).toBeVisible();
+  fireEvent.click(screen.getByRole('button',{name:'可稍后核对 (3)'}));
+  expect(screen.queryByText('闭眼是否影响冗佑？')).not.toBeInTheDocument();
+  expect(screen.getByText('普通疑点1')).toBeVisible();
+});

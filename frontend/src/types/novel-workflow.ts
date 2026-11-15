@@ -113,7 +113,7 @@ export interface SavedDelivery { basis: string; title: string; shot_ids: string[
 export type ConclusionStatus = "resolved" | "partial" | "unrevealed" | "check" | "conflict";
 export interface RelatedConclusionEvidence extends NoteEvidence { id: string; note_title?: string; context_quote?: string; retrieval_reason?: string }
 export interface ConclusionEvidenceReview { status: ConclusionStatus; answer: string; reason: string; evidence_ids: string[]; findings: { evidence_id: string; relation: "supports" | "refutes" | "context" | "insufficient"; explanation: string }[] }
-export interface NoteConclusion extends ClaimStatus { related_evidence?: RelatedConclusionEvidence[]; evidence_review?: ConclusionEvidenceReview | null; evidence_review_basis?: string; id: string; question: string; status: ConclusionStatus; answer: string; evidence_ids: string[]; evidence: NoteEvidence[]; blocking: boolean; production_constraint: string; source_ids: string[] }
+export interface NoteConclusion extends ClaimStatus { impact?: "none" | "identity" | "causal" | "dialogue"; svt_blocking?: boolean; related_evidence?: RelatedConclusionEvidence[]; evidence_review?: ConclusionEvidenceReview | null; evidence_review_basis?: string; id: string; question: string; status: ConclusionStatus; answer: string; evidence_ids: string[]; evidence: NoteEvidence[]; blocking: boolean; production_constraint: string; source_ids: string[] }
 export interface ConclusionReview { available_evidence?: (NoteEvidence & { id: string })[]; basis: string; note_id: string; created_at: string; overview: NoteOverview; conclusions: NoteConclusion[] }
 
 export interface OpeningState { present: string; positions: string; props: string; entering: string }

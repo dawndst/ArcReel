@@ -21,7 +21,7 @@ function ConclusionCard({ item, noteId, busy, decide, recheck }: { recheck?: (no
   const labels = { supports: "直接支持", refutes: "直接反驳", context: "仅提供背景", insufficient: "不足以判断" };
   const matchingEvidence = evidence.filter((value) => value.quote.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   return <article className={`space-y-3 rounded-xl border p-4 ${item.blocking ? "border-destructive/50 bg-destructive/5" : item.status === "resolved" ? "border-primary/20 bg-primary/5" : "bg-card"}`}>
-    <header className="space-y-2"><span className={`inline-block rounded px-2 py-1 text-xs font-semibold ${item.blocking ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>{t(`nw_conclusions_${item.status}`)}</span><h3 className="font-semibold leading-6">{item.question}</h3></header>
+    <header className="space-y-2"><span className={`inline-block rounded px-2 py-1 text-xs font-semibold ${item.blocking ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>{t(`nw_conclusions_${item.status}`)}</span><p className="text-xs font-medium">{item.blocking ? (item.svt_blocking ?? item.impact !== "dialogue") ? "阻挡 SVT 与场镜" : "仅需在场镜制作前处理 · SVT 可继续" : item.status === "check" || item.status === "conflict" ? "可稍后核对 · 不阻挡当前流程" : ""}</p><h3 className="font-semibold leading-6">{item.question}</h3></header>
     <p className="text-sm leading-6">{item.answer}</p>
     <p className="rounded bg-muted/60 p-3 text-xs leading-5"><strong>{t("nw_conclusions_constraint")}：</strong>{item.production_constraint}</p>
     <section className="space-y-3 rounded-lg border bg-muted/20 p-3"><h4 className="font-semibold">与本疑点相关的原文</h4>
@@ -40,10 +40,24 @@ export function ConclusionsPanel({ notes, busy, decide, initialNoteId, recheck }
   const { t } = useTranslation("dashboard");
   const available = notes.filter((n) => n.reading);
   const [active, setActive] = useState(initialNoteId ?? available.at(-1)?.id ?? "");
-  const [filter, setFilter] = useState<"all" | ConclusionStatus>("all");
+  const [filter, setFilter] = useState<"all" | "blocking" | "later" | ConclusionStatus>("all");
   const note = available.find((n) => n.id === active) ?? available.at(-1);
   const review = note?.reading?.conclusion_review;
+  const all = review?.conclusions ?? [];
+  const later = (c: NoteConclusion) => !c.blocking && (c.status === "check" || c.status === "conflict");
+  const visible = all.filter((c) => filter === "all" || (filter === "blocking" ? c.blocking : filter === "later" ? later(c) : c.status === filter));
+  const groups = [
+    { key:"blocking", title:"场镜制作前需处理", items:visible.filter((c) => c.blocking) },
+    { key:"later", title:"可稍后核对", items:visible.filter(later) },
+    { key:"other", title:"已整理的结论与剧情悬念", items:visible.filter((c) => !c.blocking && !later(c)) },
+  ];
   return <section className="@container space-y-4 rounded-xl border border-primary/30 bg-card p-5"><header className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold">{t("nw_conclusions_title")}</h2><select className="max-w-full rounded border border-input bg-background p-2 text-sm" aria-label={t("nw_conclusions_title")} value={note?.id ?? ""} onChange={(event) => setActive(event.target.value)}>{available.map((n) => <option key={n.id} value={n.id}>{n.order}. {n.title}</option>)}</select></header>
-    {!review ? <p className="text-sm text-muted-foreground">{t("nw_conclusions_missing")}</p> : <><nav className="flex flex-wrap gap-2">{(["all", ...statuses] as const).map((s) => <Button key={s} size="sm" variant={filter === s ? "default" : "outline"} onClick={() => setFilter(s)}>{t(`nw_conclusions_${s}`)} ({review.conclusions.filter((c) => s === "all" || c.status === s).length})</Button>)}</nav><div className="grid gap-4 @xl:grid-cols-2">{review.conclusions.filter((c) => filter === "all" || c.status === filter).map((item) => <ConclusionCard key={`${note.id}:${review.basis}:${item.id}`} item={item} recheck={recheck} noteId={note.id} busy={busy} decide={decide} />)}</div></>}
+    {!review ? <p className="text-sm text-muted-foreground">{t("nw_conclusions_missing")}</p> : <>
+      <div className="space-y-2 rounded-lg border bg-muted/20 p-3 text-sm"><p><strong>待核对 {all.filter((c) => c.status === "check" || c.status === "conflict").length} 条</strong>：场镜制作前需处理 {all.filter((c) => c.blocking).length} 条，可稍后核对 {all.filter(later).length} 条。</p><p className="text-xs text-muted-foreground">{all.some((c) => c.svt_blocking ?? (c.blocking && c.impact !== "dialogue")) ? "存在影响主线身份或因果的问题，须处理后提炼 SVT。" : "当前没有阻挡 SVT 的结论。对白类疑点保留制作约束，生成场镜前再核对；不必为提炼主线逐条清空。"}</p></div>
+      <nav aria-label="处理优先级" className="flex flex-wrap gap-2"><Button size="sm" variant={filter === "blocking" ? "default" : "outline"} onClick={() => setFilter("blocking")}>场镜前需处理 ({all.filter((c) => c.blocking).length})</Button><Button size="sm" variant={filter === "later" ? "default" : "outline"} onClick={() => setFilter("later")}>可稍后核对 ({all.filter(later).length})</Button></nav>
+      <nav aria-label="结论状态" className="flex flex-wrap gap-2">{(["all", ...statuses] as const).map((s) => <Button key={s} size="sm" variant={filter === s ? "default" : "outline"} onClick={() => setFilter(s)}>{t(`nw_conclusions_${s}`)} ({all.filter((c) => s === "all" || c.status === s).length})</Button>)}</nav>
+      {groups.filter((group) => group.items.length > 0).map((group) => <section key={group.key} className="space-y-3"><h3 className="border-b pb-2 font-semibold">{group.title} · {group.items.length}</h3><div className="grid gap-4 @xl:grid-cols-2">{group.items.map((item) => <ConclusionCard key={`${note.id}:${review.basis}:${item.id}`} item={item} recheck={recheck} noteId={note.id} busy={busy} decide={decide} />)}</div></section>)}
+      {!visible.length && <p className="text-sm text-muted-foreground">该分类暂无项目。</p>}
+    </>}
   </section>;
 }

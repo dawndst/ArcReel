@@ -46,3 +46,13 @@ it("keeps a current primary complete when an older cross-chapter SVT is stale", 
   expect(noteProductionStatus(mixed, data.notes).svts.map((s) => s.id)).toEqual(["svt"]);
   expect(run).not.toHaveBeenCalled();
 });
+
+it("offers missing chapter outputs even when another selected chapter already has outputs", () => {
+  const run=vi.fn();
+  const notes=[...data.notes,{...data.notes[0]!,id:'n2',svt_id:null,svt_status:'unassigned'}];
+  render(<NoteProductionActions data={{...data,notes}} notes={notes} canSvt canScenes busy={false} run={run} viewSvt={vi.fn()} viewScenes={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button',{name:'为未覆盖的 1 章提炼 SVT'}));
+  expect(run).toHaveBeenCalledWith('svt',['n2']);
+  fireEvent.click(screen.getByRole('button',{name:'为未覆盖的 1 章生成场镜'}));
+  expect(run).toHaveBeenCalledWith('scenes',['n2']);
+});

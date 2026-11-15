@@ -31,7 +31,7 @@ it("management groups expose synopsis and reference controls, never episode asse
   fireEvent.click(within(card).getByRole("button", { name: "设为仅留档" }));
   expect(usage).toHaveBeenCalledOnce();
 });
-it("keeps unresolved dialogue visible and requires attribution before assembly", () => {
+it("keeps unresolved dialogue visible while allowing reference assembly", () => {
   const draft = structuredClone(batch);
   const shot = draft.scenes[0].shots[0];
   shot.revision = "rev";
@@ -39,18 +39,18 @@ it("keeps unresolved dialogue visible and requires attribution before assembly",
   const attribute = vi.fn();
   render(<SceneLibraryPanel batches={[draft]} notes={[]} disabled={false} selection={[shot.id]} setSelection={() => {}} title="验收" setTitle={() => {}} assemble={() => {}} source={() => {}} characters={["同学甲"]} attribute={attribute} />);
   expect(screen.getByText("不愧是班长。").closest("p")).toHaveTextContent("说话人待确认：不愧是班长。");
-  expect(screen.getByRole("button", { name: "将所选场镜编排为一集" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "将所选场镜编排为一集" })).toBeEnabled();
   fireEvent.change(screen.getByRole("combobox", { name: "确认说话人" }), { target: { value: "同学甲" } });
   expect(attribute).toHaveBeenCalledWith(shot.id, 0, 0, "同学甲", "rev");
 });
-it("shows before/after changes and blocks only selected unadopted revisions", () => {
+it("shows before/after changes as advice without blocking reference assembly", () => {
   const draft = structuredClone(batch);
   draft.review = { revisions: [{ id: "r", scene_index: 0, shot_index: 0, segment_index: null, field: "title", before: "红发", after: "发辫", reason: "发色未明确", source_quote: "编成一条辫子", applied: false }], unresolved: [] };
   const adopt = vi.fn();
   render(<SceneLibraryPanel batches={[draft]} notes={[]} disabled={false} selection={["SH-1"]} setSelection={() => {}} title="验收" setTitle={() => {}} assemble={() => {}} source={() => {}} adoptRevision={adopt} />);
   expect(screen.getByText("红发").closest("p")).toHaveClass("bg-destructive/10");
   expect(screen.getByText("发辫")).toHaveClass("bg-primary/10");
-  expect(screen.getByRole("button", { name: "将所选场镜编排为一集" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "将所选场镜编排为一集" })).toBeEnabled();
   fireEvent.click(screen.getByRole("button", { name: "采用修订并保存新版本" }));
   expect(adopt).toHaveBeenCalledWith("b", "r");
 });
@@ -147,16 +147,22 @@ it("renders dialogue-array revisions as readable speaker lines", () => {
   expect(screen.queryByText("[object Object]")).not.toBeInTheDocument();
 });
 
-it("separates historical shots from current rhythm and explains recovery without deleting them", () => {
-  const source = vi.fn();
+it("omits obsolete read-only scenes from the active library", () => {
   const old = { ...structuredClone(batch), stale: true, stale_reasons: ["notes", "svt"] };
-  render(<SceneLibraryPanel batches={[old]} notes={[]} disabled={false} selection={[]} setSelection={vi.fn()} title="" setTitle={vi.fn()} assemble={vi.fn()} source={source} />);
-  expect(screen.getByRole("status")).toHaveTextContent("已有内容没有删除");
+  render(<SceneLibraryPanel batches={[old]} notes={[]} disabled={false} selection={[]} setSelection={vi.fn()} title="" setTitle={vi.fn()} assemble={vi.fn()} source={vi.fn()} />);
   expect(screen.queryByRole("region", { name: "分镜节奏条" })).not.toBeInTheDocument();
-  const summary = screen.getByText(/历史版本 · 仅供回看/);
-  expect(summary.closest("details")).not.toHaveAttribute("open");
-  fireEvent.click(summary);
-  expect(screen.getByText(/Note 版本已过期或不在可用范围/)).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "前往该章更新资料" }));
-  expect(source).toHaveBeenCalledWith("n");
+  expect(screen.queryByText(/历史版本/)).not.toBeInTheDocument();
+  expect(screen.queryByText("镜头1")).not.toBeInTheDocument();
+});
+
+it("allows a reference episode with pending speakers and advisory reviews when delivery checks are off", () => {
+  const draft=structuredClone(batch);
+  const sh=draft.scenes[0].shots[0];
+  sh.segments[0]!.utterances=[{kind:'dialogue',speaker:null,text:'是谁？'}];
+  sh.issues=[{code:'speaker',blocking:true}];
+  draft.review={revisions:[],unresolved:['需要核对表演处理']};
+  const assemble=vi.fn();
+  render(<SceneLibraryPanel batches={[draft]} notes={[]} disabled={false} selection={[sh.id]} setSelection={vi.fn()} title="第一集" setTitle={vi.fn()} assemble={assemble} source={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button',{name:'将所选场镜编排为一集'}));
+  expect(assemble).toHaveBeenCalledOnce();
 });

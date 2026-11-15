@@ -15,12 +15,22 @@ def draft_claims(value):
     return value
 
 
+def review_rules(path):
+    return (
+        store.effective_rule(path, "read_review").replace(
+            "返回 complete=true 的完整结果，不只返回差异。", "完成所有栏目审查后返回complete=true。"
+        )
+        + "\n"
+        + store.effective_rule(path, "read_review_patch")
+    )
+
+
 async def audit(path, generator, extracted, part, seed_ids, identity_ids):
     import asyncio
 
     from lib.novel_workflow.service import ask, ground
 
-    rules = await asyncio.to_thread(store.effective_rule, path, "read_review")
+    rules = await asyncio.to_thread(review_rules, path)
 
     async def validate(value):
         from lib.novel_workflow.quote_locations import resolve
@@ -30,13 +40,11 @@ async def audit(path, generator, extracted, part, seed_ids, identity_ids):
         return ground(value, part, seed_ids, identity_ids)
 
     draft = draft_claims(extracted)
-    protocol = await asyncio.to_thread(store.effective_rule, path, "read_review_patch")
     return await ask(
         path,
         generator,
         ReviewEdits,
-        rules.replace("返回 complete=true 的完整结果，不只返回差异。", "完成所有栏目审查后返回complete=true。")
-        + protocol
+        rules
         + "\n抽取审核材料："
         + json.dumps(
             {
