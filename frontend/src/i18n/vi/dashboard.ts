@@ -1,6 +1,17 @@
 import type enDashboard from "@/i18n/en/dashboard";
 
 export default {
+  nw_scene_only_history: "Chưa có cảnh quay hiện hành để ghép tập. Các phiên bản cũ vẫn ở bên dưới. Cập nhật Note, đọc sâu và SVT rồi tạo cảnh quay. Nội dung không bị xóa.",
+  nw_scene_history: "Lịch sử · chỉ xem",
+  nw_scene_current: "Phiên bản hiện hành",
+  nw_scene_update_note: "Mở chương để cập nhật",
+  nw_scene_reason_source: "Nguyên tác thay đổi",
+  nw_scene_reason_rules: "Quy tắc đã cập nhật",
+  nw_scene_reason_notes: "Note cũ hoặc ngoài phạm vi",
+  nw_scene_reason_svt: "Liên kết SVT cũ",
+  nw_scene_reason_understanding: "Đọc sâu chưa cập nhật",
+  nw_scene_reason_reference_group: "Chương chỉ tham khảo",
+
   nw_rhythm_total: "{{count}} cảnh quay · dự kiến {{seconds}} giây",
   nw_rhythm_title: "Nhịp cảnh quay",
   nw_rhythm_hint: "Chiều rộng thể hiện thời lượng dự kiến, màu thể hiện cỡ cảnh. Nhấn để tìm cảnh quay. Chỉ để tham khảo, không giới hạn thời lượng tạo video.",

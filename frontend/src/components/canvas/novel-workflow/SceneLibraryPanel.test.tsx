@@ -145,3 +145,17 @@ it("renders dialogue-array revisions as readable speaker lines", () => {
   expect(screen.getByText(/猴子 · 画内对白：我知道。/)).toBeInTheDocument();
   expect(screen.queryByText("[object Object]")).not.toBeInTheDocument();
 });
+
+it("separates historical shots from current rhythm and explains recovery without deleting them", () => {
+  const source = vi.fn();
+  const old = { ...structuredClone(batch), stale: true, stale_reasons: ["notes", "svt"] };
+  render(<SceneLibraryPanel batches={[old]} notes={[]} disabled={false} selection={[]} setSelection={vi.fn()} title="" setTitle={vi.fn()} assemble={vi.fn()} source={source} />);
+  expect(screen.getByRole("status")).toHaveTextContent("已有内容没有删除");
+  expect(screen.queryByRole("region", { name: "分镜节奏条" })).not.toBeInTheDocument();
+  const summary = screen.getByText(/历史版本 · 仅供回看/);
+  expect(summary.closest("details")).not.toHaveAttribute("open");
+  fireEvent.click(summary);
+  expect(screen.getByText(/Note 版本已过期或不在可用范围/)).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "前往该章更新资料" }));
+  expect(source).toHaveBeenCalledWith("n");
+});

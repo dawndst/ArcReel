@@ -1,6 +1,17 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_scene_only_history: "当前没有可编排的最新场镜。下方保留的是历史版本，可展开回看；先在章节 Note 更新阅读、精读和 SVT，再生成该章场镜。已有内容没有删除。",
+  nw_scene_history: "历史版本 · 仅供回看",
+  nw_scene_current: "当前版本",
+  nw_scene_update_note: "前往该章更新资料",
+  nw_scene_reason_source: "原著已变化",
+  nw_scene_reason_rules: "场镜规则已更新",
+  nw_scene_reason_notes: "Note 版本已过期或不在可用范围",
+  nw_scene_reason_svt: "SVT 关联已过期",
+  nw_scene_reason_understanding: "精读依据未更新",
+  nw_scene_reason_reference_group: "章节已设为仅供参考",
+
   nw_rhythm_total: "{{count}} 镜 · 参考 {{seconds}} 秒",
   nw_rhythm_title: "分镜节奏条",
   nw_rhythm_hint: "宽度代表参考时长，颜色代表景别；点击定位镜头。仅供编导参考，不限制实际生成时长。",

@@ -1,6 +1,17 @@
 import type enDashboard from '../en/dashboard';
 
 export default {
+  nw_scene_only_history: "Нет актуальных кадров для сборки. История сохранена ниже. Обновите Note главы, понимание и SVT, затем создайте кадры. Ничего не удалено.",
+  nw_scene_history: "История · только просмотр",
+  nw_scene_current: "Текущая версия",
+  nw_scene_update_note: "Открыть главу для обновления",
+  nw_scene_reason_source: "Источник изменён",
+  nw_scene_reason_rules: "Правила обновлены",
+  nw_scene_reason_notes: "Note устарел или вне диапазона",
+  nw_scene_reason_svt: "Связь SVT устарела",
+  nw_scene_reason_understanding: "Понимание устарело",
+  nw_scene_reason_reference_group: "Справочная глава",
+
   nw_rhythm_total: "{{count}} кадров · план {{seconds}} с",
   nw_rhythm_title: "Ритм кадров",
   nw_rhythm_hint: "Ширина — плановая длительность, цвет — крупность. Нажмите для перехода к кадру. Это ориентир, а не ограничение генерации.",

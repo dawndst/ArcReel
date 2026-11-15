@@ -93,6 +93,13 @@ function Section({ title, children, featured = false }: { title: string; childre
   return <section className={`rounded-xl border bg-card p-5 text-sm shadow-xs ${featured ? "border-primary/25" : "border-border"}`}><h3 className={`mb-4 border-b pb-3 text-base font-bold ${featured ? "text-primary" : "text-foreground"}`}>{title}</h3>{children}</section>;
 }
 
+function revealSceneElement(id: string) {
+  const element = document.getElementById(id);
+  const disclosure = element?.closest("details");
+  if (disclosure) disclosure.open = true;
+  element?.scrollIntoView({ block: "start" });
+}
+
 const WORKBENCH_TABS = ["notes", "svt", "groups", "ledger", "review", "understanding", "scenes"] as const;
 type WorkbenchTab = typeof WORKBENCH_TABS[number];
 
@@ -123,10 +130,10 @@ export function NovelWorkbench({ projectName }: { projectName: string }) {
   }
   const requestedShot = new URLSearchParams(search).get("shot");
   useEffect(() => {
-    if (tab === "scenes" && requestedShot && data) requestAnimationFrame(() => document.getElementById(`library-shot-${requestedShot}`)?.scrollIntoView({ block: "center" }));
+    if (tab === "scenes" && requestedShot && data) requestAnimationFrame(() => revealSceneElement(`library-shot-${requestedShot}`));
   }, [tab, requestedShot, data]);
   const [focusedBatch, setFocusedBatch] = useState<string | null>(null);
-  useEffect(() => { if (tab === "scenes" && focusedBatch) document.getElementById(`scene-batch-${focusedBatch}`)?.scrollIntoView({ block: "start" }); }, [tab, focusedBatch]);
+  useEffect(() => { if (tab === "scenes" && focusedBatch) revealSceneElement(`scene-batch-${focusedBatch}`); }, [tab, focusedBatch]);
   const [focusedSvt, setFocusedSvt] = useState<string | null>(null);
   useEffect(() => { if (tab === "svt" && focusedSvt) document.getElementById(`svt-${focusedSvt}`)?.scrollIntoView({ block: "start" }); }, [tab, focusedSvt]);
   const [readingSettings, setReadingSettings] = useState(false);

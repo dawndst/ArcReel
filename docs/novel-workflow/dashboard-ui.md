@@ -51,3 +51,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## 历史场镜与当前场镜
+
+场镜素材库按批次显示当前版本或历史版本。历史版本默认折叠，仍可查看原文和内容，编号不因折叠而改变。节奏条默认只显示当前可编排内容。失效诊断分别检查原著、场镜规则、Note、SVT、精读和仅供参考的资料组；缺少新版阅读时不能把旧场镜重新标为有效。更新入口返回对应章节，按需更新上游资料后再生成场镜。

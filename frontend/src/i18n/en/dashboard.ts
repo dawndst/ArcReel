@@ -1,5 +1,16 @@
 
 export default {
+  nw_scene_only_history: "No current shots are ready for assembly. Historical versions remain below for inspection. Update the chapter Note, understanding and SVT, then generate its shots. Nothing has been deleted.",
+  nw_scene_history: "History · inspection only",
+  nw_scene_current: "Current version",
+  nw_scene_update_note: "Open chapter to update",
+  nw_scene_reason_source: "Source changed",
+  nw_scene_reason_rules: "Shot rules updated",
+  nw_scene_reason_notes: "Note outdated or outside scope",
+  nw_scene_reason_svt: "SVT link outdated",
+  nw_scene_reason_understanding: "Understanding outdated",
+  nw_scene_reason_reference_group: "Reference-only chapter",
+
   nw_rhythm_total: "{{count}} shots · planned {{seconds}}s",
   nw_rhythm_title: "Shot rhythm",
   nw_rhythm_hint: "Width shows planned duration; color shows shot size. Click to locate a shot. These are editing references, not generation limits.",

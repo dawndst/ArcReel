@@ -45,31 +45,37 @@ def svt_event_tags(path, note_id, reading):
     ]
 
 
-def valid_batch(path, batch, notebook, readings):
+def stale_reasons(path, batch, notebook, readings):
+    reasons = []
     if any(g.get("usage") == "reference" and set(g["note_ids"]) & set(batch["note_bases"]) for g in notebook["groups"]):
-        return False
-    if batch["source_basis"] != notebook["source_basis"] or batch["rule_basis"] != digest(
-        store.effective_rule(path, "scenes")
-    ):
-        return False
+        reasons.append("reference_group")
+    if batch["source_basis"] != notebook["source_basis"]:
+        reasons.append("source")
+    if batch["rule_basis"] != digest(store.effective_rule(path, "scenes")):
+        reasons.append("rules")
     if any(readings.get(i, {}).get("basis") != b for i, b in batch["note_bases"].items()):
-        return False
-    if "svt_basis" in batch and len(svt_event_tags(path, batch["note_id"], readings[batch["note_id"]])) != 1:
-        return False
-    if "svt_basis" in batch and batch["svt_basis"] != digest(
-        svt_event_tags(path, batch["note_id"], readings[batch["note_id"]])
-    ):
-        return False
+        reasons.append("notes")
+    reading = readings.get(batch["note_id"])
+    if "svt_basis" in batch:
+        tags = svt_event_tags(path, batch["note_id"], reading) if reading else []
+        if len(tags) != 1 or batch["svt_basis"] != digest(tags):
+            reasons.append("svt")
     try:
         understanding.require_understood(path, list(batch["note_bases"]))
-        return (
+        if (
             batch["understanding_basis"]
-            == understanding.production_context(
+            != understanding.production_context(
                 path, list(batch["note_bases"]), source_offset=batch.get("source_start")
             )["basis"]
-        )
+        ):
+            reasons.append("understanding")
     except ValueError:
-        return False
+        reasons.append("understanding")
+    return reasons
+
+
+def valid_batch(path, batch, notebook, readings):
+    return not stale_reasons(path, batch, notebook, readings)
 
 
 def view(path, notebook, readings):
@@ -79,7 +85,8 @@ def view(path, notebook, readings):
     project = load_json(path / "project.json")
     chunk_cache = {}
     for batch in batches:
-        batch["stale"] = not valid_batch(path, batch, notebook, readings)
+        batch["stale_reasons"] = stale_reasons(path, batch, notebook, readings)
+        batch["stale"] = bool(batch["stale_reasons"])
         batch["production_stale"] = False
         if not batch["stale"] and batch.get("production_context") and batch["note_id"] in readings:
             note_id = batch["note_id"]
