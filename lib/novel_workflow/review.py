@@ -11,9 +11,9 @@ from uuid import uuid4
 from pydantic import Field
 
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.novel_understanding.service import NovelReadingInterrupted, check_stop
-from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import memory, store, synthesis
+from lib.novel_workflow.cancellation import NovelReadingInterrupted, check_stop
+from lib.novel_workflow.common import digest, now
 from lib.novel_workflow.models import AdaptationAdvice, RangeConclusion, ScopeReview
 from lib.novel_workflow.storage import load_json
 

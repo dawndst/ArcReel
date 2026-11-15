@@ -5,9 +5,9 @@ import json
 from collections import defaultdict
 
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.novel_understanding.service import check_stop
-from lib.novel_understanding.store import digest
 from lib.novel_workflow import store, synthesis
+from lib.novel_workflow.cancellation import check_stop
+from lib.novel_workflow.common import digest
 from lib.novel_workflow.storage import load_json
 from lib.novel_workflow.understanding_models import Findings
 

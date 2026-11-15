@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from lib.novel_understanding.store import digest
 from lib.novel_workflow import settings, store
+from lib.novel_workflow.common import digest
 from lib.prompts.prompt_templates.builtin import builtin_templates
 
 TITLES = {
@@ -79,23 +79,6 @@ def catalog(path, project):
             text,
             "project" if local.exists() else "default",
             f"novel_workflow/rules/{name}.md" if local.exists() else f"lib/novel_workflow/rules/{name}.md",
-        )
-    from lib.novel_understanding import store as legacy_store
-
-    for name in legacy_store.RULE_NAMES:
-        local = legacy_store.root(path) / "rules" / f"{name}.md"
-        if local.is_symlink() or (local.exists() and not local.resolve().is_relative_to(path.resolve())):
-            raise ValueError("项目规则文件不能是符号链接")
-    for name, content in legacy_store.rules(path).items():
-        local = legacy_store.root(path) / "rules" / f"{name}.md"
-        add(
-            "legacy/" + name,
-            "原分集理解流程 / " + name,
-            "旧理解流程规则；新版 Note 工作流不调用",
-            "other",
-            content,
-            "project" if local.exists() else "default",
-            f"novel_understanding/rules/{name}.md",
         )
     seen = set()
     for meta in builtin_templates.list_templates():

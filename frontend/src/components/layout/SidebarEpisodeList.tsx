@@ -30,7 +30,7 @@ interface SidebarEpisodeListProps {
   /** 搜索过滤时只显示部分集，不能调整顺序。 */
   reorderable: boolean;
   onOpen: (episode: number) => void;
-  onCreateAfter: (episode: number) => void;
+  onCreateAfter?: (episode: number) => void;
   /** 把一集移到 `after` 之后（null 为最前）；提交与刷新完成后 resolve，失败时由调用方提示。 */
   onMove: (episode: number, after: number | null) => Promise<void>;
   onDelete: (episode: number) => void;
@@ -136,10 +136,10 @@ export function SidebarEpisodeList({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuGroup>
-                      <DropdownMenuItem onClick={() => onCreateAfter(ep.episode)}>
+                      {onCreateAfter && <DropdownMenuItem onClick={() => onCreateAfter(ep.episode)}>
                         <Plus aria-hidden />
                         {t("dashboard:episode_menu_create_after")}
-                      </DropdownMenuItem>
+                      </DropdownMenuItem>}
                       <DropdownMenuItem
                         disabled={!reorderable || moving || earlier === undefined}
                         onClick={() => earlier !== undefined && move(ep.episode, earlier)}

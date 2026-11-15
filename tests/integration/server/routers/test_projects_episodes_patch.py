@@ -3,7 +3,7 @@
 import json
 
 from lib.artifacts.artifact_manifest import ArtifactKey, ArtifactManifestEntry, ProjectArtifactManifestAdapter
-from lib.episode.episode_management import create_episode
+from lib.episode.episode_management import create_narration_episode
 from lib.i18n.zh import errors as zh_errors
 from lib.project.project_manager import ProjectManager
 from lib.script.blank_script import start_blank_script
@@ -247,7 +247,7 @@ class TestProjectsRouter:
         pm = ProjectManager(tmp_path / "projects")
         pm.create_project("demo")
         pm.create_project_metadata("demo", "Demo", "Anime", "narration")
-        episode = create_episode(pm, "demo")
+        episode = create_narration_episode(pm, "demo")
 
         with build_projects_client(monkeypatch, pm) as client:
             resp = client.patch(f"/api/v1/projects/demo/episodes/{episode}", json={"title": "番外：雪夜"})

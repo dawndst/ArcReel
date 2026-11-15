@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from lib.episode.episode_deletion import EpisodeDeletionResult, delete_episode, render_episode_deletion_text
-from lib.episode.episode_management import EpisodeManagementError, create_episode, move_episode
+from lib.episode.episode_management import EpisodeManagementError, create_narration_episode, move_episode
 from lib.episode.episode_source_commands import EpisodeSourceError
 from lib.episode.source_kinds import SourceKind
 from lib.generation.generation_queue import get_generation_queue
@@ -30,7 +30,7 @@ router = APIRouter()
 _STATUS: dict[str, int] = {"episode_not_found": 404}
 
 
-class CreateEpisodeRequest(BaseModel):
+class CreateNarrationEpisodeRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     #: 插在哪一集之后（集 ID）；缺省时放在播出顺序末尾。
@@ -78,13 +78,13 @@ async def _run[T](name: str, _t: Translator, action: Callable[[ProjectManager], 
         raise HTTPException(status_code=500, detail=_t("internal_server_error")) from exc
 
 
-@router.post("/projects/{name}/episodes", dependencies=[Depends(require_project_migration_ok)], status_code=201)
-async def create_episode_endpoint(name: str, req: CreateEpisodeRequest, _t: Translator) -> dict[str, Any]:
+@router.post("/projects/{name}/narration-episodes", dependencies=[Depends(require_project_migration_ok)], status_code=201)
+async def create_narration_episode_endpoint(name: str, req: CreateNarrationEpisodeRequest, _t: Translator) -> dict[str, Any]:
     """新建一集：分配新集 ID，插在 ``after`` 之后（缺省放在末尾）；带原文时是自带原文的集。"""
     episode = await _run(
         name,
         _t,
-        lambda manager: create_episode(
+        lambda manager: create_narration_episode(
             manager,
             name,
             after=req.after,

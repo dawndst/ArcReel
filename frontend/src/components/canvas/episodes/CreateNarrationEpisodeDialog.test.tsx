@@ -6,7 +6,7 @@ import { useAppStore } from "@/stores/app-store";
 import { useProjectsStore } from "@/stores/projects-store";
 import type { ProjectData } from "@/types";
 
-import { CreateEpisodeDialog } from "./CreateEpisodeDialog";
+import { CreateNarrationEpisodeDialog } from "./CreateNarrationEpisodeDialog";
 
 const PROJECT: ProjectData = {
   title: "Demo",
@@ -18,7 +18,7 @@ const PROJECT: ProjectData = {
   props: {},
 };
 
-describe("CreateEpisodeDialog", () => {
+describe("CreateNarrationEpisodeDialog", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     useAppStore.setState(useAppStore.getInitialState(), true);
@@ -28,9 +28,9 @@ describe("CreateEpisodeDialog", () => {
 
   it("reports the new episode once the project data has refreshed", async () => {
     vi.spyOn(API, "getProject").mockResolvedValue({ project: PROJECT, scripts: {} });
-    vi.spyOn(API, "createEpisode").mockResolvedValue({ episode: 2 });
+    vi.spyOn(API, "createNarrationEpisode").mockResolvedValue({ episode: 2 });
     const onCreated = vi.fn();
-    render(<CreateEpisodeDialog projectName="demo" onClose={() => {}} onCreated={onCreated} />);
+    render(<CreateNarrationEpisodeDialog projectName="demo" onClose={() => {}} onCreated={onCreated} />);
 
     fireEvent.click(screen.getByRole("button", { name: "新建" }));
 
@@ -39,9 +39,9 @@ describe("CreateEpisodeDialog", () => {
 
   it("warns and does not point at the new episode when the project data fails to refresh", async () => {
     vi.spyOn(API, "getProject").mockRejectedValue(new Error("offline"));
-    vi.spyOn(API, "createEpisode").mockResolvedValue({ episode: 2 });
+    vi.spyOn(API, "createNarrationEpisode").mockResolvedValue({ episode: 2 });
     const onCreated = vi.fn();
-    render(<CreateEpisodeDialog projectName="demo" onClose={() => {}} onCreated={onCreated} />);
+    render(<CreateNarrationEpisodeDialog projectName="demo" onClose={() => {}} onCreated={onCreated} />);
 
     fireEvent.click(screen.getByRole("button", { name: "新建" }));
 

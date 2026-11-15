@@ -39,6 +39,12 @@ class AssetState(StrictModel):
     visibility: Literal["visible", "hidden", "off_screen"] = "visible"
     start: str = Field(default="", max_length=1500)
     end: str = Field(default="", max_length=1500)
+    start_position: str = Field(default="", max_length=300)
+    end_position: str = Field(default="", max_length=300)
+    start_holder: str = Field(default="", max_length=300)
+    end_holder: str = Field(default="", max_length=300)
+    start_gaze: str = Field(default="", max_length=300)
+    end_gaze: str = Field(default="", max_length=300)
     attachment: str = Field(default="", max_length=500, description="持握、佩戴、骑乘和组件关系；不适用可空")
 
 

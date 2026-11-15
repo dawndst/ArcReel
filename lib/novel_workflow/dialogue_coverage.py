@@ -6,8 +6,8 @@ from collections import Counter
 from uuid import uuid4
 
 from lib.artifacts.formal_write import project_metadata_lock
-from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import store
+from lib.novel_workflow.common import digest, now
 
 
 def normalized(text):

@@ -7,8 +7,8 @@ import re
 from collections import Counter
 
 from lib.episode.episode_sources import discover_sources
-from lib.novel_understanding.store import digest
 from lib.novel_workflow import store
+from lib.novel_workflow.common import digest
 from lib.novel_workflow.storage import load_json
 
 

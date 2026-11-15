@@ -8,8 +8,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from lib.backends.text_backends.base import resolve_schema, structured_fallback_reason
-from lib.novel_understanding.store import digest
 from lib.novel_workflow import store, understanding
+from lib.novel_workflow.common import digest
 from lib.novel_workflow.storage import load_json
 
 

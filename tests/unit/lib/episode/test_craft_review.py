@@ -221,3 +221,28 @@ async def test_review_uses_one_fragment_then_cached_result(tmp_path, monkeypatch
     assert (await asyncio.to_thread(craft.view, tmp_path, project, saved))["review"]["appearance"][0][
         "status"
     ] == "conflict"
+
+
+def test_adaptation_compression_preserves_tradeoff_and_source(tmp_path, monkeypatch):
+    project, batch, reading, _ = fixture(tmp_path, monkeypatch)
+    before = deepcopy(reading)
+    current = craft.view(tmp_path, project, batch)
+    request = craft.CraftDecision(
+        source_basis="src",
+        revision=current["revision"],
+        kind="coverage",
+        item_id="E1:action",
+        decision="confirm",
+        shot_ids=["SH-1"],
+        reason="通过拿书动作表达决心",
+        adaptation_action="compress",
+        dramatic_function="推动行动",
+        tradeoff="省略重复对白但保留行动因果",
+    )
+    craft.decide(tmp_path, project, "b", request)
+    _, saved = craft.find_batch(tmp_path, "b")
+    decision = craft.view(tmp_path, project, saved)["items"][0]["decision"]
+    assert decision["adaptation_action"] == "compress"
+    assert decision["tradeoff"] == request.tradeoff
+    assert decision["dramatic_function"] == "推动行动"
+    assert reading == before

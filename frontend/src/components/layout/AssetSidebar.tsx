@@ -34,7 +34,7 @@ import { useCostStore } from "@/stores/cost-store";
 import { WORKSPACE_ROUTE_EPISODES, WORKSPACE_ROUTE_FILES, WORKSPACE_ROUTE_RULES } from "@/app-routes";
 import { useDemoWorkbench } from "@/onboarding/use-demo-workbench";
 import { normalizeRoute } from "@/utils/generation-mode";
-import { CreateEpisodeDialog } from "@/components/canvas/episodes/CreateEpisodeDialog";
+import { CreateNarrationEpisodeDialog } from "@/components/canvas/episodes/CreateNarrationEpisodeDialog";
 import { episodesViewPath } from "@/components/canvas/episodes/episodes-view-model";
 import { useDeleteEpisode } from "@/components/canvas/episodes/useDeleteEpisode";
 import { useMoveEpisode } from "@/components/canvas/episodes/useMoveEpisode";
@@ -162,7 +162,7 @@ export function AssetSidebar({ collapsed, onCollapsedChange }: AssetSidebarProps
 
   const sectionTitle = isAd ? t("dashboard:ad_video_section_title") : t("dashboard:episodes_section_title");
   const addEpisodeMenu =
-    isAd || demoMode ? null : (
+    isAd || demoMode || currentProjectData?.content_mode === "drama" ? null : (
       <AddEpisodeMenu
         onCreate={() => setCreateAfter(null)}
         onUpload={() => setLocation(episodesViewPath({ upload: "episode" }))}
@@ -246,7 +246,7 @@ export function AssetSidebar({ collapsed, onCollapsedChange }: AssetSidebarProps
                 route={route}
                 reorderable={!search}
                 onOpen={(episode) => setLocation(`/episodes/${episode}`)}
-                onCreateAfter={setCreateAfter}
+                onCreateAfter={currentProjectData?.content_mode === "narration" ? setCreateAfter : undefined}
                 onMove={moveEpisode}
                 onDelete={(episode) => void deletion.requestDelete(episode)}
               />
@@ -279,8 +279,8 @@ export function AssetSidebar({ collapsed, onCollapsedChange }: AssetSidebarProps
         </Button>
       </div>
 
-      {createAfter !== undefined && currentProjectName ? (
-        <CreateEpisodeDialog
+      {createAfter !== undefined && currentProjectName && currentProjectData?.content_mode === "narration" ? (
+        <CreateNarrationEpisodeDialog
           projectName={currentProjectName}
           initialAfter={createAfter}
           onClose={() => setCreateAfter(undefined)}

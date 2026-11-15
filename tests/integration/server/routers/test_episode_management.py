@@ -63,7 +63,7 @@ def test_create_inserts_after_the_given_episode_and_move_keeps_source_order(tmp_
     client, pm = _client(monkeypatch, tmp_path, [_cut(1, 0, 5), _cut(2, 5, 10)])
 
     with client:
-        created = client.post("/api/v1/projects/demo/episodes", json={"after": 1, "source_text": "番外。"})
+        created = client.post("/api/v1/projects/demo/narration-episodes", json={"after": 1, "source_text": "番外。"})
         locked = client.post("/api/v1/projects/demo/episodes/1/move", json={"after": 2})
         moved = client.post(f"/api/v1/projects/demo/episodes/{created.json()['episode']}/move", json={"after": None})
 
@@ -136,3 +136,14 @@ def test_delete_is_refused_while_the_episode_has_active_tasks(tmp_path, monkeypa
     assert refused.json()["detail"] == zh_errors.MESSAGES["episode_manage_tasks_active"]
     assert _order(pm) == [1, 2]
     assert other.json()["status"] == "confirmation_required"
+
+
+def test_removed_generic_create_and_narration_cannot_create_drama(tmp_path, monkeypatch):
+    client, pm = _client(monkeypatch, tmp_path, [])
+    pm.update_project("demo", lambda project: project.update(content_mode="drama"))
+    with client:
+        old = client.post("/api/v1/projects/demo/episodes", json={"title": "旧入口"})
+        bypass = client.post("/api/v1/projects/demo/narration-episodes", json={"title": "错误模式"})
+    assert old.status_code in (404, 405)
+    assert bypass.status_code == 409
+    assert not pm.load_project("demo")["episodes"]

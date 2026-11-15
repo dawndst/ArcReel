@@ -11,8 +11,8 @@ from typing import Literal
 from pydantic import Field
 
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import memory, settings, store
+from lib.novel_workflow.common import digest, now
 from lib.novel_workflow.models import ChapterSynthesis, EvidencedClaim, StrictModel
 from lib.novel_workflow.storage import load_json
 
@@ -434,8 +434,8 @@ def effective_reading(path, note, reading, *, notebook=None, readings=None):
 
 
 async def prepare(path, generator, note_ids, expected):
-    from lib.novel_understanding.service import NovelReadingInterrupted
     from lib.novel_workflow import understanding
+    from lib.novel_workflow.cancellation import NovelReadingInterrupted
 
     try:
         view = await asyncio.to_thread(understanding.view, path)

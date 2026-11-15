@@ -7,8 +7,8 @@ from uuid import uuid4
 
 from lib.artifacts.formal_write import project_metadata_lock
 from lib.infra.json_io import atomic_write_json
-from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import chapters
+from lib.novel_workflow.common import digest, now
 from lib.novel_workflow.storage import WorkflowPath, load_json
 
 RULES = Path(__file__).parent / "rules"

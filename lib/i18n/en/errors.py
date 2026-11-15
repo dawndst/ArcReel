@@ -1,4 +1,5 @@
 MESSAGES = {
+    "episode_manage_note_arrangement_required": 'Create drama episodes by selecting shots in the novel workbench. Manual creation is only available for narration.',
     "novel_adoption_confirm": "Adopting updates the outline and marks existing production artifacts for review.",
     "novel_review_stale": "Source, episodes or settings changed. Review again before adopting.",
 

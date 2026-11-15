@@ -265,7 +265,7 @@ export interface PlanningGap {
   end: number;
 }
 
-export interface CreateEpisodeBody {
+export interface CreateNarrationEpisodeBody {
   /** 插在哪一集之后（集 ID）；缺省放在播出顺序末尾。 */
   after?: number | null;
   title?: string;

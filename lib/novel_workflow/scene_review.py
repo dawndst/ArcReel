@@ -11,8 +11,8 @@ from uuid import uuid4
 from pydantic import Field, model_validator
 
 from lib.artifacts.formal_write import project_metadata_lock
-from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import store
+from lib.novel_workflow.common import digest, now
 from lib.novel_workflow.evidence import locate
 from lib.novel_workflow.models import StrictModel
 from lib.novel_workflow.scene_models import LibraryUtterance

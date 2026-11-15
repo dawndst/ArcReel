@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from lib.infra.async_thread import run_sync_transaction
 from lib.novel_workflow import chapters, store
+from lib.novel_workflow.reference_policy import ReferencePolicy
 from lib.novel_workflow.shot_production import ShotDecisions
 from lib.project.project_manager import get_project_manager
 from server.agent_toolset.envelope import json_value
@@ -406,6 +407,7 @@ class DeliveryConfirmation(DeliverySelection):
 
 
 class DeliveryAssetConfirmation(DeliverySelection):
+    policy: ReferencePolicy | None = None
     basis: str
     asset_id: str
     image_hash: str
@@ -458,6 +460,7 @@ async def confirm_delivery_asset(name: str, req: DeliveryAssetConfirmation, user
             req.image_hash,
             req.reviewer,
             actor_id=user.id,
+            policy=req.policy.model_dump() if req.policy else None,
         ),
     )
 

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from lib.novel_understanding.store import digest
+from lib.novel_workflow.common import digest
 from lib.novel_workflow import chapters, retrieval, settings, store, understanding
 from lib.novel_workflow.understanding_models import Findings
 

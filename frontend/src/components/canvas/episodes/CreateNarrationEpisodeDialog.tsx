@@ -20,13 +20,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useProjectsStore } from "@/stores/projects-store";
 import { refreshAfterWrite } from "@/components/canvas/shared/refreshAfterWrite";
-import type { SourceKind } from "@/types/episodes-view";
 import { errMsg } from "@/utils/async";
 import { episodeDisplayName } from "@/utils/episode-display";
 
-import { SourceKindSelect } from "./SourceKindSelect";
 
-interface CreateEpisodeDialogProps {
+interface CreateNarrationEpisodeDialogProps {
   projectName: string;
   /** 默认插在哪一集之后（集 ID）；缺省放在播出顺序末尾。 */
   initialAfter?: number | null;
@@ -39,7 +37,7 @@ interface CreateEpisodeDialogProps {
  * 新建一集：选位置（插在任意一集之后，默认放在末尾），标题、钩子和原文都可选。
  * 标题留空时界面按播出位置显示「第 N 集」，插入或调序后随之变化。挂载即打开，关闭由调用方卸载。
  */
-export function CreateEpisodeDialog({ projectName, initialAfter = null, onClose, onCreated }: CreateEpisodeDialogProps) {
+export function CreateNarrationEpisodeDialog({ projectName, initialAfter = null, onClose, onCreated }: CreateNarrationEpisodeDialogProps) {
   const [busy, setBusy] = useState(false);
   return (
     <Dialog
@@ -80,7 +78,6 @@ function CreateEpisodeForm({
   const fieldId = useId();
   const project = useProjectsStore((s) => s.currentProjectData);
   const episodes = project?.episodes ?? [];
-  const withSourceKind = project?.content_mode === "drama";
 
   // 位置：null 放在末尾，数字为插在这一集之后
   const [after, setAfter] = useState<number | null>(
@@ -89,7 +86,6 @@ function CreateEpisodeForm({
   const [title, setTitle] = useState("");
   const [hook, setHook] = useState("");
   const [sourceText, setSourceText] = useState("");
-  const [sourceKind, setSourceKind] = useState<SourceKind>("novel");
   const [error, setError] = useState<string | null>(null);
 
   const position = after === null ? episodes.length + 1 : episodes.findIndex((ep) => ep.episode === after) + 2;
@@ -107,12 +103,12 @@ function CreateEpisodeForm({
     setBusy(true);
     setError(null);
     try {
-      const { episode } = await API.createEpisode(projectName, {
+      const { episode } = await API.createNarrationEpisode(projectName, {
         after,
         title: title.trim(),
         hook: hook.trim(),
         source_text: hasSource ? sourceText : null,
-        source_kind: hasSource && withSourceKind ? sourceKind : null,
+        source_kind: null,
       });
       // 刷新没成功时新集不在项目数据里，不定位过去
       onCreated((await refreshAfterWrite(projectName, t)) === "success" ? episode : null);
@@ -199,17 +195,7 @@ function CreateEpisodeForm({
             <p id={`${fieldId}-source-hint`} className="text-xs text-muted-foreground">
               {t("dashboard:episode_create_source_hint")}
             </p>
-            {withSourceKind && hasSource ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <span>{t("dashboard:source_kind")}</span>
-                <SourceKindSelect
-                  value={sourceKind}
-                  onChange={setSourceKind}
-                  disabled={busy}
-                  label={t("dashboard:source_kind")}
-                />
-              </div>
-            ) : null}
+
           </div>
           {error ? (
             <p role="alert" className="text-sm text-destructive">

@@ -1,6 +1,6 @@
 """集管理：新建、调序与删除一集（ADR 0096）。
 
-- **新建**（:func:`create_episode`）：分配新集 ID，插在指定的一集之后，缺省放在播出顺序末尾。标题留空时界面按播出位置
+- **新建**（:func:`create_narration_episode`）：分配新集 ID，插在指定的一集之后，缺省放在播出顺序末尾。标题留空时界面按播出位置
   显示「第 N 集」；带原文时是自带原文的集，否则是无原文的集。
 - **调序**（:func:`move_episode`）：自带原文与无原文的集可以放到任意位置，包括两个切出集之间；落进整本源文的切出集
   之间恒按源文位置排列，违背这一顺序的移动被拒。
@@ -47,7 +47,7 @@ def _index_of(entries: list[dict[str, Any]], episode: int) -> int:
     return index
 
 
-def create_episode(
+def create_narration_episode(
     pm: ProjectManager,
     project_name: str,
     *,
@@ -67,6 +67,8 @@ def create_episode(
     with pm.locked_source_registration(project_name) as (_source_dir, project, undo):
         if project.get("content_mode") == "ad":
             raise EpisodeManagementError("ad_episode_locked", "广告/短片项目只有一集，不能新建或删除集")
+        if project.get("content_mode") != "narration":
+            raise EpisodeManagementError("note_arrangement_required", "剧情集须从场镜素材库由导演组集创建")
         entries = _ledger(project)
         insert_at = len(entries) if after is None else _index_of(entries, after) + 1
         (episode,) = allocate_episode_ids(project, 1)
@@ -114,4 +116,4 @@ def move_episode(pm: ProjectManager, project_name: str, episode: int, *, after: 
     pm.update_project(project_name, _mutate)
 
 
-__all__ = ["EpisodeManagementError", "create_episode", "move_episode"]
+__all__ = ["EpisodeManagementError", "create_narration_episode", "move_episode"]

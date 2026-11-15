@@ -185,7 +185,7 @@ import type {
 } from "@/types/edit-timeline";
 import type {
   AdoptSourceFileTarget,
-  CreateEpisodeBody,
+  CreateNarrationEpisodeBody,
   EpisodeDeletionResponse,
   EpisodeSourceWriteResult,
   EpisodesView,
@@ -2220,8 +2220,8 @@ class API {
   static async confirmDelivery(name: string, shot_ids: string[], title: string, source_basis: string, decision: import("@/types/novel-workflow").DirectorDecision): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/deliveries/confirm`, { method: "POST", body: JSON.stringify({ shot_ids, title, source_basis, decision }) });
   }
-  static async confirmDeliveryImage(name: string, shot_ids: string[], title: string, source_basis: string, basis: string, asset_id: string, image_hash: string, reviewer: string): Promise<unknown> {
-    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/deliveries/assets/confirm`, { method: "POST", body: JSON.stringify({ shot_ids, title, source_basis, basis, asset_id, image_hash, reviewer }) });
+  static async confirmDeliveryImage(name: string, shot_ids: string[], title: string, source_basis: string, basis: string, asset_id: string, image_hash: string, reviewer: string, policy?: import("@/types/novel-workflow").ReferencePolicy): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/deliveries/assets/confirm`, { method: "POST", body: JSON.stringify({ shot_ids, title, source_basis, basis, asset_id, image_hash, reviewer, policy }) });
   }
   static async exportDelivery(name: string, shot_ids: string[], title: string, source_basis: string, final: boolean): Promise<Blob> {
     const url = `/projects/${encodeURIComponent(name)}/novel-workflow/deliveries/export`;
@@ -2257,8 +2257,8 @@ class API {
   }
 
   /** 新建一集：插在 `after` 之后，缺省放在播出顺序末尾；带原文时是自带原文的集。返回新集 ID。 */
-  static async createEpisode(projectName: string, body: CreateEpisodeBody): Promise<{ episode: number }> {
-    return this.request(`/projects/${encodeURIComponent(projectName)}/episodes`, {
+  static async createNarrationEpisode(projectName: string, body: CreateNarrationEpisodeBody): Promise<{ episode: number }> {
+    return this.request(`/projects/${encodeURIComponent(projectName)}/narration-episodes`, {
       method: "POST",
       body: JSON.stringify(body),
     });

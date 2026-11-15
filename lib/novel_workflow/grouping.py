@@ -4,8 +4,8 @@ import asyncio
 
 from lib.artifacts.formal_write import project_metadata_lock
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import store, synthesis
+from lib.novel_workflow.common import digest, now
 
 
 def set_usage(path, project, group_id, usage, expected):

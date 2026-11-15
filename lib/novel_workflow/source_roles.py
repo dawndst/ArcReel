@@ -1,6 +1,6 @@
 """Register source-backed speaking roles omitted by the original Note extraction."""
 
-from lib.novel_understanding.store import digest
+from lib.novel_workflow.common import digest
 from lib.project.asset_codes import ensure_asset_codes, keep_first_note
 from lib.project.asset_types import asset_name_comparison_key, validate_asset_name
 

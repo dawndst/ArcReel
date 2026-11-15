@@ -124,7 +124,8 @@ async def test_a_deleted_episode_comes_back_with_its_timelines_media_versions_an
 async def test_an_episode_without_files_keeps_its_title_and_hook_when_restored(
     episode_client: AsyncClient, timeline_project: ProjectManager
 ) -> None:
-    created = await episode_client.post("/api/v1/projects/demo/episodes", json={"title": "开场", "hook": "伏笔"})
+    timeline_project.update_project("demo", lambda project: project.update(content_mode="narration"))
+    created = await episode_client.post("/api/v1/projects/demo/narration-episodes", json={"title": "开场", "hook": "伏笔"})
     assert created.status_code == 201, created.text
     episode = created.json()["episode"]
     before = next(e for e in timeline_project.load_project("demo")["episodes"] if e["episode"] == episode)

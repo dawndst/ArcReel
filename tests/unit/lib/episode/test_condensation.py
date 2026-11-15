@@ -79,7 +79,7 @@ def test_subrequest_accepts_only_its_actual_unit_ids():
 async def test_new_material_batches_eight_units_and_resumes_cached_pairs(tmp_path, monkeypatch):
     import asyncio
 
-    from lib.novel_understanding.store import digest
+    from lib.novel_workflow.common import digest
     from lib.novel_workflow import service, store
 
     reading = {"basis": "reading", "events": []}

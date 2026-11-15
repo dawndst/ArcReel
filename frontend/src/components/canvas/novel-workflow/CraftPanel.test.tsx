@@ -8,7 +8,7 @@ const batch: SceneLibraryBatch = { basis: "b", note_id: "n", stale: true, skippe
 it("keeps historical source inspection and explicit editorial decisions available", async () => {
   const save = vi.fn().mockResolvedValue(undefined), source = vi.fn(), run = vi.fn();
   render(<CraftPanel batch={batch} labels={new Map([["SH1", "SH-001"]])} disabled={false} save={save} run={run} locate={vi.fn()} source={source} />);
-  fireEvent.click(screen.getByText(/前提、行动与结果/));
+  expect(screen.getByText(/改编取舍台账/)).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "查看原文依据" }));
   expect(source).toHaveBeenCalledWith(undefined, batch.craft!.items[0].evidence);
   fireEvent.click(screen.getByRole("button", { name: /^处理$/ }));

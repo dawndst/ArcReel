@@ -16,7 +16,7 @@ from lib.infra.text_utils import strip_json_code_fences
 def snapshot(path: Path, project: dict, episode: int) -> dict:
     from lib.episode.episode_ledger import normalize_source_text
     from lib.episode.episode_sources import discover_sources
-    from lib.novel_understanding.store import digest
+    from lib.novel_workflow.common import digest
 
     entry = next((e for e in project.get("episodes", []) if e["episode"] == episode), None)
     if entry is None:

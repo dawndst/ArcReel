@@ -1,4 +1,5 @@
 MESSAGES = {
+    "episode_manage_note_arrangement_required": '剧情集请从小说工作台选择场镜后组集；手工建集仅适用于解说项目。',
     "novel_adoption_confirm": "采纳后更新本集大纲；已有制作产物将标记为需要更新。",
     "novel_review_stale": "原文、分集或设置已变化，请重新审查后采纳。",
 

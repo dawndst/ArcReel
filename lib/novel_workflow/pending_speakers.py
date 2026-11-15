@@ -1,6 +1,6 @@
 """Explicit identity placeholders for reference assembly, never inferred story identities."""
 
-from lib.novel_understanding.store import digest
+from lib.novel_workflow.common import digest
 from lib.project.asset_codes import ensure_asset_codes
 
 

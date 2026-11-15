@@ -9,9 +9,9 @@ from pydantic import Field
 
 from lib.artifacts.formal_write import project_metadata_lock
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import delivery_review, execution, store
 from lib.novel_workflow.assets import mentions, reference
+from lib.novel_workflow.common import digest, now
 from lib.novel_workflow.models import StrictModel
 from lib.novel_workflow.scene_library import catalog
 from lib.novel_workflow.scene_source import batch_source

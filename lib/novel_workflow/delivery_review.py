@@ -9,13 +9,13 @@ from copy import deepcopy
 from pydantic import ConfigDict, Field
 
 from lib.artifacts.formal_write import project_metadata_lock
-from lib.novel_understanding.store import digest, now
-from lib.novel_workflow import execution, store
+from lib.novel_workflow import continuity, execution, reference_policy, store
+from lib.novel_workflow.common import digest, now
 from lib.novel_workflow.models import StrictModel
 from lib.novel_workflow.scene_library import selected_shots
 from lib.novel_workflow.storage import load_json
 
-CHECK_VERSION = 1
+CHECK_VERSION = 2
 
 
 class DirectorDecision(StrictModel):
@@ -144,6 +144,29 @@ def preview(path, project, shot_ids, title, expected):
                     "details": {"reasons": [r["reason"] for r in pending]},
                 }
             )
+    edit_boundaries = continuity.boundaries(shots)
+    issues.extend(continuity.issues(edit_boundaries))
+    adaptation_decisions = []
+
+    seen_batches = set()
+    for batch, _, _ in selected:
+        if batch["basis"] in seen_batches:
+            continue
+        seen_batches.add(batch["basis"])
+        craft = batch.get("craft") or {"items": []}
+        for item in craft["items"]:
+            decision = item.get("decision")
+            if decision and (decision["decision"] == "omit" or set(decision.get("shot_ids", [])) & set(shot_ids)):
+                adaptation_decisions.append(
+                    {
+                        "batch": batch["basis"],
+                        "note_id": batch["note_id"],
+                        "item_id": item["id"],
+                        "title": item["title"],
+                        "source": item["evidence"],
+                        **decision,
+                    }
+                )
     assets = []
     for (kind, name), use in used.items():
         item = execution.asset(project, kind, name)
@@ -167,6 +190,7 @@ def preview(path, project, shot_ids, title, expected):
             title.strip(),
             [execution.content_basis(s) for _, _, s in selected],
             [shot["conclusion_constraints"] for shot in shots],
+            adaptation_decisions,
             [{k: v for k, v in a.items() if k not in {"image", "image_hash"}} for a in assets],
             store.effective_rule(path, "shot_execution"),
             store.effective_rule(path, "selection_story"),
@@ -183,6 +207,8 @@ def preview(path, project, shot_ids, title, expected):
         "shot_ids": shot_ids,
         "shots": shots,
         "assets": assets,
+        "continuity": edit_boundaries,
+        "adaptation_decisions": adaptation_decisions,
         "issues": issues,
         "seconds": sum(s["duration_seconds"] for sh in shots for s in sh["segments"]),
         "aspect_ratio": project.get("aspect_ratio", "16:9"),
@@ -203,7 +229,7 @@ def approve(path, shot_ids, title, expected, decision, *, actor_id=None):
             raise ValueError("请先修复结构、对白归属和引用错误，人工确认不能跳过这些错误")
         if not (decision.story_checked and decision.timing_checked and decision.continuity_checked):
             raise ValueError("编导须确认故事、节奏和连续性")
-        codes = {i["code"] for i in current["issues"] if not i["hard"]}
+        codes = {continuity.decision_key(i) for i in current["issues"] if not i["hard"]}
         codes.update("story:" + i["kind"] for i in (current.get("ai_review") or {}).get("findings", []))
         if any(len(decision.decisions.get(code, "").strip()) < 10 for code in codes):
             raise ValueError("每类待判断提示须记录具体处理依据，至少10字")
@@ -235,7 +261,9 @@ def list_plans(path):
     ]
 
 
-def asset_approval(path, shot_ids, title, expected, basis, asset_id, image_hash, reviewer, *, actor_id=None):
+def asset_approval(
+    path, shot_ids, title, expected, basis, asset_id, image_hash, reviewer, *, actor_id=None, policy=None
+):
     with project_metadata_lock(path):
         project = load_json(path / "project.json")
         current = preview(path, project, shot_ids, title, expected)
@@ -246,7 +274,14 @@ def asset_approval(path, shot_ids, title, expected, basis, asset_id, image_hash,
             raise ValueError("参考图不存在或已更换，请重新查看后确认")
         file = store.root(path) / "delivery_asset_reviews" / f"{basis}.json"
         data = load_json(file) if file.exists() else {}
-        data[asset_id] = {"image_hash": image_hash, "reviewer": reviewer, "at": now(), "actor_id": actor_id}
+        validated = reference_policy.ReferencePolicy.model_validate(policy or reference_policy.suggested(item["kind"]))
+        data[asset_id] = {
+            "image_hash": image_hash,
+            "reviewer": reviewer,
+            "at": now(),
+            "actor_id": actor_id,
+            "policy": validated.model_dump(),
+        }
         store.write(file, data)
         return data
 
@@ -255,12 +290,23 @@ def director_notes(review, shot_id, segment_index):
     decision = review.get("decision") or {}
     notes = list(
         dict.fromkeys(
-            decision.get("decisions", {}).get(i["code"], "")
+            decision.get("decisions", {}).get(continuity.decision_key(i), "")
             for i in review["issues"]
             if i["shot_id"] == shot_id and i.get("segment") in (None, segment_index)
         )
     )
     notes = [n for n in notes if n]
+    for item in review.get("adaptation_decisions", []):
+        if item.get("stale") or shot_id not in item.get("shot_ids", []):
+            continue
+        notes.append(
+            "改编取舍："
+            + "；".join(
+                str(item.get(key, ""))
+                for key in ("title", "adaptation_action", "dramatic_function", "reason", "tradeoff")
+                if item.get(key)
+            )
+        )
     return "\n".join(notes)
 
 
@@ -274,6 +320,17 @@ def handoff(path, project, shot_ids, title, expected):
     for item in current["assets"]:
         item["image_approved"] = bool(
             item.get("image_hash") and approvals.get(item["asset_id"], {}).get("image_hash") == item["image_hash"]
+        )
+        approval = approvals.get(item["asset_id"], {})
+        item["reference_policy"] = approval.get("policy") or reference_policy.suggested(item["kind"])
+        item["reference_status"] = (
+            "voice_only"
+            if not item["visible"]
+            else "missing"
+            if not item.get("image_hash")
+            else "approved"
+            if item["image_approved"]
+            else "pending"
         )
         if item["visible"] and not item["image_approved"]:
             missing.append({"code": "reference_image", "asset_id": item["asset_id"], "name": item["name"]})
@@ -334,6 +391,10 @@ def handoff(path, project, shot_ids, title, expected):
             )
             segment["canvas_prompt"] = (
                 f"画幅：{current['aspect_ratio']}；模型原生配音；使用供应商最低可用画质；参考时长{segment['duration_seconds']}秒（实际生成与剪辑时长可调整）。\n仅导入以下出镜参考：{references}\n发声角色声音设定：{voices}\n编导处理：{human_notes}\n画面：{segment['scene_description']}\n起始：{segment.get('start_frame', '')}\n结束：{segment.get('end_frame', '')}\n状态约束：{states}\n结论制作约束：{json.dumps(shot['conclusion_constraints'], ensure_ascii=False)}\n镜头设计：{json.dumps(shot['design'], ensure_ascii=False)}\n有序发声（逐句保留，不添加字幕或额外台词）：\n{spoken}"
+            )
+            visible_names = {n for field in ("characters_in_scene", "scenes", "props") for n in segment.get(field, [])}
+            segment["canvas_prompt"] += "\n参考图控制范围：\n" + "\n".join(
+                reference_policy.prompt(a) for a in current["assets"] if a["visible"] and a["name"] in visible_names
             )
             segment["delivery_id"] = shot["display_id"] + (f"-SEG{i}" if len(shot["segments"]) > 1 else "")
     if not episode:
@@ -397,5 +458,7 @@ def export(path, project, shot_ids, title, expected, *, final=False):
             lines.append("原文依据：" + shot["source"]["quote"])
             lines.extend(f"\n### {seg['delivery_id']}\n{seg['canvas_prompt']}" for seg in shot["segments"])
         archive.writestr("制作清单.md", "\n".join(lines))
+        archive.writestr("改编取舍.json", json.dumps(current["adaptation_decisions"], ensure_ascii=False, indent=2))
+        archive.writestr("镜头衔接.json", json.dumps(current["continuity"], ensure_ascii=False, indent=2))
         archive.writestr("编导确认.json", json.dumps(current.get("decision"), ensure_ascii=False, indent=2))
     return buffer.getvalue()

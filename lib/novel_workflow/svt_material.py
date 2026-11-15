@@ -5,7 +5,7 @@ from copy import deepcopy
 
 from pydantic import Field
 
-from lib.novel_understanding.store import digest
+from lib.novel_workflow.common import digest
 from lib.novel_workflow.models import SVTBatch
 
 

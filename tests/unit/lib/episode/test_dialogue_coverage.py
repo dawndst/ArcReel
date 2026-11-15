@@ -87,7 +87,7 @@ async def test_decisions_are_version_checked_and_do_not_delete_note_or_shots(tmp
 
     import pytest
 
-    from lib.novel_understanding.store import digest
+    from lib.novel_workflow.common import digest
     from lib.novel_workflow import chapters, store, understanding
     from lib.novel_workflow.dialogue_coverage import decide
     from lib.novel_workflow.service import read_notes

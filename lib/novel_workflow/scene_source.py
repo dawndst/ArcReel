@@ -1,7 +1,7 @@
 """Exact source spans shared by source navigation and local dialogue attribution."""
 
-from lib.novel_understanding.store import digest
 from lib.novel_workflow import chapters, store
+from lib.novel_workflow.common import digest
 from lib.novel_workflow.scene_library import catalog
 
 

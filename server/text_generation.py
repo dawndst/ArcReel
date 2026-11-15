@@ -48,7 +48,7 @@ from lib.infra.content_digest import prefixed_sha256_file
 from lib.infra.path_safety import PathTraversalError, safe_join
 from lib.infra.schema_guards import is_int, is_str
 from lib.infra.text_utils import strip_json_code_fences
-from lib.novel_understanding import service as novel_memory
+from lib.novel_workflow import integration as novel_memory
 from lib.project.asset_types import ASSET_SPECS, BUCKET_KEY, asset_name_comparison_key
 from lib.project.project_manager import ProjectManager, is_reference_video_project
 from lib.prompts.prompt_builders_reference import build_reference_units_split_prompt

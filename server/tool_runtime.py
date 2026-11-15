@@ -2744,7 +2744,7 @@ async def execute_queued_text_task(
     *,
     services: Services | None = None,
 ) -> dict[str, Any]:
-    from lib.novel_understanding.service import stop_requested
+    from lib.novel_workflow.cancellation import stop_requested
 
     task_id = str(task["task_id"])
     token = stop_requested.set(lambda: task_id in _STOPPED_NOTE_TASKS)

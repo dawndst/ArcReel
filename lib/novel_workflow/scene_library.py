@@ -9,9 +9,9 @@ from uuid import uuid4
 
 from lib.artifacts.formal_write import formal_write_transaction, project_metadata_lock
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.novel_understanding.service import NovelReadingInterrupted, check_stop
-from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import chapters, store, understanding
+from lib.novel_workflow.cancellation import NovelReadingInterrupted, check_stop
+from lib.novel_workflow.common import digest, now
 from lib.novel_workflow.evidence import expand_scene_excerpt, locate
 from lib.novel_workflow.scene_models import SceneBatch, Segment
 from lib.novel_workflow.storage import load_json

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from lib.novel_understanding.store import digest
+from lib.novel_workflow.common import digest
 from lib.novel_workflow import conclusions, settings, store, understanding
 from lib.novel_workflow.conclusions import Consolidation
 from tests.unit.lib.episode.test_cross_chapter_understanding import FIRST, SECOND, setup
@@ -143,7 +143,7 @@ def test_resolution_requires_explicit_evidence_and_covers_every_original_questio
 
 
 async def test_call_limit_stops_before_extra_generation_and_keeps_visible_counter(tmp_path):
-    from lib.novel_understanding.service import NovelReadingInterrupted
+    from lib.novel_workflow.cancellation import NovelReadingInterrupted
     from lib.novel_workflow.call_budget import WorkflowGenerator
 
     await asyncio.to_thread(settings.update, tmp_path, {"max_model_calls": 1})

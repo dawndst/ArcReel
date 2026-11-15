@@ -155,7 +155,7 @@ async def test_adoption_versions_only_selected_field_and_guards_assembly(tmp_pat
 
 
 def test_confirm_question_is_individual_versioned_and_preserves_other_production_issues(tmp_path, monkeypatch):
-    from lib.novel_understanding.store import digest
+    from lib.novel_workflow.common import digest
     from lib.novel_workflow import scene_library, store
 
     batch = {

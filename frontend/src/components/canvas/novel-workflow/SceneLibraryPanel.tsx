@@ -1,3 +1,4 @@
+import { ShotRhythmStrip } from "./ShotRhythmStrip";
 import { CraftPanel, type SaveCraft } from "./CraftPanel";
 import { DialogueCoveragePanel, type DecideDialogue } from "./DialogueCoveragePanel";
 import { DialogueAttribution } from "./DialogueAttribution";
@@ -37,6 +38,7 @@ export function SceneLibraryPanel({ batches, notes, disabled, selection, setSele
 }) {
   const { t } = useTranslation("dashboard");
   const formatRevision = (value: string | import("@/types/novel-workflow").LibrarySegment["utterances"]): string => typeof value === "string" ? value : value.map((u) => `${u.speaker || t("nw_speaker_pending")} · ${t(`nw_delivery_${u.delivery ?? "unclassified"}`)}：${u.text}`).join("\n");
+  const [rhythmSelection, setRhythmSelection] = useState(false);
   const [filter, setFilter] = useState("");
   const [editing, setEditing] = useState<{ shot: LibraryShot; batch: string; proposal: boolean } | null>(null);
   const { ordered, sceneLabels, shotLabels } = sceneLibraryOrder(batches, notes);
@@ -53,10 +55,11 @@ export function SceneLibraryPanel({ batches, notes, disabled, selection, setSele
   const toggle = (ids: string[]) => setSelection(ids.every((id) => selection.includes(id)) ? selection.filter((id) => !ids.includes(id)) : [...selection, ...ids.filter((id) => !selection.includes(id))]);
   const move = (index: number, offset: number) => { const next = [...selection]; [next[index], next[index + offset]] = [next[index + offset], next[index]]; setSelection(next); };
   return <div className="@container/scene-library relative min-h-0 flex-1 overflow-hidden"><div className="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] @min-[900px]/scene-library:grid-cols-[minmax(0,1fr)_20rem] @min-[900px]/scene-library:grid-rows-[minmax(0,1fr)]">
-    <div className="relative min-h-0 min-w-0 space-y-6 overflow-y-auto bg-muted/20 p-5 [scrollbar-gutter:stable]">
+    <div className="relative min-h-0 min-w-0 space-y-4 overflow-y-auto bg-background p-4 [scrollbar-gutter:stable]">
       <p className="text-sm text-muted-foreground">{t("nw_scene_library_hint")}</p>
       {completeProduction && missingProduction.length > 0 && <Button disabled={disabled} onClick={() => completeProduction([...new Set(missingProduction.map((b) => b.note_id))])}>{t("nw_complete_production")}</Button>}
       <Input aria-label={t("nw_scene_search")} placeholder={t("nw_scene_search")} value={filter} onChange={(e) => setFilter(e.target.value)} />
+      <div className="space-y-2"><label className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={rhythmSelection} onChange={(e) => setRhythmSelection(e.target.checked)} />{t("nw_rhythm_selection")}</label><ShotRhythmStrip shots={rhythmSelection ? selection.flatMap((id) => byId.has(id) ? [byId.get(id)!] : []) : allShots} labels={shotLabels} locate={(id) => { setFilter(shotLabels.get(id) ?? id); requestAnimationFrame(() => { const target = document.getElementById(`library-shot-${id}`); target?.scrollIntoView({ block: "center" }); target?.focus({ preventScroll: true }); }); }} />{rhythmSelection && !selection.length && <p className="text-sm text-muted-foreground">{t("nw_rhythm_empty")}</p>}</div>
       <MomentCoverage batches={batches} selected={selection} locate={setFilter} />
       {!batches.length && <p className="text-sm">{t("nw_scene_empty")}</p>}
       {ordered.map((batch, batchIndex) => <div key={batch.basis} id={`scene-batch-${batch.basis}`} className="space-y-6">
@@ -67,13 +70,13 @@ export function SceneLibraryPanel({ batches, notes, disabled, selection, setSele
         {batch.production_stale && <p className="text-sm text-warn">{t("nw_production_stale")}</p>}
         {batch.stale && <p className="text-sm text-destructive">{t("nw_scene_stale")}</p>}
         {batch.skipped_reason && <p className="text-sm text-muted-foreground">{t("nw_scene_skipped")}：{batch.skipped_reason}</p>}
-        {batch.scenes.filter((scene) => isNumberSearch ? [sceneLabels.get(scene.id), ...scene.shots.map((shot) => shotLabels.get(shot.id))].some((label) => label?.toLowerCase() === query) : JSON.stringify(scene).toLowerCase().includes(query)).map((scene) => <article key={scene.id} aria-label={`${sceneLabels.get(scene.id)} · ${scene.title}`} className="overflow-hidden rounded-2xl border-2 border-primary/20 bg-muted/30 shadow-sm">
-          <div className="space-y-3 border-b border-primary/20 bg-primary/10 p-5">
+        {batch.scenes.filter((scene) => isNumberSearch ? [sceneLabels.get(scene.id), ...scene.shots.map((shot) => shotLabels.get(shot.id))].some((label) => label?.toLowerCase() === query) : JSON.stringify(scene).toLowerCase().includes(query)).map((scene) => <article key={scene.id} aria-label={`${sceneLabels.get(scene.id)} · ${scene.title}`} className="overflow-hidden rounded-xl border border-border bg-muted/30 shadow-sm">
+          <div className="space-y-3 border-b border-primary/20 bg-secondary p-4">
             <div className="flex items-center justify-between gap-3"><span className="rounded bg-primary px-2.5 py-1 font-mono text-sm font-bold text-primary-foreground">{sceneLabels.get(scene.id)}</span><span className="text-xs font-semibold text-muted-foreground">{t("nw_scene_shot_count", { count: scene.shots.length })}</span></div>
             <label className="flex items-center gap-3 text-lg font-bold"><input type="checkbox" aria-label={t("nw_select_scene", { title: scene.title })} disabled={disabled || batch.stale} checked={scene.shots.every((s) => selection.includes(s.id))} onChange={() => toggle(scene.shots.map((s) => s.id))} />{scene.title}</label>
             <p className="text-sm font-semibold text-muted-foreground">{scene.location} · {scene.time}</p><p className="border-t border-primary/15 pt-3 text-sm leading-7">{scene.purpose}</p>
           </div>
-          {scene.shots.map((shot) => <div key={shot.id} id={`library-shot-${shot.id}`} className="m-4 space-y-4 overflow-hidden rounded-xl border border-border bg-card p-4 shadow-xs">
+          {scene.shots.map((shot) => <div key={shot.id} id={`library-shot-${shot.id}`} tabIndex={-1} className="m-4 space-y-4 overflow-hidden rounded-xl border border-border bg-card p-4 shadow-xs">
             <header className="-mx-4 -mt-4 space-y-2 border-b bg-muted/50 px-4 py-3"><label className="flex items-center gap-3 text-base font-bold"><input type="checkbox" aria-label={t("nw_select_shot", { title: shot.title })} disabled={disabled || batch.stale} checked={selection.includes(shot.id)} onChange={() => toggle([shot.id])} />{shot.title}<span className="ml-auto text-xs">{shot.segments.reduce((n, s) => n + s.duration_seconds, 0)}s</span></label>
             <p className="font-mono text-xs font-semibold text-primary">{sceneLabels.get(scene.id)} · {shotLabels.get(shot.id)}</p></header>
             <div className="flex flex-wrap gap-2">{batchSource && <Button size="sm" variant="outline" onClick={() => batchSource(batch.basis, shot.id)}>{t("nw_shot_source")}</Button>}{suggestSpeakers && shot.segments.some((seg) => seg.utterances.some((u) => u.kind === "dialogue" && !u.speaker)) && <Button size="sm" disabled={disabled || batch.stale} onClick={() => suggestSpeakers(batch.note_id, shot.id)}>{t("nw_speaker_ai")}</Button>}</div>

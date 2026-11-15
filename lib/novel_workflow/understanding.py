@@ -7,8 +7,8 @@ import json
 from pathlib import Path
 
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import memory, retrieval, settings, store, synthesis
+from lib.novel_workflow.common import digest, now
 from lib.novel_workflow.evidence import locate
 from lib.novel_workflow.storage import load_json
 from lib.novel_workflow.understanding_models import Findings, Inquiry
@@ -194,7 +194,7 @@ def production_context(path, selected_note_ids, *, source_offset=None):
 
 
 async def understand_notes(path, generator, note_ids, expected):
-    from lib.novel_understanding.service import NovelReadingInterrupted, check_stop
+    from lib.novel_workflow.cancellation import NovelReadingInterrupted, check_stop
     from lib.novel_workflow.service import ask, current
 
     if not (await asyncio.to_thread(settings.get, path))["understanding_enabled"]:

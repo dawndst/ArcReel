@@ -1,0 +1,10 @@
+import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
+import type { EditBoundary } from "@/types/novel-workflow";
+
+export function EditContinuityPanel({ boundaries, labels, locate }: { boundaries: EditBoundary[]; labels: Map<string, string>; locate: (id: string) => void }) {
+  const { t } = useTranslation("dashboard");
+  return <section className="space-y-3 rounded-xl border bg-muted/10 p-4"><h3 className="font-bold">{t("nw_boundary_title")}</h3><p className="text-sm text-muted-foreground">{t("nw_boundary_hint")}</p>{!boundaries.length && <p className="text-sm">{t("nw_boundary_empty")}</p>}
+    {boundaries.map((b) => <article key={b.id} className="space-y-3 rounded-lg border bg-card p-3"><header className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{labels.get(b.from_shot) ?? b.from_shot} · SEG{b.from_segment + 1} → {labels.get(b.to_shot) ?? b.to_shot} · SEG{b.to_segment + 1}</strong><span className="rounded bg-muted px-2 py-1 text-xs">{t(`nw_boundary_${b.status}`)}</span></header><div className="grid gap-3 @md:grid-cols-2"><div><p className="text-xs font-semibold text-muted-foreground">{t("nw_exec_end_frame")}</p><p className="mt-1 whitespace-pre-wrap text-sm">{b.end_frame || t("nw_craft_unknown")}</p></div><div><p className="text-xs font-semibold text-muted-foreground">{t("nw_exec_start_frame")}</p><p className="mt-1 whitespace-pre-wrap text-sm">{b.start_frame || t("nw_craft_unknown")}</p></div></div>{b.states.length > 0 && <dl className="space-y-2 border-t pt-2">{b.states.map((s) => <div key={`${s.asset}:${s.field}`} className="text-sm"><dt className="font-medium">{s.asset} · {t(`nw_boundary_${s.field}`)}</dt><dd>{s.before || t("nw_craft_unknown")} → {s.after || t("nw_craft_unknown")} · {t(`nw_boundary_state_${s.status}`)}</dd></div>)}</dl>}<div className="flex gap-2">{[...new Set([b.from_shot, b.to_shot])].map((id) => <Button key={id} size="sm" variant="outline" onClick={() => locate(id)}>{t("nw_delivery_edit_target", { shot: labels.get(id) ?? id })}</Button>)}</div></article>)}
+  </section>;
+}

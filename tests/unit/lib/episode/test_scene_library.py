@@ -118,7 +118,7 @@ async def test_generation_has_no_episode_side_effect_and_cache_preserves_selecti
     assert json.loads((tmp_path / "project.json").read_text())["episodes"] == []
     shot = next(iter(original["batches"].values()))["scenes"][0]["shots"][0]
     assert shot["evidence"]["note_id"] == note_id
-    from lib.novel_understanding.store import digest
+    from lib.novel_workflow.common import digest
     from lib.novel_workflow.shot_production import ShotDecisions, update
 
     decisions = ShotDecisions.model_validate(

@@ -14,7 +14,7 @@
 }
 
 /* 语义 token，命名沿用 shadcn：浅色值写在 :root，深色值写在 .dark，由下方 @theme inline 映射成工具类。
-   - 品牌紫只有 primary 一个基色；浅底、描边、选中态用透明度修饰（bg-primary/15）。
+   - 强调色只有 primary 一个基色；浅底、描边、选中态用透明度修饰（bg-primary/15）。
    - 危险用 destructive（红），警告与过期用 warn（琥珀），完成与可用用 good。
    - 文字三档：foreground（正文）> subtle-foreground（次要）> muted-foreground（弱化）；
      muted-foreground 在页面底色上的对比度两种模式下都高于 5:1，正文不再叠加透明度降低它。
@@ -27,28 +27,28 @@
     --radius: 0.625rem;
     color-scheme: light;
 
-    --background: oklch(0.985 0.003 265);
-    --foreground: oklch(0.21 0.012 265);
-    --subtle-foreground: oklch(0.40 0.012 265);
-    --card: oklch(1 0 0);
+    --background: #faf5ea;
+    --foreground: #081431;
+    --subtle-foreground: #3f475a;
+    --card: #fefcf8;
     --card-foreground: var(--foreground);
-    --popover: oklch(1 0 0);
+    --popover: #fdfbf5;
     --popover-foreground: var(--foreground);
-    --primary: oklch(0.50 0.15 295);
-    --primary-foreground: oklch(0.99 0 0);
-    --secondary: oklch(0.945 0.006 265);
+    --primary: #0e7490;
+    --primary-foreground: #ffffff;
+    --secondary: #f2ebdc;
     --secondary-foreground: var(--foreground);
-    --muted: oklch(0.945 0.006 265);
-    --muted-foreground: oklch(0.52 0.012 265);
-    --accent: oklch(0.94 0.008 265);
+    --muted: #f2ebdc;
+    --muted-foreground: #5f6472;
+    --accent: #e9e0cd;
     --accent-foreground: var(--foreground);
-    --destructive: oklch(0.55 0.20 25);
-    --border: oklch(0.88 0.006 265);
-    --input: oklch(0.62 0.008 265);
-    --ring: oklch(0.50 0.15 295);
+    --destructive: #b3302a;
+    --border: #e7dfcf;
+    --input: #8b816d;
+    --ring: #0891b2;
 
-    --good: oklch(0.50 0.12 155);
-    --warn: oklch(0.55 0.13 65);
+    --good: #2e7a4c;
+    --warn: #9a6410;
 
     --chart-1: var(--primary);
     --chart-2: var(--good);
@@ -66,7 +66,7 @@
     --asset-scene: oklch(0.50 0.11 165);
     --asset-prop: oklch(0.53 0.12 85);
 
-    --sidebar: oklch(0.965 0.005 265);
+    --sidebar: #f2ebdc;
     --sidebar-foreground: var(--foreground);
     --sidebar-primary: var(--primary);
     --sidebar-primary-foreground: var(--primary-foreground);
@@ -107,30 +107,30 @@
 .dark {
     color-scheme: dark;
 
-    --background: oklch(0.168 0.009 265);
-    --foreground: oklch(0.975 0.004 265);
-    --subtle-foreground: oklch(0.820 0.008 265);
-    --card: oklch(0.182 0.011 270);
+    --background: #081431;
+    --foreground: #f7edd8;
+    --subtle-foreground: #d5cebf;
+    --card: #0b1735;
     --card-foreground: var(--foreground);
     /* 弹层材质：不透明 surface，比卡片略亮；一条 border、一个 overlay 阴影，不用模糊与渐变 */
-    --popover: oklch(0.205 0.011 265);
+    --popover: #0d1a3a;
     --popover-foreground: var(--foreground);
-    --primary: oklch(0.76 0.09 295);
-    --primary-foreground: oklch(0.14 0 0);
-    --secondary: oklch(0.250 0.012 265);
+    --primary: #22d3ee;
+    --primary-foreground: #081431;
+    --secondary: #15254d;
     --secondary-foreground: var(--foreground);
-    --muted: oklch(0.250 0.012 265);
-    --muted-foreground: oklch(0.640 0.010 265);
+    --muted: #15254d;
+    --muted-foreground: #a7a5a3;
     /* shadcn 的 accent 是菜单项悬停底色，不是品牌色 */
-    --accent: oklch(0.26 0.012 265 / 0.5);
+    --accent: #1d2f5a;
     --accent-foreground: var(--foreground);
-    --destructive: oklch(0.70 0.18 25);
-    --border: oklch(0.40 0.012 265 / 0.35);
-    --input: oklch(0.55 0.014 265);
-    --ring: oklch(0.76 0.09 295);
+    --destructive: #ec7a70;
+    --border: #33436c;
+    --input: #7885a0;
+    --ring: #22d3ee;
 
-    --good: oklch(0.78 0.10 155);
-    --warn: oklch(0.80 0.12 70);
+    --good: #6fbf8e;
+    --warn: #e0ad55;
 
     --chart-1: var(--primary);
     --chart-2: var(--good);
@@ -152,7 +152,7 @@
     --asset-prop: oklch(0.88 0.15 92);
 
     /* sidebar 取页面底色渐变的第二色 */
-    --sidebar: oklch(0.148 0.009 260);
+    --sidebar: #0d1a3a;
     --sidebar-foreground: var(--foreground);
     --sidebar-primary: var(--primary);
     --sidebar-primary-foreground: var(--primary-foreground);
@@ -580,4 +580,19 @@ body {
         max-width: 100%;
         border-radius: 0.375rem;
     }
+}
+
+/* Palette adapted from drama-skills (MIT); see docs/novel-workflow/dashboard-ui.md. */
+.rhythm-strip { --rhythm-1: #8faacb; --rhythm-2: #7797c0; --rhythm-3: #476f9e; --rhythm-4: #36648f; --rhythm-5: #214b74; --rhythm-6: #13304e; }
+.rhythm-shot { background: var(--rhythm-1); color: #081431; }
+.rhythm-shot[data-scale="2"] { background: var(--rhythm-2); }
+.rhythm-shot[data-scale="3"] { background: var(--rhythm-3); color: white; }
+.rhythm-shot[data-scale="4"] { background: var(--rhythm-4); color: white; }
+.rhythm-shot[data-scale="5"] { background: var(--rhythm-5); color: white; }
+.rhythm-shot[data-scale="6"] { background: var(--rhythm-6); color: white; }
+.rhythm-shot[data-scale="0"] { background: var(--muted); color: var(--foreground); border-style: dashed; }
+.rhythm-shot[aria-current="true"] { outline: 2px solid var(--ring); outline-offset: 2px; }
+@media (forced-colors: active) {
+  .rhythm-shot { background: ButtonFace; color: ButtonText; border-color: ButtonText; }
+  .rhythm-shot[aria-current="true"] { outline-color: Highlight; }
 }

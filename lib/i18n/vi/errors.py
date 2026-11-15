@@ -1,4 +1,5 @@
 MESSAGES = {
+    "episode_manage_note_arrangement_required": 'Tạo tập phim từ các cảnh và cảnh quay đã chọn. Tạo thủ công chỉ dành cho dự án thuyết minh.',
     "novel_adoption_confirm": "Áp dụng sẽ cập nhật dàn ý và đánh dấu sản phẩm hiện có cần kiểm tra.",
     "novel_review_stale": "Nguồn, tập hoặc cài đặt đã đổi. Hãy duyệt lại trước khi áp dụng.",
 

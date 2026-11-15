@@ -69,7 +69,7 @@ from lib.infra.async_thread import (
 from lib.infra.data_root_layout import DataRootLayout
 from lib.infra.json_io import domain_error_on_value_error
 from lib.material.formal_objects import formal_commit_on, release_holder
-from lib.novel_understanding.service import generate_project_overview
+from lib.novel_workflow.integration import generate_project_overview
 from lib.novel_workflow.routing import WorkflowError
 from lib.project import deleted_projects
 from lib.project.asset_fingerprints import compute_asset_fingerprints

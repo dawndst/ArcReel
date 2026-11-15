@@ -9,9 +9,9 @@ from typing import Literal
 from pydantic import Field
 
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.novel_understanding.service import check_stop
-from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import chapters, memory, store
+from lib.novel_workflow.cancellation import check_stop
+from lib.novel_workflow.common import digest, now
 from lib.novel_workflow.models import StrictModel
 from lib.novel_workflow.storage import load_json
 

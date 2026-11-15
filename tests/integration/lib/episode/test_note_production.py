@@ -4,11 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from lib.novel_understanding.store import digest
 from lib.novel_workflow import chapters, scene_library, scope, store, understanding
+from lib.novel_workflow.common import digest
 from lib.novel_workflow.director import assemble
 from lib.novel_workflow.production import validate_binding
+from lib.novel_workflow.shot_production import context, planning_inputs
 from lib.project.project_manager import ProjectManager
+from tests.unit.lib.episode.test_shot_production import design
 
 
 def setup(tmp_path: Path):
@@ -54,17 +56,30 @@ def setup(tmp_path: Path):
                 "quote": quote,
                 "note_id": note["id"],
                 "source_file": "source/book.txt",
-                "start": index * 10 + 6,
-                "end": index * 10 + 10,
+                "start": (path / "source/book.txt").read_text().index(quote),
+                "end": (path / "source/book.txt").read_text().index(quote) + len(quote),
             },
         }
+        shot["production"] = {
+            "shot_id": shot["id"],
+            "event_ids": [],
+            "moment_ids": [],
+            "design": design(),
+            "assets": [],
+        }
+        reading = store.valid_readings(path, store.state(path))[note["id"]]
+        ctx = context(path, reading, chapters.chunks(path, project, note)[0])
         library["batches"][str(index)] = {
+            "production_context": ctx,
+            "production_basis": planning_inputs(
+                ctx, store.effective_rule(path, "shot_production"), {shot["id"]: shot}, project, reading
+            )[2],
             "basis": str(index),
             "note_id": note["id"],
             "note_order": index,
             "part": 0,
             "source_basis": indexed["source_basis"],
-            "rule_basis": digest(store.rule(path, "scenes")),
+            "rule_basis": digest(store.effective_rule(path, "scenes")),
             "note_bases": {note["id"]: basis},
             "understanding_basis": understanding.production_context(path, [note["id"]])["basis"],
             "scenes": [

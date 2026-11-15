@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from lib.novel_understanding import service as legacy
+from lib.novel_workflow import integration as legacy
 from lib.novel_workflow import overview, scope, store
 from lib.novel_workflow.routing import WorkflowError
 from lib.novel_workflow.service import read_notes
@@ -32,8 +32,6 @@ async def test_overview_uses_only_current_notes_and_rechecks_before_save(tmp_pat
     data, book = await asyncio.to_thread(setup_project, tmp_path)
     first, second = [n["id"] for n in book["notes"]]
     await read_notes(tmp_path, Reader(), [first], book["source_basis"])
-    legacy_ensure = AsyncMock(side_effect=AssertionError("legacy reader called"))
-    monkeypatch.setattr(legacy, "ensure", legacy_ensure)
     captured = {}
 
     async def generate(name, **kwargs):
@@ -48,7 +46,6 @@ async def test_overview_uses_only_current_notes_and_rechecks_before_save(tmp_pat
     assert first in captured["source_content_override"]
     assert second not in captured["source_content_override"]
     assert "乙推开城门" not in captured["source_content_override"]
-    legacy_ensure.assert_not_called()
     scope.configure(tmp_path, data, [second], book["source_basis"])
     with pytest.raises(WorkflowError):
         captured["source_check"](data)
@@ -57,13 +54,9 @@ async def test_overview_uses_only_current_notes_and_rechecks_before_save(tmp_pat
 async def test_legacy_memory_and_unbound_scripts_fail_before_model_calls(tmp_path):
     data, _ = await asyncio.to_thread(setup_project, tmp_path)
     generator = SimpleNamespace(generate=AsyncMock())
-    assert not legacy.applicable(data)
-    with pytest.raises(WorkflowError, match="旧的全书阅读"):
-        await legacy.ensure(tmp_path, data, generator)
     with pytest.raises(WorkflowError, match="Note 来源绑定"):
         await legacy.prepare(tmp_path, data, 1, "", {}, generator=generator)
     generator.generate.assert_not_called()
-    assert not legacy.applicable({**data, "novel_workflow_enabled": False})
 
 
 async def test_large_overview_is_reduced_in_bounded_cached_batches(tmp_path, monkeypatch):

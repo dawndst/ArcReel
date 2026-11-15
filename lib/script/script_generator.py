@@ -59,7 +59,7 @@ from lib.i18n import _ as translate
 from lib.infra.async_thread import run_sync_transaction
 from lib.infra.content_digest import sha256_file
 from lib.infra.text_utils import strip_json_code_fences
-from lib.novel_understanding import service as novel_memory
+from lib.novel_workflow import integration as novel_memory
 from lib.project.asset_types import asset_name_comparison_key
 from lib.project.item_id_history import issue_landing_item_ids
 from lib.project.project_manager import ProjectManager, ScriptWriteConflict
@@ -370,7 +370,7 @@ class ScriptGenerator:
         """
         self.project_path = Path(project_path)
         self.generator = generator
-        self._novel_guard: novel_memory.ProductionGuard | novel_memory.NoteProductionGuard | None = None
+        self._novel_guard: novel_memory.NoteProductionGuard | None = None
         self._novel_inputs: dict[str, Any] | None = None
         self.config_resolver = config_resolver
         self._script_plan_fingerprint: str | None = None

@@ -9,7 +9,7 @@ from copy import deepcopy
 import pytest
 
 from lib.infra.json_io import load_json
-from lib.novel_understanding.store import digest
+from lib.novel_workflow.common import digest
 from lib.novel_workflow import chapters, execution, scene_library, settings, store, understanding
 from lib.novel_workflow import delivery_review as review
 from lib.novel_workflow.delivery_review import DirectorDecision
@@ -176,9 +176,12 @@ def test_human_review_then_assembly_then_current_artwork_handoff(prepared):
                 asset["image_hash"],
                 "美术",
                 actor_id="art",
+                policy=review.reference_policy.ReferencePolicy(controls=["appearance"], excludes="不参考图片背景和机位"),
             )
     final = review.handoff(path, current, [shot["id"]], "出发", book["source_basis"])
     assert final["ready"]
+    assert all(a["reference_policy"]["controls"] == ["appearance"] for a in final["assets"] if a["visible"])
+    assert "不参考图片背景和机位" in final["shots"][0]["segments"][0]["canvas_prompt"]
     assert final["shots"][0]["display_id"] == "EP01-SC01-SH001"
     assert "角色画外发声" in final["shots"][0]["segments"][0]["canvas_prompt"]
     with zipfile.ZipFile(

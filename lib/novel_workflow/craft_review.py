@@ -16,8 +16,8 @@ from pydantic import Field
 
 from lib.artifacts.formal_write import project_metadata_lock
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import execution, settings, store
+from lib.novel_workflow.common import digest, now
 from lib.novel_workflow.evidence import locate
 from lib.novel_workflow.models import StrictModel
 from lib.novel_workflow.scene_source import source_chunk
@@ -70,6 +70,9 @@ class CraftDecision(StrictModel):
     shot_ids: list[str] = Field(default_factory=list, max_length=100)
     text: str = Field(default="", max_length=3000)
     opening: OpeningState | None = None
+    adaptation_action: Literal["retain", "compress", "merge", "transform", "reorder", "omit"] = "retain"
+    dramatic_function: str = Field(default="", max_length=1000)
+    tradeoff: str = Field(default="", max_length=1500)
 
 
 def find_batch(path, basis):
@@ -363,9 +366,16 @@ def decide(path, project, batch_basis, req):
             else:
                 if req.decision == "confirm" and (not req.shot_ids or not set(req.shot_ids) <= set(shots)):
                     raise ValueError("请选择实际承载该内容的镜头")
+                if req.decision == "confirm" and req.adaptation_action == "omit":
+                    raise ValueError("省略内容请使用省略决定，不能同时标为已呈现")
+                if req.decision == "confirm" and req.adaptation_action != "retain" and len(req.tradeoff.strip()) < 5:
+                    raise ValueError("调整原著内容时，请说明损失、补偿或因果衔接，至少5字")
                 batch.setdefault("craft_decisions", {})[req.item_id] = {
                     **entry,
                     "decision": req.decision,
+                    "adaptation_action": "omit" if req.decision == "omit" else req.adaptation_action,
+                    "dramatic_function": req.dramatic_function.strip(),
+                    "tradeoff": req.tradeoff.strip(),
                     "shot_ids": list(dict.fromkeys(req.shot_ids)) if req.decision == "confirm" else [],
                 }
         elif req.kind == "opening":

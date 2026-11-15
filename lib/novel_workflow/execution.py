@@ -6,8 +6,8 @@ from uuid import uuid4
 from pydantic import Field
 
 from lib.artifacts.formal_write import project_metadata_lock
-from lib.novel_understanding.store import digest, now
 from lib.novel_workflow import store
+from lib.novel_workflow.common import digest, now
 from lib.novel_workflow.models import StrictModel
 from lib.novel_workflow.scene_models import Segment
 from lib.novel_workflow.storage import load_json

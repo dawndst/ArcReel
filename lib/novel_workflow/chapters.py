@@ -7,7 +7,7 @@ from collections import Counter
 from pathlib import Path
 
 from lib.episode.episode_sources import discover_sources
-from lib.novel_understanding.store import digest
+from lib.novel_workflow.common import digest
 
 CHAPTER = re.compile(
     r"第[零〇一二三四五六七八九十百千万两0-9０-９]+[章节回]|(?:序\s*章|楔子|尾声|终章|終章|正文[一二三四五六七八九十0-9]+|完结)|(?<!\S)[零〇一二三四五六七八九十百千万两0-9０-９]+章|\bChapter\s+[0-9IVXLCDM]+",

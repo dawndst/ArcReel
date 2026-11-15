@@ -17,7 +17,7 @@ from lib.episode.episode_deletion import (
 from lib.episode.episode_layout import build_episode_layout
 from lib.episode.episode_management import (
     EpisodeManagementError,
-    create_episode,
+    create_narration_episode,
     move_episode,
 )
 from lib.episode.episode_sources import discover_sources, planning_start
@@ -104,7 +104,7 @@ class TestCreate:
     def test_new_episode_goes_to_the_end_by_default_with_a_fresh_id(self, tmp_path: Path):
         project_dir = _project_dir(tmp_path, [_cut(1, 0, CH2), _own(2)], high_water=7)
 
-        episode = create_episode(_pm(project_dir), "demo")
+        episode = create_narration_episode(_pm(project_dir), "demo")
 
         assert episode == 8
         assert _order(project_dir) == [1, 2, 8]
@@ -117,7 +117,7 @@ class TestCreate:
     def test_inserted_after_the_second_episode_shifts_the_later_positions(self, tmp_path: Path):
         project_dir = _project_dir(tmp_path, [_cut(1, 0, CH2), _cut(2, CH2, CH3), _own(3)])
 
-        episode = create_episode(_pm(project_dir), "demo", after=2, title="  插曲 ", hook=" 钩子 ")
+        episode = create_narration_episode(_pm(project_dir), "demo", after=2, title="  插曲 ", hook=" 钩子 ")
 
         assert _order(project_dir) == [1, 2, episode, 3]
         entry = _entry(project_dir, episode)
@@ -127,7 +127,7 @@ class TestCreate:
     def test_can_sit_between_two_cut_episodes(self, tmp_path: Path):
         project_dir = _project_dir(tmp_path, [_cut(1, 0, CH2), _cut(2, CH2, CH3)])
 
-        episode = create_episode(_pm(project_dir), "demo", after=1)
+        episode = create_narration_episode(_pm(project_dir), "demo", after=1)
 
         assert _order(project_dir) == [1, episode, 2]
 
@@ -135,7 +135,7 @@ class TestCreate:
         project_dir = _project_dir(tmp_path, [_cut(1, 0, CH2)])
         (project_dir / "source" / "episode_2.txt").write_text("没有登记的旧文件", encoding="utf-8")
 
-        episode = create_episode(_pm(project_dir), "demo", source_text="番外：山中一日。\r\n")
+        episode = create_narration_episode(_pm(project_dir), "demo", source_text="番外：山中一日。\r\n")
 
         assert episode == 2
         assert _entry(project_dir, 2)["source_origin"] == "own"
@@ -146,7 +146,7 @@ class TestCreate:
     def test_blank_source_text_counts_as_no_source(self, tmp_path: Path):
         project_dir = _project_dir(tmp_path, [])
 
-        episode = create_episode(_pm(project_dir), "demo", source_text="  \n ")
+        episode = create_narration_episode(_pm(project_dir), "demo", source_text="  \n ")
 
         assert _entry(project_dir, episode)["source_origin"] == "none"
 
@@ -155,7 +155,7 @@ class TestCreate:
         before = _load(project_dir)
 
         with pytest.raises(EpisodeManagementError) as exc:
-            create_episode(_pm(project_dir), "demo", after=9)
+            create_narration_episode(_pm(project_dir), "demo", after=9)
 
         assert exc.value.code == "episode_not_found"
         assert _load(project_dir) == before
@@ -168,7 +168,7 @@ class TestCreate:
         before = _load(project_dir)
 
         with pytest.raises(EpisodeManagementError) as exc:
-            create_episode(_pm(project_dir), "demo")
+            create_narration_episode(_pm(project_dir), "demo")
 
         assert exc.value.code == "ad_episode_locked"
         assert _load(project_dir) == before
@@ -359,14 +359,12 @@ class TestDelete:
         assert exc.value.code == "ad_episode_locked"
 
 
-def test_drama_episode_created_with_source_text_records_its_source_kind(tmp_path: Path):
+def test_drama_episode_cannot_bypass_director_assembly(tmp_path: Path):
     project_dir = _project_dir(tmp_path, [])
     project = _load(project_dir)
     project["content_mode"] = "drama"
     (project_dir / "project.json").write_text(json.dumps(project), encoding="utf-8")
-
-    screenplay = create_episode(_pm(project_dir), "demo", source_text="【场景】雨夜。", source_kind="screenplay")
-    blank = create_episode(_pm(project_dir), "demo")
-
-    assert _entry(project_dir, screenplay)["source_kind"] == "screenplay"
-    assert "source_kind" not in _entry(project_dir, blank)
+    with pytest.raises(EpisodeManagementError) as error:
+        create_narration_episode(_pm(project_dir), "demo", source_text="【场景】雨夜。", source_kind="screenplay")
+    assert error.value.code == "note_arrangement_required"
+    assert _load(project_dir) == project

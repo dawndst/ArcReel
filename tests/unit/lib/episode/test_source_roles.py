@@ -49,7 +49,7 @@ def test_unnamed_role_reuses_code_and_keeps_note_evidence_after_synchronization(
 
 
 def test_register_and_attribute_is_versioned_and_reuses_one_asset(tmp_path):
-    from lib.novel_understanding.store import digest
+    from lib.novel_workflow.common import digest
     from lib.novel_workflow import chapters, scene_library, settings
     from lib.novel_workflow.shot_production import planning_inputs
 

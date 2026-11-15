@@ -3,9 +3,9 @@
 import asyncio
 
 from lib.infra.async_thread import run_noninterruptible_sync
-from lib.novel_understanding.service import NovelReadingInterrupted
-from lib.novel_understanding.store import now
 from lib.novel_workflow import settings, store
+from lib.novel_workflow.cancellation import NovelReadingInterrupted
+from lib.novel_workflow.common import now
 
 
 class WorkflowGenerator:
