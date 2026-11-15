@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from contextlib import suppress
 from difflib import SequenceMatcher
 from uuid import uuid4
 
@@ -393,20 +394,33 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                     "conclusion_constraints": story_context["conclusion_constraints"],
                 }
                 draft_file = store.root(path) / "scene_drafts" / f"{key}.json"
+                candidate_file = store.root(path) / "scene_candidates" / f"{key}.json"
                 if await asyncio.to_thread(draft_file.exists):
                     result = await asyncio.to_thread(load_json, draft_file)
                 else:
-                    result = await ask(
-                        path,
-                        generator,
-                        SceneBatch,
-                        rules + "\n当前原文与事实：" + json.dumps(payload, ensure_ascii=False),
-                        lambda value, chunk=chunk, local_names=local_names: ground(
-                            value, chunk, local_names, durations
-                        ),
-                        grow_output=True,
-                        max_output_tokens=24000,
-                    )
+                    result = None
+                    if await asyncio.to_thread(candidate_file.exists):
+                        candidate = await asyncio.to_thread(load_json, candidate_file)
+                        # Keep the raw candidate; failed grounding never accepts it.
+                        with suppress(ValueError):
+                            result = await asyncio.to_thread(
+                                ground, SceneBatch.model_validate(candidate), chunk, local_names, durations
+                            )
+
+                    async def validate_candidate(value, chunk=chunk, local_names=local_names, target=candidate_file):
+                        await run_noninterruptible_sync(store.write, target, value.model_dump())
+                        return await asyncio.to_thread(ground, value, chunk, local_names, durations)
+
+                    if result is None:
+                        result = await ask(
+                            path,
+                            generator,
+                            SceneBatch,
+                            rules + "\n当前原文与事实：" + json.dumps(payload, ensure_ascii=False),
+                            validate_candidate,
+                            grow_output=True,
+                            max_output_tokens=24000,
+                        )
                     await run_noninterruptible_sync(store.write, draft_file, result)
                 from lib.novel_workflow.scene_review import review
 

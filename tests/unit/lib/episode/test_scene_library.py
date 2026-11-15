@@ -115,6 +115,20 @@ async def test_generation_has_no_episode_side_effect_and_cache_preserves_selecti
     await scene_library.generate(tmp_path, generator, [note_id], notebook["source_basis"], durations=[8])
     assert generator.calls == 1 + int(truncate)
     assert scene_library.catalog(tmp_path) == original
+    # A saved, unaccepted candidate can be grounded again after a code fix;
+    # losing the committed draft must not require another paid draft generation.
+    candidates = await asyncio.to_thread(lambda: list((store.root(tmp_path) / "scene_candidates").glob("*.json")))
+    assert len(candidates) == 1
+
+    def clear_draft():
+        store.write(store.root(tmp_path) / "scene_library.json", {"batches": {}})
+        for file in (store.root(tmp_path) / "scene_drafts").glob("*.json"):
+            file.unlink()
+
+    await asyncio.to_thread(clear_draft)
+    await scene_library.generate(tmp_path, generator, [note_id], notebook["source_basis"], durations=[8])
+    assert generator.calls == 1 + int(truncate)
+    original = scene_library.catalog(tmp_path)
     assert json.loads((tmp_path / "project.json").read_text())["episodes"] == []
     shot = next(iter(original["batches"].values()))["scenes"][0]["shots"][0]
     assert shot["evidence"]["note_id"] == note_id

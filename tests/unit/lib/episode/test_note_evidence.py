@@ -259,6 +259,39 @@ def test_scene_excerpt_never_discards_ellipsis_inside_spoken_words():
         expand_scene_excerpt("『你快逃！』他停下。『好。』", "『你……快逃！』……『好。』")
 
 
+def test_scene_newline_excerpt_restores_intervening_text_without_weakening_literal_speech():
+    from lib.novel_workflow.evidence import expand_scene_excerpt
+
+    first = "在这天与地都不存在的黑暗中，出现一抹淡淡的鲜红色光晕"
+    second = "逆着红光，可以看见数不清的影子，是一群异形怪兽。"
+    middle = "，鲜红的光在变形、舞动，仿佛黑暗的彼方有火焰在燃烧。\n\n"
+    source = first + middle + second
+    quote = first + "\n" + second + "。"
+    start, end = expand_scene_excerpt(source, quote)
+    assert source[start:end] == source
+    assert middle in source[start:end]
+    with pytest.raises(ValueError):
+        locate(source, quote)
+    for invalid in (quote.replace("这天与地", "天地"), second + "\n" + first):
+        with pytest.raises(ValueError):
+            expand_scene_excerpt(source, invalid)
+    with pytest.raises(ValueError):
+        expand_scene_excerpt(source + source, quote)
+    with pytest.raises(ValueError):
+        expand_scene_excerpt("甲开门。他没有答应。乙离开。", "甲开门。\n乙离开。")
+
+
+def test_scene_multiline_dialogue_anchor_keeps_short_replies_and_literal_ellipses():
+    from lib.novel_workflow.evidence import expand_scene_excerpt
+
+    source = "阳子走到窗边拿出数学课本。她停了一下。“恩。”她低下头。“……大致。”同学们围住桌子开始写作业。"
+    quote = "阳子走到窗边拿出数学课本。\n“恩。”\n“……大致。”\n同学们围住桌子开始写作业。"
+    start, end = expand_scene_excerpt(source, quote)
+    assert source[start:end] == source
+    with pytest.raises(ValueError):
+        expand_scene_excerpt(source, quote.replace("……大致", "大概"))
+
+
 def test_inexact_quote_requires_literal_recopy_not_duplicate_context():
     from lib.novel_workflow.service import claim_evidence
 

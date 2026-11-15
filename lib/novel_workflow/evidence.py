@@ -32,6 +32,14 @@ def expand_scene_excerpt(text: str, quote: str) -> tuple[int, int]:
     """
     import re
 
+    lines = [line.strip().strip('「」『』“”‘’"') for line in quote.splitlines() if line.strip()]
+    lengths = [len("".join(line.split())) for line in lines]
+    if len(lines) >= 2 and max(lengths) >= 8 and sum(lengths) >= 16:
+        try:
+            return _excerpt_span(text, lines)
+        except ValueError:
+            pass
+
     # Ellipses inside dialogue are literal speech, not excerpt separators.
     pairs = {"「": "」", "『": "』", "“": "”", "‘": "’", '"': '"'}
     closers = []
@@ -52,11 +60,17 @@ def expand_scene_excerpt(text: str, quote: str) -> tuple[int, int]:
             index += 1
     fragments.append(quote[start:])
     pieces = [clean for part in fragments if (clean := part.strip().strip('「」『』“”‘’"')).strip()]
+    return _excerpt_span(text, pieces)
+
+
+def _excerpt_span(text, pieces):
+    """All fragments must occur in order within one unambiguous source envelope."""
     if len(pieces) < 2 or len(pieces) > 32:
         raise ValueError("不是可恢复的省略摘录")
     positions = [i for i, char in enumerate(text) if not char.isspace()]
     compact = "".join(text[i] for i in positions)
     needles = ["".join(part.split()) for part in pieces]
+    needles = [n[:-1] if n.endswith("。。") and n not in compact else n for n in needles]
     if any(not needle for needle in needles):
         raise ValueError("省略摘录包含空片段")
     states = [(None, 0)]
