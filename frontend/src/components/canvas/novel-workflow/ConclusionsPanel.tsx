@@ -29,10 +29,10 @@ function ConclusionCard({ item, noteId, busy, decide, availableEvidence }: { ava
   </article>;
 }
 
-export function ConclusionsPanel({ notes, busy, decide }: { notes: ChapterNote[]; busy: boolean; decide?: (value: ConclusionDecisionInput) => void }) {
+export function ConclusionsPanel({ notes, busy, decide, initialNoteId }: { initialNoteId?: string; notes: ChapterNote[]; busy: boolean; decide?: (value: ConclusionDecisionInput) => void }) {
   const { t } = useTranslation("dashboard");
   const available = notes.filter((n) => n.reading);
-  const [active, setActive] = useState(available.at(-1)?.id ?? "");
+  const [active, setActive] = useState(initialNoteId ?? available.at(-1)?.id ?? "");
   const [filter, setFilter] = useState<"all" | ConclusionStatus>("all");
   const note = available.find((n) => n.id === active) ?? available.at(-1);
   const review = note?.reading?.conclusion_review;
