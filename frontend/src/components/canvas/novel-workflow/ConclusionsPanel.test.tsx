@@ -23,10 +23,11 @@ it("filters conclusions and requires evidence before a human can mark one resolv
 it("lets a human search and select source evidence omitted by the model", () => {
   const decide = vi.fn();
   const withEvidence = structuredClone(notes);
-  withEvidence[0]!.reading!.conclusion_review!.available_evidence = [
+  withEvidence[0]!.reading!.conclusion_review!.conclusions[0]!.related_evidence = [
     { id:"source-new", note_id:"n", source_file:"novel.txt", start:10, end:20, quote:"来人自称林舟" },
-    { id:"other", note_id:"n", source_file:"novel.txt", start:30, end:40, quote:"窗外下起雨" },
+
   ];
+  withEvidence[0]!.reading!.conclusion_review!.available_evidence = [{id:"other",note_id:"n",source_file:"novel.txt",start:30,end:40,quote:"窗外下起雨"}];
   render(<ConclusionsPanel notes={withEvidence} busy={false} decide={decide} />);
   fireEvent.click(screen.getByRole("button", { name:"人工处理" }));
   fireEvent.change(screen.getAllByRole("combobox")[1]!, { target:{value:"resolved"} });

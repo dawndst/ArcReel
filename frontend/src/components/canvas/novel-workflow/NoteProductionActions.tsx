@@ -1,7 +1,5 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { ChapterNote, NovelWorkflow } from "@/types/novel-workflow";
 
@@ -25,14 +23,11 @@ export function NoteProductionActions({ data, notes, canSvt, canScenes, busy, ru
 }) {
   const { t } = useTranslation(["dashboard", "common"]);
   const status = noteProductionStatus(data, notes);
-  const [pending, setPending] = useState<{ action: "svt" | "scenes"; ids: string[]; titles: string[] } | null>(null);
   const open = (action: "svt" | "scenes") => {
-    if (busy || !(action === "svt" ? canSvt : canScenes)) return;
-    setPending({ action, ids: notes.map((n) => n.id), titles: notes.map((n) => n.title) });
+    if (!busy && (action === "svt" ? canSvt : canScenes)) void run(action, notes.map((n) => n.id));
   };
   const hasSvt = status.svts.length > 0;
   const hasScenes = status.batches.length > 0;
-  const sameSelection = pending?.ids.join("|") === notes.map((n) => n.id).join("|");
   return <>
     {hasSvt ? <Button size="sm" variant="outline" onClick={() => viewSvt(status.svts[0].id)}>{t(status.svtComplete ? "dashboard:nw_view_svt_complete" : "dashboard:nw_view_svt_existing")}</Button>
       : <Button size="sm" variant="outline" disabled={!canSvt} onClick={() => void run("svt", notes.map((n) => n.id))}>{t("dashboard:nw_generate_svt")}</Button>}
@@ -42,11 +37,5 @@ export function NoteProductionActions({ data, notes, canSvt, canScenes, busy, ru
       {hasSvt && <DropdownMenuItem disabled={!canSvt} onClick={() => open("svt")}>{t("dashboard:nw_reextract_svt")}</DropdownMenuItem>}
       {hasScenes && <DropdownMenuItem disabled={!canScenes} onClick={() => open("scenes")}>{t("dashboard:nw_update_scenes")}</DropdownMenuItem>}
     </DropdownMenuContent></DropdownMenu>}
-    <Dialog open={pending !== null} onOpenChange={(value) => { if (!value && !busy) setPending(null); }}><DialogContent>
-      <DialogTitle>{t(pending?.action === "svt" ? "dashboard:nw_reextract_svt" : "dashboard:nw_update_scenes")}</DialogTitle>
-      <DialogDescription>{t(pending?.action === "svt" ? "dashboard:nw_reextract_svt_hint" : "dashboard:nw_update_scenes_hint")}</DialogDescription>
-      <p className="text-sm">{pending?.titles.join("、")}</p>
-      <DialogFooter><Button variant="outline" disabled={busy} onClick={() => setPending(null)}>{t("common:cancel")}</Button><Button disabled={busy || !sameSelection || !(pending?.action === "svt" ? canSvt : canScenes)} onClick={() => { if (pending && sameSelection && !busy) void run(pending.action, pending.ids).then(() => setPending(null)); }}>{t("dashboard:nw_confirm_update_outputs")}</Button></DialogFooter>
-    </DialogContent></Dialog>
   </>;
 }

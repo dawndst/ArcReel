@@ -419,6 +419,9 @@ def effective_reading(path, note, reading, *, notebook=None, readings=None):
     value = load(path, note, reading, notebook=notebook, readings=readings)
     if not value:
         return reading
+    from lib.novel_workflow.conclusion_evidence import enrich
+
+    value = enrich(path, note, reading, value)
     pending = [c for c in value["conclusions"] if c["status"] != "resolved"]
     return {
         **reading,
@@ -529,6 +532,14 @@ def decide(path, note_id, conclusion_id, status, answer, evidence_ids, reason, e
             {e["id"]: {key: field for key, field in e.items() if key != "id"} for e in value["available_evidence"]}
             if "available_evidence" in value
             else dict(zip(item["evidence_ids"], item["evidence"], strict=True))
+        )
+        from lib.novel_workflow.conclusion_evidence import catalog, related
+
+        pool.update(
+            {
+                e["id"]: {k: v for k, v in e.items() if k in {"source_file", "start", "end", "quote", "note_id"}}
+                for e in related(item, catalog(path, note, reading, value))
+            }
         )
         if not set(evidence_ids) <= set(pool) or (status == "resolved" and not evidence_ids):
             raise ValueError("确认已解释时必须选择该结论的原文依据；依据不足请先回查原文。")

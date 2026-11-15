@@ -2818,6 +2818,12 @@ async def _execute_queued_text_task(
             )
         from lib.novel_workflow.condensation import generate as condense_notes
 
+        if payload["action"] == "conclusion_evidence":
+            from lib.novel_workflow.conclusion_evidence import generate as review_evidence
+
+            return await review_evidence(
+                path, generator, payload["note_ids"], payload["source_basis"], payload.get("conclusion_id")
+            )
         if payload["action"] == "craft_review":
             from lib.novel_workflow.craft_review import generate as review_craft
 

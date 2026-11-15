@@ -1,3 +1,4 @@
+import { confirmLlmCall, llmRequestSummary } from "@/lib/llm-confirmation";
 import type { NovelWorkflow, ChapterPreview } from "@/types/novel-workflow";
 import type { EpisodeGuideResponse } from "@/types/episode-guide";
 /**
@@ -424,8 +425,12 @@ class API {
    */
   static async request<T = unknown>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    llmConfirmed = false,
   ): Promise<T> {
+    const summary = llmRequestSummary(endpoint, options);
+    if (summary && !llmConfirmed) await confirmLlmCall(summary);
+    if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
     return requestJson<T>(endpoint, options);
   }
 
@@ -2169,11 +2174,19 @@ class API {
   static async adoptNoteSVT(name: string, note_id: string, candidate_id: string, source_basis: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/notes/${encodeURIComponent(note_id)}/svt`, { method: "POST", body: JSON.stringify({ candidate_id, source_basis }) });
   }
-  static async runNoteWorkflow(name: string, action: "read" | "svt" | "review" | "understand" | "conclusions" | "scenes" | "condense" | "group_summary", note_ids: string[], source_basis: string, group_id?: string): Promise<unknown> {
-    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action, note_ids, source_basis, group_id }) });
+  static async runNoteWorkflow(name: string, action: "read" | "svt" | "review" | "understand" | "conclusions" | "scenes" | "condense" | "group_summary", note_ids: string[], source_basis: string, group_id?: string, llmConfirmed = false): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action, note_ids, source_basis, group_id }) }, llmConfirmed);
   }
   static async decideNoteConclusion(name: string, value: { source_basis: string; note_id: string; conclusion_id: string; status: import("@/types/novel-workflow").ConclusionStatus; answer: string; reason: string; evidence_ids: string[] }): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/conclusions/decide`, { method: "POST", body: JSON.stringify(value) });
+  }
+  static async decideConclusionAndUpdate(name: string, value: Parameters<typeof API.decideNoteConclusion>[1]): Promise<void> {
+    await confirmLlmCall("保存这条人工决定，并由 AI 更新本章问题与结论 · 1 章");
+    await this.decideNoteConclusion(name, value);
+    await this.runNoteWorkflow(name, "conclusions", [value.note_id], value.source_basis, undefined, true);
+  }
+  static async recheckConclusionEvidence(name: string, note_id: string, conclusion_id: string, source_basis: string): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, {method:"POST", body:JSON.stringify({action:"conclusion_evidence",note_ids:[note_id],conclusion_id,source_basis})});
   }
   static async organizeCrossQuestions(name: string, report_id: string, note_ids: string[], source_basis: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action: "questions", report_id, note_ids, source_basis, question_ai: true }) });

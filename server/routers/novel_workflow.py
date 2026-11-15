@@ -56,6 +56,7 @@ class ReadingRequest(SourceRequest):
         "shot_draft",
         "craft_review",
         "selection_story",
+        "conclusion_evidence",
     ]
     note_ids: list[str] = Field(min_length=1, max_length=10000)
 
@@ -63,6 +64,7 @@ class ReadingRequest(SourceRequest):
     report_id: str | None = Field(default=None, max_length=100)
     question_ai: bool = Field(default=False, description="仅 questions 操作：显式允许付费AI归并，默认只复用已有台账")
     shot_ids: list[str] = Field(default_factory=list, max_length=300)
+    conclusion_id: str | None = Field(default=None, max_length=100)
     title: str = Field(default="", max_length=200)
 
 

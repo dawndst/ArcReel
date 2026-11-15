@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import type { NovelWorkflow } from "@/types/novel-workflow";
 import { NoteProductionActions, noteProductionStatus } from "./NoteProductionActions";
@@ -20,15 +20,11 @@ it("views existing outputs without starting model work", () => {
   expect(screen.queryByRole("button", { name: "生成场与镜头" })).not.toBeInTheDocument();
 });
 
-it("requires explicit confirmation for re-extraction", async () => {
+it("delegates re-extraction to the centrally confirmed API", async () => {
   const run = vi.fn().mockResolvedValue(undefined);
   render(<NoteProductionActions data={data} notes={data.notes} canSvt canScenes busy={false} run={run} viewSvt={() => {}} viewScenes={() => {}} />);
   fireEvent.click(screen.getByRole("button", { name: "更新已有成果" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "重新提炼／补全 SVT" }));
-  const dialog = screen.getByRole("dialog");
-  expect(within(dialog).getByText("第一章")).toBeInTheDocument();
-  expect(run).not.toHaveBeenCalled();
-  fireEvent.click(within(dialog).getByRole("button", { name: "确认更新所选章节" }));
   expect(run).toHaveBeenCalledWith("svt", ["n"]);
 });
 
