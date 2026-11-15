@@ -293,8 +293,11 @@ def _view(path: Path, project: dict) -> dict:
             or any(valid_results.get(i) != b for i, b in group.get("summary_bases", {}).items())
         )
         groups.append(group)
+    from lib.novel_workflow.scene_pipeline import status as scene_status
+
     return {
         **current,
+        "scene_status": scene_status(path, current, readings),
         "groups": groups,
         "scene_batches": [b for b in scene_library.view(path, current, readings) if not b["stale"]],
         "pending_assemblies": [

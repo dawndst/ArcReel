@@ -77,6 +77,18 @@ def report(batch, reading, chunk):
                             or (normalized(e["quote"]) in unique_quotes and normalized(e["quote"]) in text)
                         )
                     ]
+                    linked = next(
+                        (
+                            r["dialogue_id"]
+                            for r in shot.get("source_dialogue_uses", [])
+                            if r["segment"] == si and r["utterance"] == ui
+                        ),
+                        None,
+                    )
+                    if linked:
+                        candidates = [
+                            e for e in entries if linked in e["source_ids"] and normalized(e["quote"]) == text
+                        ]
                     if len(candidates) > 1:
                         candidates = [e for e in candidates if e["speaker"] == u.get("speaker")]
                     if len(candidates) != 1:
@@ -101,6 +113,8 @@ def report(batch, reading, chunk):
                 break
             end = max(end, finish)
         e["status"] = "retained" if end >= len(normalized(e["quote"])) else "partial" if spans else "unassigned"
+        if any(i in batch.get("omitted_dialogues", []) for i in e["source_ids"]) and e["status"] != "retained":
+            e["suggested_omission"] = batch.get("omission_reason", "")
         decision = decisions.get(e["dialogue_id"])
         if decision and decision.get("decision") == "omit" and e["status"] != "retained":
             e["reason"] = decision["reason"]
@@ -112,7 +126,8 @@ def report(batch, reading, chunk):
 
 
 def decide(path, project, batch_basis, expected, coverage_revision, dialogue_id, decision, reason):
-    from lib.novel_workflow import chapters, scene_library
+    from lib.novel_workflow import scene_library
+    from lib.novel_workflow.scene_source import source_chunk
 
     if decision not in {"omit", "restore"} or len(reason.strip()) < 10:
         raise ValueError("请选择省略或恢复，并填写至少10字的处理理由")
@@ -123,8 +138,7 @@ def decide(path, project, batch_basis, expected, coverage_revision, dialogue_id,
         batch = next((b for b in library["batches"].values() if b["basis"] == batch_basis), None)
         if not batch or not scene_library.valid_batch(path, batch, notebook, readings):
             raise ValueError("场镜依据已变化，请刷新后处理对白")
-        note = next(n for n in notebook["notes"] if n["id"] == batch["note_id"])
-        chunk = chapters.chunks(path, project, note)[batch["part"]]
+        chunk = source_chunk(path, project, batch, notebook)
         current = report(batch, readings[batch["note_id"]], chunk)
         if current["revision"] != coverage_revision:
             raise ValueError("对白去向已变化，请刷新后确认")

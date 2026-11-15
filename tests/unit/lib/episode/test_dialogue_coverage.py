@@ -87,8 +87,8 @@ async def test_decisions_are_version_checked_and_do_not_delete_note_or_shots(tmp
 
     import pytest
 
-    from lib.novel_workflow.common import digest
     from lib.novel_workflow import chapters, store, understanding
+    from lib.novel_workflow.common import digest
     from lib.novel_workflow.dialogue_coverage import decide
     from lib.novel_workflow.service import read_notes
     from tests.unit.lib.episode.test_novel_workflow import Reader, project
@@ -103,7 +103,7 @@ async def test_decisions_are_version_checked_and_do_not_delete_note_or_shots(tmp
         async def generate(self, request, **kwargs):
             response = await super().generate(request, **kwargs)
             value = json.loads(response.text)
-            if value.get("complete") and not value["events"][0].get("dialogues"):
+            if value.get("events") and value.get("complete") and not value["events"][0].get("dialogues"):
                 value["events"][0]["dialogues"] = [
                     {
                         "speaker": "甲",
@@ -132,7 +132,7 @@ async def test_decisions_are_version_checked_and_do_not_delete_note_or_shots(tmp
             "source_start": chunk["start"],
             "source_basis": notebook["source_basis"],
             "note_bases": {note["id"]: reading["basis"]},
-            "rule_basis": digest(store.effective_rule(tmp_path, "scenes")),
+            "rule_basis": digest(store.effective_rule(tmp_path, "scene_shots")),
             "understanding_basis": understanding.production_context(
                 tmp_path, [note["id"]], source_offset=chunk["start"]
             )["basis"],

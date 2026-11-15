@@ -72,14 +72,14 @@ def setup(tmp_path: Path):
         library["batches"][str(index)] = {
             "production_context": ctx,
             "production_basis": planning_inputs(
-                ctx, store.effective_rule(path, "shot_production"), {shot["id"]: shot}, project, reading
+                ctx, store.effective_rule(path, "scene_shots"), {shot["id"]: shot}, project, reading
             )[2],
             "basis": str(index),
             "note_id": note["id"],
             "note_order": index,
             "part": 0,
             "source_basis": indexed["source_basis"],
-            "rule_basis": digest(store.effective_rule(path, "scenes")),
+            "rule_basis": digest(store.effective_rule(path, "scene_shots")),
             "note_bases": {note["id"]: basis},
             "understanding_basis": understanding.production_context(path, [note["id"]])["basis"],
             "scenes": [

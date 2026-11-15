@@ -14,5 +14,5 @@ export function NoteReadAction({ notes, disabled, run }: { notes: ChapterNote[];
     catch (e) { if (!(e instanceof LlmCallCancelled)) setError(e instanceof Error ? e.message : String(e)); }
     finally { setSubmitting(false); }
   }
-  return <><Button size="sm" disabled={disabled || submitting || !notes.length} onClick={() => void submit()}>{existing.length === notes.length && notes.length ? "Note 已生成 · 检查/续跑" : existing.length ? "生成缺失 Note / 续跑" : "AI 泛读并生成 Notes"} · 已选 {notes.length} 章</Button>{error && <p role="alert" className="text-sm text-destructive">{error}</p>}</>;
+  return <><Button size="sm" variant={existing.length === notes.length && notes.length ? "outline" : "default"} disabled={disabled || submitting || !notes.length} onClick={() => void submit()}>{existing.length === notes.length && notes.length ? "Note 已生成 · 检查/续跑" : existing.length ? "生成缺失 Note / 续跑" : "AI 泛读并生成 Notes"} · 已选 {notes.length} 章</Button>{error && <p role="alert" className="text-sm text-destructive">{error}</p>}</>;
 }

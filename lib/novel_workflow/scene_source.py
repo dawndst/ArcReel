@@ -5,6 +5,35 @@ from lib.novel_workflow.common import digest
 from lib.novel_workflow.scene_library import catalog
 
 
+def linked_dialogue_range(shot, source_lines, segment, utterance, value, chunk):
+    """Resolve an original utterance by its saved source ID, even for repeated words."""
+    from lib.novel_workflow.dialogue_coverage import normalized
+
+    link = next(
+        (r for r in shot.get("source_dialogue_uses", []) if r["segment"] == segment and r["utterance"] == utterance),
+        None,
+    )
+    line = source_lines.get(link["dialogue_id"]) if link else None
+    evidence = line.get("evidence", {}) if line else {}
+    if (
+        not line
+        or normalized(line["quote"]) != normalized(value["text"])
+        or evidence.get("source_file") != chunk["source_file"]
+    ):
+        return None
+    start, end = evidence.get("start", -1), evidence.get("end", -1)
+    if not chunk["start"] <= start < end <= chunk["end"]:
+        return None
+    original = chunk["text"][start - chunk["start"] : end - chunk["start"]]
+    if original != evidence.get("quote"):
+        return None
+    text = value["text"].strip().strip('「」『』“”"')
+    if text and original.count(text) == 1:
+        start += original.index(text)
+        end = start + len(text)
+    return [{"start": start, "end": end}]
+
+
 def batch_source(path, project, basis):
     notebook = store.state(path)
     if not notebook:
@@ -14,6 +43,9 @@ def batch_source(path, project, basis):
         raise ValueError("场镜不存在")
     note = next((n for n in notebook["notes"] if n["id"] == batch["note_id"]), None)
     chunk = source_chunk(path, project, batch, notebook)
+    source_lines = {
+        d["id"]: d for e in batch.get("production_context", {}).get("events", []) for d in e.get("dialogues", [])
+    }
     shots = []
     for scene in batch["scenes"]:
         for shot in scene["shots"]:
@@ -22,6 +54,10 @@ def batch_source(path, project, basis):
             for i, segment in enumerate(shot["segments"]):
                 for j, utterance in enumerate(segment["utterances"]):
                     if utterance["kind"] != "dialogue":
+                        continue
+                    linked = linked_dialogue_range(shot, source_lines, i, j, utterance, chunk)
+                    if linked is not None:
+                        dialogues.append({"segment": i, "utterance": j, "text": utterance["text"], "ranges": linked})
                         continue
                     text = utterance["text"].strip().strip('「」『』“”"')
                     matches, cursor = [], 0

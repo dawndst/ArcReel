@@ -11,8 +11,8 @@ export function noteProductionStatus(data: NovelWorkflow | null, notes: ChapterN
     svtComplete: notes.length > 0 && !data?.stale && notes.every((n) => n.status === "read" && n.svt_status === "complete" && svts.some((s) => s.id === n.svt_id && !s.stale)),
     scenes: batches.reduce((count, b) => count + b.scenes.length, 0),
     shots: batches.reduce((count, b) => count + b.scenes.reduce((sum, s) => sum + s.shots.length, 0), 0),
-    scenesForAll: notes.length > 0 && notes.every((n) => batches.some((b) => b.note_id === n.id)),
-    scenesStale: batches.some((b) => b.stale || b.production_stale),
+    scenesForAll: notes.length > 0 && notes.every((n) => data?.scene_status?.[n.id]?.status === "complete"),
+    scenesStale: notes.some((n) => data?.scene_status?.[n.id]?.status === "stale") || batches.some((b) => b.stale || b.production_stale),
   };
 }
 
@@ -29,14 +29,14 @@ export function NoteProductionActions({ data, notes, canSvt, canScenes, busy, ru
   const hasSvt = status.svts.length > 0;
   const hasScenes = status.batches.length > 0;
   const missingSvt = notes.filter((n) => !status.svts.some((s) => s.id === n.svt_id && !s.stale));
-  const missingScenes = notes.filter((n) => !status.batches.some((b) => b.note_id === n.id && !b.stale));
+  const missingScenes = notes.filter((n) => data.scene_status?.[n.id]?.status !== "complete");
   return <>
     {hasSvt ? <Button size="sm" variant="outline" onClick={() => viewSvt(status.svts[0].id)}>{t(status.svtComplete ? "dashboard:nw_view_svt_complete" : "dashboard:nw_view_svt_existing")}</Button>
       : <Button size="sm" variant="outline" disabled={!canSvt} onClick={() => void run("svt", notes.map((n) => n.id))}>{t("dashboard:nw_generate_svt")}</Button>}
     {hasScenes ? <Button size="sm" onClick={() => viewScenes(status.batches[0].basis)}>{t("dashboard:nw_view_scenes_count", { scenes: status.scenes, shots: status.shots })}</Button>
       : <Button size="sm" disabled={!canScenes} onClick={() => void run("scenes", notes.map((n) => n.id))}>{t("dashboard:nw_generate_scenes")}</Button>}
     {hasSvt && missingSvt.length > 0 && <Button size="sm" variant="outline" disabled={!canSvt || busy} onClick={() => void run("svt", missingSvt.map((n) => n.id))}>为未覆盖的 {missingSvt.length} 章提炼 SVT</Button>}
-    {hasScenes && missingScenes.length > 0 && <Button size="sm" disabled={!canScenes || busy} onClick={() => void run("scenes", missingScenes.map((n) => n.id))}>为未覆盖的 {missingScenes.length} 章生成场镜</Button>}
+    {hasScenes && missingScenes.length > 0 && <Button size="sm" disabled={!canScenes || busy} onClick={() => void run("scenes", missingScenes.map((n) => n.id))}>{t("dashboard:nw_scene_continue_chapters", { count: missingScenes.length })}</Button>}
     {(hasSvt || hasScenes) && <DropdownMenu><DropdownMenuTrigger render={<Button size="sm" variant="ghost" disabled={busy} />}>{t("dashboard:nw_update_outputs")}</DropdownMenuTrigger><DropdownMenuContent>
       {hasSvt && <DropdownMenuItem disabled={!canSvt} onClick={() => open("svt")}>{t("dashboard:nw_reextract_svt")}</DropdownMenuItem>}
       {hasScenes && <DropdownMenuItem disabled={!canScenes} onClick={() => open("scenes")}>{t("dashboard:nw_update_scenes")}</DropdownMenuItem>}

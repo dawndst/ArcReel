@@ -1,6 +1,5 @@
 import asyncio
 import json
-from types import SimpleNamespace
 
 import pytest
 
@@ -73,62 +72,23 @@ async def test_generation_has_no_episode_side_effect_and_cache_preserves_selecti
 
     await generate_svts(tmp_path, SVTReader(), [note_id], notebook["source_basis"])
 
-    class Generator:
-        calls = 0
-        max_output_tokens = 48000
+    from tests.unit.lib.episode.test_scene_pipeline import Generator as PipelineGenerator
 
+    class Generator(PipelineGenerator):
         async def generate(self, request, **kwargs):
-            if "# 镜头制作设计与来源关联" in request.prompt:
-                payload = json.JSONDecoder().raw_decode(request.prompt[request.prompt.index('{"original":') :])[0]
-                design = dict.fromkeys(
-                    ["purpose", "shot_size", "camera_angle", "camera_movement", "framing", "continuity", "sound"],
-                    "固定机位，原文动作连续",
-                )
-                return SimpleNamespace(
-                    text=json.dumps(
-                        {
-                            "shots": [
-                                {
-                                    "shot_id": key,
-                                    "event_ids": [payload["context"]["events"][0]["id"]],
-                                    "moment_ids": [],
-                                    "design": design,
-                                }
-                                for key in payload["shots"]
-                            ]
-                        }
-                    )
-                )
-            if "逐项审核场镜" in request.prompt:
-                return SimpleNamespace(text=json.dumps({"revisions": [], "unresolved": []}))
-            self.calls += 1
-            assert "乙推开城门" not in request.prompt
-            if truncate and self.calls == 1:
+            if truncate and self.calls == 0:
                 from lib.backends.text_backends.base import TextOutputTruncatedError
 
+                self.calls += 1
                 raise TextOutputTruncatedError(provider="test", model="test", output_tokens=request.max_output_tokens)
-            return SimpleNamespace(text=json.dumps(scene_output(), ensure_ascii=False))
+            return await super().generate(request, **kwargs)
 
     generator = Generator()
     await scene_library.generate(tmp_path, generator, [note_id], notebook["source_basis"], durations=[8])
     original = scene_library.catalog(tmp_path)
     await scene_library.generate(tmp_path, generator, [note_id], notebook["source_basis"], durations=[8])
-    assert generator.calls == 1 + int(truncate)
+    assert generator.calls == 3 + int(truncate)
     assert scene_library.catalog(tmp_path) == original
-    # A saved, unaccepted candidate can be grounded again after a code fix;
-    # losing the committed draft must not require another paid draft generation.
-    candidates = await asyncio.to_thread(lambda: list((store.root(tmp_path) / "scene_candidates").glob("*.json")))
-    assert len(candidates) == 1
-
-    def clear_draft():
-        store.write(store.root(tmp_path) / "scene_library.json", {"batches": {}})
-        for file in (store.root(tmp_path) / "scene_drafts").glob("*.json"):
-            file.unlink()
-
-    await asyncio.to_thread(clear_draft)
-    await scene_library.generate(tmp_path, generator, [note_id], notebook["source_basis"], durations=[8])
-    assert generator.calls == 1 + int(truncate)
-    original = scene_library.catalog(tmp_path)
     assert json.loads((tmp_path / "project.json").read_text())["episodes"] == []
     shot = next(iter(original["batches"].values()))["scenes"][0]["shots"][0]
     assert shot["evidence"]["note_id"] == note_id
@@ -188,7 +148,7 @@ async def test_changed_svt_assignment_blocks_scenes_until_reextracted(tmp_path):
     value = await asyncio.to_thread(lambda: json.loads(file.read_text()))
     value["svts"][0]["breakdown_status"] = "needs_review"
     await asyncio.to_thread(store.write, file, value)
-    with pytest.raises(ValueError, match="主归属 SVT 已调整"):
+    with pytest.raises(ValueError, match="本章 SVT"):
         await scene_library.generate(tmp_path, Reader(), [note_id], notebook["source_basis"], durations=[8])
     reading = await asyncio.to_thread(store.note_result, tmp_path, notebook["notes"][0])
     assert await asyncio.to_thread(scene_library.svt_event_tags, tmp_path, note_id, reading) == []

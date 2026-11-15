@@ -51,8 +51,7 @@ def claim_evidence(part, dialogue):
         if not candidates(part["text"], dialogue["quote"]):
             raise ValueError(
                 "引句不是逐字原文，不能仅补context_quote。请从source重新复制准确的quote，"
-                "保留原文助词和标点，不使用转述；不要改动其他已正确的记录。当前引句："
-                + dialogue["quote"][:100]
+                "保留原文助词和标点，不使用转述；不要改动其他已正确的记录。当前引句：" + dialogue["quote"][:100]
             ) from exc
         raise ValueError(
             "引句重复；quote保留逐字原句，填写能唯一定位本次引用的连续原文context_quote。当前引句："
@@ -131,7 +130,9 @@ async def ask(
         check_stop()
         try:
             response = await generator.generate(
-                TextGenerationRequest(prompt=prompt + error, max_output_tokens=output_limit),
+                TextGenerationRequest(
+                    prompt=prompt + error, max_output_tokens=output_limit, response_schema=output_schema(schema)
+                ),
                 project_name=path.name,
                 require_complete=True,
             )

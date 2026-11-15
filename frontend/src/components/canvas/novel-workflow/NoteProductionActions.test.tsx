@@ -1,3 +1,4 @@
+import { SceneProgress } from "./SceneProgress";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import type { NovelWorkflow } from "@/types/novel-workflow";
@@ -7,6 +8,7 @@ const data: NovelWorkflow = {
   initialized: true, stale: false, source_basis: "source", groups: [], progress: null,
   notes: [{ id: "n", title: "第一章", order: 1, volume: "", chapter: "", chars: 100, basis: "b", sections: [], status: "read", svt_id: "svt", svt_status: "complete" }],
   svts: [{ id: "svt", title: "主线", summary: "", note_ids: ["n"], status: "open", mainline_reason: "", breakdown_status: "complete", climaxes: [], payoffs: [], dialogues: [], evidence: [] }],
+  scene_status: { n: { status: "complete", completed: 1, total: 1, retained_drafts: 0, units: [] } },
   scene_batches: [{ basis: "batch", note_id: "n", stale: false, skipped_reason: "", scenes: [{ id: "scene", title: "场", location: "", time: "", purpose: "", shots: [] }] }],
 };
 
@@ -53,6 +55,19 @@ it("offers missing chapter outputs even when another selected chapter already ha
   render(<NoteProductionActions data={{...data,notes}} notes={notes} canSvt canScenes busy={false} run={run} viewSvt={vi.fn()} viewScenes={vi.fn()} />);
   fireEvent.click(screen.getByRole('button',{name:'为未覆盖的 1 章提炼 SVT'}));
   expect(run).toHaveBeenCalledWith('svt',['n2']);
-  fireEvent.click(screen.getByRole('button',{name:'为未覆盖的 1 章生成场镜'}));
+  fireEvent.click(screen.getByRole('button',{name:'继续完成 1 章场镜'}));
   expect(run).toHaveBeenCalledWith('scenes',['n2']);
+});
+
+it("does not mistake a retained legacy draft or one of four units for a complete chapter", () => {
+  expect(noteProductionStatus({ ...data, scene_status: undefined }, data.notes).scenesForAll).toBe(false);
+  const partial = { ...data, scene_status: { n: { status: "partial" as const, completed: 1, total: 4, units: [], retained_drafts: 1 } } };
+  expect(noteProductionStatus(partial, data.notes).scenesForAll).toBe(false);
+  const run=vi.fn();
+  render(<NoteProductionActions data={partial} notes={data.notes} canSvt canScenes busy={false} run={run} viewSvt={vi.fn()} viewScenes={vi.fn()} />);
+  expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  render(<SceneProgress note={data.notes[0]!} status={partial.scene_status.n} />);
+  expect(screen.getByRole("progressbar")).toHaveAttribute("max", "4");
+  fireEvent.click(screen.getByRole("button", {name:"继续完成 1 章场镜"}));
+  expect(run).toHaveBeenCalledWith("scenes", ["n"]);
 });

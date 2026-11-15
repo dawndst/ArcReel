@@ -66,6 +66,15 @@ def inspect(shot, project):
 
     if not shot.get("production"):
         add("design_missing", hard=True)
+    for pending in shot.get("pending_asset_refs", []):
+        add(
+            "asset_identity_pending",
+            pending.get("segment"),
+            True,
+            name=pending["name"],
+            kind=pending["kind"],
+            source_asset_id=pending["source_asset_id"],
+        )
     camera = shot.get("production", {}).get("design", {}).get("camera_movement", "") + shot.get("production", {}).get(
         "design", {}
     ).get("shot_size", "")
@@ -192,7 +201,7 @@ def update(path, shot_id, expected, revision, value, *, split=False):
         _, readings, library, batch, scene, shot = editable(path, project, shot_id, expected, revision)
         original = batch_source(path, project, batch["basis"])["text"]
         payload = validate_edit(value, original, project)
-        rules = store.effective_rule(path, "shot_production")
+        rules = store.effective_rule(path, "scene_shots")
         ctx = batch.get("production_context")
         previous_shots = {s["id"]: s for sc in batch["scenes"] for s in sc["shots"]}
         was_current = bool(

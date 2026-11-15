@@ -21,6 +21,7 @@ export function DialogueCoveragePanel({ batch, disabled, decide, locate }: { bat
       <blockquote className="whitespace-pre-wrap border-l-2 pl-2">{entry.quote}</blockquote>
       <p>{t("nw_dialogue_purposes")}：{entry.purposes.join("、") || t("nw_dialogue_none")}</p>
       <div className="flex flex-wrap gap-2">{entry.locations.map((location) => <Button key={`${location.shot_id}:${location.segment_index}:${location.utterance_index}`} size="sm" variant="outline" onClick={() => locate(location.shot_id)}>{location.shot_id} · SEG{location.segment_index + 1} · {t("nw_dialogue_line", { number: location.utterance_index + 1 })}</Button>)}</div>
+      {entry.suggested_omission && <p className="rounded bg-muted p-2 text-xs">{t("nw_scene_omission_suggestion", { reason: entry.suggested_omission })}</p>}
       {entry.reason && <p className="text-muted-foreground">{t("nw_dialogue_reason")}：{entry.reason}</p>}
       {decide && entry.status !== "retained" && <Button size="sm" variant="outline" disabled={disabled} onClick={() => { setEditing(entry.dialogue_id); setReason(""); }}>{t(entry.status === "omitted" ? "nw_dialogue_restore" : "nw_dialogue_omit")}</Button>}
       {editing === entry.dialogue_id && <div className="space-y-2">

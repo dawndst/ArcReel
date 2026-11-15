@@ -7,7 +7,6 @@ import json
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from lib.backends.text_backends.base import resolve_schema, structured_fallback_reason
 from lib.novel_workflow import store, understanding
 from lib.novel_workflow.common import digest
 from lib.novel_workflow.storage import load_json
@@ -62,76 +61,68 @@ class NoteProductionGuard:
         return []
 
     async def generate(self, request):
-        failure = ""
-        for _ in range(3):
-            await self.check(None)
-            schema = (
-                "\n只输出符合结构的 JSON：" + json.dumps(resolve_schema(request.response_schema), ensure_ascii=False)
-                if request.response_schema
-                else ""
-            )
-            result = await self.generator.generate(
-                replace(request, response_schema=None, prompt=request.prompt + self.context + schema + failure),
-                project_name=self.path.name,
-                require_complete=True,
-            )
-            await self.check(None)
-            invalid = (
-                structured_fallback_reason(result.text, request.response_schema) if request.response_schema else None
-            )
-            if not invalid:
-                return result
-            failure = "\n修正 JSON 结构：" + invalid
-        raise ValueError("Production model returned invalid JSON for this Note arrangement")
+        await self.check(None)
+        result = await self.generator.generate(
+            replace(request, prompt=request.prompt + self.context),
+            project_name=self.path.name,
+            require_complete=True,
+        )
+        await self.check(None)
+        return result
+
+
+def selected_inputs(path, project, entry, inputs):
+    from lib.novel_workflow.scene_library import selected_shots
+    from lib.novel_workflow.shot_production import effective_segment
+    from lib.references.reference_catalog import split_derivative_reference
+
+    book = store.state(path)
+    selected = selected_shots(path, book, store.valid_readings(path, book), entry["director_selection"]["shot_ids"])
+    scoped = {
+        **inputs,
+        "project_overview": {},
+        "next_episode_outline": None,
+        "characters": {},
+        "scenes": {},
+        "props": {},
+    }
+    for _, _, shot in selected:
+        for i, segment in enumerate(shot["segments"]):
+            segment = effective_segment(segment, shot.get("production"), i)
+            for field, bucket in (("characters_in_scene", "characters"), ("scenes", "scenes"), ("props", "props")):
+                names = list(segment.get(field, []))
+                if bucket == "characters":
+                    names += [u["speaker"] for u in segment["utterances"] if u.get("speaker")]
+                for name in names:
+                    base, variant = split_derivative_reference(name) if bucket == "characters" else (name, "")
+                    item = project.get(bucket, {}).get(base, {})
+                    if not item.get("asset_id"):
+                        raise ValueError("所选镜头的资产未关联，请先确认：" + name)
+                    target = scoped[bucket].setdefault(
+                        base, {"description": "", "asset_code": item.get("asset_code", "")}
+                    )
+                    if variant:
+                        child = item.get("derivatives", {}).get(variant, {})
+                        if not child.get("asset_id"):
+                            raise ValueError("所选镜头的视觉变体未关联，请先确认：" + name)
+                        target.setdefault("derivatives", {})[variant] = {
+                            "description": child.get("description", ""),
+                            "asset_code": child.get("asset_code", ""),
+                        }
+    return scoped
 
 
 async def prepare(path, episode, binding, inputs, generator, *, dry_run=False):
-    _project, readings = await asyncio.to_thread(validate_binding, path, episode, binding)
-    from lib.novel_workflow.assets import reference
-
-    scoped = dict(inputs)
-    scoped["project_overview"] = {}
-    scoped["next_episode_outline"] = None
-    quotes = []
-    for bucket, kind in (("characters", "character"), ("scenes", "scene"), ("props", "prop")):
-        scoped[bucket] = {}
-        for result in readings:
-            for asset in result["assets"]:
-                if asset.get("source_kind") in {"annotation", "unknown"} or asset.get("claim_type") in {
-                    "unverified",
-                    "inference",
-                    "statement",
-                    "adaptation",
-                }:
-                    continue
-                if asset["kind"] == kind:
-                    ref = reference(_project, asset)
-                    if ref.get("asset_missing"):
-                        raise ValueError("Note asset was removed; restore or resolve it before production")
-                    name = ref.get("asset_name", asset["name"])
-                    entry = scoped[bucket].setdefault(
-                        name, {"description": "", "asset_code": ref.get("asset_code", "")}
-                    )
-                    if ref.get("variant"):
-                        entry.setdefault("derivatives", {})[ref["variant"]] = {
-                            "description": asset["description"],
-                            "asset_code": ref["asset_code"],
-                        }
-                    quotes.append(asset["evidence"]["quote"])
+    _project, _readings = await asyncio.to_thread(validate_binding, path, episode, binding)
+    entry = next(e for e in _project["episodes"] if e["episode"] == episode)
+    scoped = await asyncio.to_thread(selected_inputs, path, _project, entry, inputs)
     context = "\n" + (await asyncio.to_thread(store.effective_rule, path, "production")).strip()
     context += "\n" + (await asyncio.to_thread(store.effective_rule, path, "fidelity")).strip()
-    # Original episode text already includes every selected Note; this is only a bounded reminder.
-    selected = []
-    used = 0
-    for quote in dict.fromkeys(quotes):
-        if used + len(quote) <= 10000:
-            selected.append(quote)
-            used += len(quote)
+    context += "\n只细化导演已选镜头，不补写未选择的场面；原文已在本集来源中提供，不重复整章阅读。"
     known = await asyncio.to_thread(understanding.production_context, path, list(binding["note_bases"]))
     context += "\n本集开始前已揭示、可引用的跨章依据（不能当作新增剧情）：" + json.dumps(
         known["links"], ensure_ascii=False
     )
-    entry = next(e for e in _project["episodes"] if e["episode"] == episode)
     constraints = [
         {"scene_id": row["scene_id"], "conclusion_constraints": row["conclusion_constraints"]}
         for row in entry.get("director_selection", {}).get("mapping", [])
@@ -140,5 +131,4 @@ async def prepare(path, episode, binding, inputs, generator, *, dry_run=False):
     context += "\n按原生片段编号绑定的结论制作约束，仅用于对应片段，不得提前用于其他片段：" + json.dumps(
         constraints, ensure_ascii=False
     )
-    context += "\n原文资产依据：" + json.dumps(selected, ensure_ascii=False)
     return scoped, None if dry_run else NoteProductionGuard(path, episode, binding, generator, context)

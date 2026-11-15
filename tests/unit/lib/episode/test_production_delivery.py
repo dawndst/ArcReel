@@ -102,12 +102,12 @@ def prepared(tmp_path):
         "note_order": 1,
         "part": 0,
         "source_basis": book["source_basis"],
-        "rule_basis": digest(store.effective_rule(path, "scenes")),
+        "rule_basis": digest(store.effective_rule(path, "scene_shots")),
         "note_bases": {note["id"]: reading["basis"]},
         "understanding_basis": understanding.production_context(path, [note["id"]])["basis"],
         "production_context": ctx,
         "production_basis": planning_inputs(
-            ctx, store.effective_rule(path, "shot_production"), {shot["id"]: shot}, project, reading
+            ctx, store.effective_rule(path, "scene_shots"), {shot["id"]: shot}, project, reading
         )[2],
         "scenes": [
             {"id": "SCN-0001", "title": "出发", "location": "房间", "time": "日", "purpose": "行动", "shots": [shot]}
@@ -225,7 +225,7 @@ def test_hard_errors_cannot_be_signed_off_but_timing_is_a_human_decision(prepare
     batch = library["batches"]["n:0"]
     reading = store.valid_readings(path, book)[batch["note_id"]]
     batch["production_basis"] = planning_inputs(
-        batch["production_context"], store.effective_rule(path, "shot_production"), {raw["id"]: raw}, project, reading
+        batch["production_context"], store.effective_rule(path, "scene_shots"), {raw["id"]: raw}, project, reading
     )[2]
     store.write(file, library)
     plan = preview(prepared)
@@ -392,7 +392,7 @@ def test_reference_assembly_does_not_require_approval_or_a_speech_budget(prepare
     raw["segments"][0]["duration_seconds"] = 1
     reading = store.valid_readings(path, book)[batch["note_id"]]
     batch["production_basis"] = planning_inputs(
-        batch["production_context"], store.effective_rule(path, "shot_production"), {raw["id"]: raw}, project, reading
+        batch["production_context"], store.effective_rule(path, "scene_shots"), {raw["id"]: raw}, project, reading
     )[2]
     store.write(file, library)
     episode = assemble(manager, "demo", [shot["id"]], "出发", book["source_basis"], "reference")
@@ -449,7 +449,7 @@ def test_unresolved_speaker_uses_pending_asset_without_blocking_reference_episod
     raw["segments"][0]["utterances"][0]["speaker"] = unresolved
     reading = store.valid_readings(path, book)[batch["note_id"]]
     batch["production_basis"] = planning_inputs(
-        batch["production_context"], store.effective_rule(path, "shot_production"), {raw["id"]: raw}, project, reading
+        batch["production_context"], store.effective_rule(path, "scene_shots"), {raw["id"]: raw}, project, reading
     )[2]
     store.write(file, library)
     episode = assemble(manager, "demo", [shot["id"]], "含待定路人", book["source_basis"], "pending")
@@ -490,7 +490,7 @@ def test_batch_conclusion_constraints_survive_native_assembly_and_draft_delivery
     batch["production_context"]["conclusion_constraints"] = constraints
     reading = store.valid_readings(path, book)[batch["note_id"]]
     batch["production_basis"] = planning_inputs(
-        batch["production_context"], store.effective_rule(path, "shot_production"), {shot["id"]: shot}, project, reading
+        batch["production_context"], store.effective_rule(path, "scene_shots"), {shot["id"]: shot}, project, reading
     )[2]
     store.write(store.root(path) / "scene_library.json", library)
     episode = assemble(manager, "demo", [shot["id"]], "约束传递", book["source_basis"], "constraint-review")
@@ -534,3 +534,76 @@ def test_literal_continuity_differences_need_review_but_not_one_reason_per_bound
     plan["issues"].append({"code": "source_review", "hard": False})
     with pytest.raises(ValueError, match="至少10字"):
         review.approve(path, [shot["id"]], "出发", book["source_basis"], d)
+
+
+async def test_native_prompt_scope_only_uses_selected_shots_and_keeps_structured_output(prepared):
+    import asyncio
+    from types import SimpleNamespace
+
+    from lib.backends.text_backends.base import TextGenerationRequest
+    from lib.novel_workflow.director import assemble
+    from lib.novel_workflow.production import prepare
+
+    manager, path, _project, book, shot = prepared
+    episode = await asyncio.to_thread(
+        assemble, manager, "demo", [shot["id"]], "出发", book["source_basis"], "native-scope"
+    )
+
+    def add_unselected_reference():
+        project_data = manager.load_project("demo")
+        reading = store.valid_readings(path, book)[book["notes"][0]["id"]]
+        reading["assets"].append(
+            {
+                "id": "unselected",
+                "kind": "character",
+                "name": "未选角色",
+                "claim_type": "fact",
+                "source_kind": "narrative",
+                "evidence": {
+                    "source_file": "source/book.txt",
+                    "note_id": book["notes"][0]["id"],
+                    "start": 999,
+                    "end": 1000,
+                    "quote": "未选原文",
+                },
+            }
+        )
+        store.write(
+            store.root(path) / "notes" / book["notes"][0]["id"] / f"{store.reading_key(path, book['notes'][0])}.json",
+            reading,
+        )
+        project_data.setdefault("note_asset_issues", {})["unselected"] = {
+            "code": "identity_ambiguous",
+            "candidates": [],
+            "blocking": True,
+        }
+        store.write(path / "project.json", project_data)
+        return next(e for e in project_data["episodes"] if e["episode"] == episode)["note_source"]
+
+    binding = await asyncio.to_thread(add_unselected_reference)
+    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
+
+    class NativeModel:
+        calls = 0
+
+        async def generate(self, request, **kwargs):
+            self.calls += 1
+            assert request.response_schema == schema
+            assert "未选原文" not in request.prompt
+            return SimpleNamespace(text='{"ok":true}')
+
+    generator = NativeModel()
+    inputs, guard = await prepare(
+        path,
+        episode,
+        binding,
+        {"project_overview": {"spoiler": "不应发送"}, "next_episode_outline": {"spoiler": "结局"}},
+        generator,
+    )
+    assert set(inputs["characters"]) == {"甲", "乙"}
+    assert inputs["project_overview"] == {}
+    assert inputs["next_episode_outline"] is None
+    assert "未选角色" not in inputs["characters"]
+    result = await guard.generate(TextGenerationRequest(prompt="只处理所选镜头", response_schema=schema))
+    assert result.text == '{"ok":true}'
+    assert generator.calls == 1

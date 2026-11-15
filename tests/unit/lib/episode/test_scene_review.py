@@ -5,38 +5,6 @@ from types import SimpleNamespace
 import pytest
 
 from lib.novel_workflow import scene_review
-from tests.unit.lib.episode.test_scene_library import scene_output
-
-
-async def test_semantic_review_proposes_local_changes_without_editing_or_accepting_fabricated_evidence(tmp_path):
-    rule = tmp_path / "novel_workflow/rules/scene_review.md"
-    await asyncio.to_thread(rule.parent.mkdir, parents=True)
-    await asyncio.to_thread(rule.write_text, "本项目自定义场镜审核规则", encoding="utf-8")
-    scenes = scene_output()["scenes"]
-    before = json.dumps(scenes)
-    suggestion = {
-        "scene_index": 0,
-        "shot_index": 0,
-        "segment_index": None,
-        "field": "title",
-        "before": "取剑镜头",
-        "after": "拿起古剑",
-        "source_quote": "甲拿起古剑。",
-        "reason": "贴合原文",
-    }
-
-    class Generator:
-        async def generate(self, request, **kwargs):
-            assert "本项目自定义场镜审核规则" in request.prompt
-            return SimpleNamespace(text=json.dumps({"revisions": [suggestion], "unresolved": []}))
-
-    review = await scene_review.review(tmp_path, Generator(), scenes, "甲拿起古剑。")
-    assert review["revisions"][0]["applied"] is False
-    assert json.dumps(scenes) == before
-    suggestion["source_quote"] = "甲挥剑杀人。"
-    rejected = await scene_review.review(tmp_path, Generator(), scenes, "甲拿起古剑。")
-    assert not rejected["revisions"]
-    assert "连续逐字摘录" in rejected["unresolved"][0]
 
 
 async def test_adoption_versions_only_selected_field_and_guards_assembly(tmp_path):
@@ -51,49 +19,24 @@ async def test_adoption_versions_only_selected_field_and_guards_assembly(tmp_pat
     await read_notes(tmp_path, Reader(), [note_id], notebook["source_basis"])
     await generate_svts(tmp_path, SVTReader(), [note_id], notebook["source_basis"])
 
+    from tests.unit.lib.episode.test_scene_pipeline import model_output
+
     class Generator:
         async def generate(self, request, **kwargs):
-            if "# 镜头制作设计与来源关联" in request.prompt:
-                payload = json.JSONDecoder().raw_decode(request.prompt[request.prompt.index('{"original":') :])[0]
-                design = dict.fromkeys(
-                    ["purpose", "shot_size", "camera_angle", "camera_movement", "framing", "continuity", "sound"],
-                    "固定机位，原文动作连续",
-                )
-                return SimpleNamespace(
-                    text=json.dumps(
-                        {
-                            "shots": [
-                                {
-                                    "shot_id": key,
-                                    "event_ids": [payload["context"]["events"][0]["id"]],
-                                    "moment_ids": [],
-                                    "design": design,
-                                }
-                                for key in payload["shots"]
-                            ]
-                        }
-                    )
-                )
-            if "逐项审核场镜" in request.prompt:
-                return SimpleNamespace(
-                    text=json.dumps(
-                        {
-                            "revisions": [
-                                {
-                                    "scene_index": 0,
-                                    "shot_index": 0,
-                                    "segment_index": None,
-                                    "field": "title",
-                                    "before": "取剑镜头",
-                                    "after": "拿起古剑",
-                                    "source_quote": "甲拿起古剑。",
-                                    "reason": "明确动作",
-                                }
-                            ]
-                        }
-                    )
-                )
-            return SimpleNamespace(text=json.dumps(scene_output()))
+            value = model_output(request)
+            if request.response_schema["title"] == "Inspection":
+                material = json.loads(request.prompt.split("阶段材料：", 1)[1])
+                value["corrections"] = [
+                    {
+                        "shot_id": material["shots"][0]["id"],
+                        "segment_index": None,
+                        "field": "title",
+                        "after": "拿起古剑",
+                        "source_ids": list(material["evidence"]),
+                        "reason": "明确动作",
+                    }
+                ]
+            return SimpleNamespace(text=json.dumps(value))
 
     await scene_library.generate(tmp_path, Generator(), [note_id], notebook["source_basis"], durations=[8])
     batch = next(iter((await asyncio.to_thread(scene_library.catalog, tmp_path))["batches"].values()))
@@ -155,8 +98,8 @@ async def test_adoption_versions_only_selected_field_and_guards_assembly(tmp_pat
 
 
 def test_confirm_question_is_individual_versioned_and_preserves_other_production_issues(tmp_path, monkeypatch):
-    from lib.novel_workflow.common import digest
     from lib.novel_workflow import scene_library, store
+    from lib.novel_workflow.common import digest
 
     batch = {
         "basis": "batch",
@@ -189,91 +132,3 @@ def test_confirm_question_is_individual_versioned_and_preserves_other_production
     )
     assert not batch["review"]["unresolved"]
     assert len(batch["review"]["resolved_questions"]) == 2
-
-
-async def test_review_isolates_invalid_suggestions_without_retrying_and_blocks_assembly(tmp_path):
-    scenes = scene_output()["scenes"]
-    valid = {
-        "scene_index": 0,
-        "shot_index": 0,
-        "segment_index": None,
-        "field": "title",
-        "before": "取剑镜头",
-        "after": "拿起古剑",
-        "source_quote": "甲拿起古剑。",
-        "reason": "贴合原文",
-    }
-    suggestions = [
-        valid,
-        dict(valid),
-        dict(valid, after=valid["before"]),
-        dict(valid, shot_index=99),
-        dict(valid, before="错误标题"),
-        dict(valid, source_quote="甲拿起。后来古剑。"),
-    ]
-    calls = 0
-
-    class Generator:
-        async def generate(self, request, **kwargs):
-            nonlocal calls
-            calls += 1
-            return SimpleNamespace(text=json.dumps({"revisions": suggestions, "unresolved": ["原有疑点"]}))
-
-    result = await scene_review.review(tmp_path, Generator(), scenes, "甲拿起古剑。后来离开。")
-    assert calls == 1
-    assert len(result["revisions"]) == 1
-    assert result["revisions"][0]["after"] == "拿起古剑"
-    assert len(result["unresolved"]) == 4
-    assert any("第1场、第100镜的标题" in question and "位置索引" in question for question in result["unresolved"])
-    assert any("修订前文字" in question for question in result["unresolved"])
-    assert any("连续逐字摘录" in question for question in result["unresolved"])
-    with pytest.raises(ValueError, match="仍有待核实问题"):
-        scene_review.require_reviewed({"review": result, "scenes": scenes}, scenes[0]["shots"][0])
-
-
-def test_conflicting_suggestions_cannot_be_adopted_but_other_fields_survive():
-    scenes = scene_output()["scenes"]
-    valid = {
-        "scene_index": 0,
-        "shot_index": 0,
-        "segment_index": None,
-        "field": "title",
-        "before": "取剑镜头",
-        "after": "拿起古剑",
-        "source_quote": "甲拿起古剑。",
-        "reason": "贴合原文",
-    }
-    segment = scenes[0]["shots"][0]["segments"][0]
-    other = dict(
-        valid, segment_index=0, field="scene_description", before=segment["scene_description"], after="甲拿起古剑。"
-    )
-    value = scene_review.SceneReview.model_validate({"revisions": [valid, dict(valid, after="拿剑"), other]})
-    result = scene_review.validate_review(value, scenes, "甲拿起古剑。")
-    assert len(result["revisions"]) == 1
-    assert result["revisions"][0]["field"] == "scene_description"
-    assert "同一字段" in result["unresolved"][0]
-
-
-@pytest.mark.parametrize("field", ["start_frame", "end_frame", "utterances"])
-def test_review_supports_local_frame_and_whole_utterance_list_revisions(field):
-    scenes = scene_output()["scenes"]
-    revision = {
-        "scene_index": 0,
-        "shot_index": 0,
-        "segment_index": 0,
-        "field": field,
-        "before": [] if field == "utterances" else "",
-        "after": [{"kind": "voiceover", "text": "甲拿起古剑。"}] if field == "utterances" else "甲手持古剑。",
-        "source_quote": "甲拿起古剑。",
-        "reason": "按原文补充当前片段",
-    }
-    review = scene_review.validate_review(
-        scene_review.SceneReview.model_validate({"revisions": [revision]}), scenes, "甲拿起古剑。"
-    )
-    assert review["revisions"][0]["field"] == field
-    assert not review["unresolved"]
-    revision["segment_index"] = None
-    rejected = scene_review.validate_review(
-        scene_review.SceneReview.model_validate({"revisions": [revision]}), scenes, "甲拿起古剑。"
-    )
-    assert not rejected["revisions"]

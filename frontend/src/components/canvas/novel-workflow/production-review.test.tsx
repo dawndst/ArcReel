@@ -18,7 +18,7 @@ function panel(assemble = vi.fn()) { return render(<DeliveryPanel projectName="d
 it("requires an explicit human story decision before assembly; no automatic AI or media calls", async () => {
   const confirm = vi.spyOn(API, "confirmDelivery").mockImplementation(async () => { vi.mocked(API.deliveryPreview).mockResolvedValue({ ...initial, approved: true, decision: { basis: "basis", reviewer: "导演", story_intent: "让观众看懂人物携剑出发的行动", withheld: "保留身份悬念", story_checked: true, timing_checked: true, continuity_checked: true, decisions: {} } }); });
   const ai = vi.spyOn(API, "productionAdvice"); const assemble = vi.fn(); panel(assemble);
-  fireEvent.click(screen.getByRole("button", { name: "组集参考与制作资料" }));
+  fireEvent.click(screen.getByRole("button", { name: "预览所选场镜并组集" }));
   expect(await screen.findByRole("heading", { name: "1 · 核对实际画面与台词" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "组为正式剧集" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("tab", {name:/^2 ·/}));
@@ -34,11 +34,11 @@ it("requires an explicit human story decision before assembly; no automatic AI o
 });
 it("hard structural problems cannot be waived by a human checkbox", async () => {
   vi.mocked(API.deliveryPreview).mockResolvedValue({ ...initial, issues: [{ id: "missing", code: "speaker_missing", hard: true, shot_id: "SH-1", segment: 0, details: { text: "出发" } }] });
-  panel(); fireEvent.click(screen.getByRole("button", { name: "组集参考与制作资料" }));
+  panel(); fireEvent.click(screen.getByRole("button", { name: "预览所选场镜并组集" }));
   expect(await screen.findByText(/项待补信息/)).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "保存当前版本的编导确认" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "前往 SH-001 修改" })).toBeEnabled();
-  expect(screen.getByRole("button", { name: "创建分集并保存编排" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "创建参考分集并保存编排" })).toBeEnabled();
   expect(screen.getByText(/创建分集时将登记为带编号的待定说话资产/)).toBeInTheDocument();
 });
 it("edits speech placement without adding an off-screen speaker to the visible cast", async () => {

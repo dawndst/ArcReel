@@ -13,9 +13,10 @@ from lib.novel_workflow import continuity, execution, reference_policy, store
 from lib.novel_workflow.common import digest, now
 from lib.novel_workflow.models import StrictModel
 from lib.novel_workflow.scene_library import selected_shots
+from lib.novel_workflow.scene_projection import project as project_segments
 from lib.novel_workflow.storage import load_json
 
-CHECK_VERSION = 2
+CHECK_VERSION = 3
 
 
 class DirectorDecision(StrictModel):
@@ -68,6 +69,17 @@ def preview(path, project, shot_ids, title, expected):
             if i == 0 and scene.get("opening_state") and scene.get("shots") and scene["shots"][0]["id"] == shot["id"]:
                 segment["scene_description"] += opening_text(scene)
         checks = execution.inspect(shot, project)
+        if batch.get("pipeline_version") == 2 and shot["id"] in batch.get("review_pending_shot_ids", []):
+            checks.append(
+                {
+                    "id": digest([shot["id"], "source_review_pending"])[:24],
+                    "code": "source_review_pending",
+                    "hard": not bool(batch.get("inspection_basis")),
+                    "shot_id": shot["id"],
+                    "segment": None,
+                    "details": {},
+                }
+            )
         if batch.get("production_stale"):
             checks.append(
                 {
@@ -100,7 +112,7 @@ def preview(path, project, shot_ids, title, expected):
                 },
                 "title": shot["title"],
                 "purpose": shot.get("production", {}).get("design", {}).get("purpose", ""),
-                "segments": shot["segments"],
+                "segments": project_segments(shot["segments"]),
                 "design": shot.get("production", {}).get("design", {}),
                 "source": shot["evidence"],
                 "conclusion_constraints": batch.get("production_context", {}).get("conclusion_constraints", []),
@@ -113,12 +125,21 @@ def preview(path, project, shot_ids, title, expected):
             for line in seg["utterances"]:
                 if line.get("speaker"):
                     used.setdefault(("character", line["speaker"]), {"visible": False, "voice": False})["voice"] = True
-        if batch["basis"] not in seen_batches and batch.get("review", {}).get("unresolved"):
+        scoped = [
+            i
+            for i in batch.get("review", {}).get("issues", [])
+            if i.get("status") == "open" and shot["id"] in i["shot_ids"]
+        ]
+        if scoped or (
+            batch.get("review", {}).get("version") != 2
+            and batch["basis"] not in seen_batches
+            and batch.get("review", {}).get("unresolved")
+        ):
             seen_batches.add(batch["basis"])
-            questions = batch["review"]["unresolved"]
+            questions = [i["reason"] for i in scoped] if scoped else batch["review"]["unresolved"]
             issues.append(
                 {
-                    "id": digest([batch["basis"], questions])[:24],
+                    "id": digest([batch["basis"], shot["id"], questions])[:24],
                     "code": "source_question",
                     "hard": False,
                     "shot_id": shot["id"],
@@ -191,6 +212,7 @@ def preview(path, project, shot_ids, title, expected):
             [execution.content_basis(s) for _, _, s in selected],
             [shot["conclusion_constraints"] for shot in shots],
             adaptation_decisions,
+            issues,
             [{k: v for k, v in a.items() if k not in {"image", "image_hash"}} for a in assets],
             store.effective_rule(path, "shot_execution"),
             store.effective_rule(path, "selection_story"),

@@ -2,19 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
-import json
 from copy import deepcopy
 from uuid import uuid4
 
 from pydantic import Field
 
 from lib.artifacts.formal_write import project_metadata_lock
-from lib.infra.async_thread import run_noninterruptible_sync
 from lib.novel_workflow import store
 from lib.novel_workflow.assets import mentions as source_mentions
 from lib.novel_workflow.assets import reference
-from lib.novel_workflow.common import digest, now
+from lib.novel_workflow.common import digest
 from lib.novel_workflow.models import StrictModel
 from lib.novel_workflow.storage import load_json
 from lib.references.reference_catalog import split_derivative_reference
@@ -190,8 +187,13 @@ def dialogue_links(reading, shot):
     dialogues = {d["id"]: d for e in reading.get("events", []) for d in e.get("dialogues", [])}
     dialogues.update({d["id"]: d for d in reading.get("dialogues", [])})
     result = []
+    explicit = {(u["segment"], u["utterance"]): u["dialogue_id"] for u in shot.get("source_dialogue_uses", [])}
     for i, segment in enumerate(shot["segments"]):
         for j, u in enumerate(segment["utterances"]):
+            canonical = dialogues.get(explicit.get((i, j)))
+            if canonical and u["text"] == canonical["quote"]:
+                result.append({"segment": i, "utterance": j, "dialogue_id": canonical["id"]})
+                continue
             text = "".join(u["text"].split()).strip('「」『』“”‘’"')
             candidates = [
                 d
@@ -243,73 +245,6 @@ def design_text(production):
         + "\n镜头设计（改编决定，视觉提示词须继承，不改变已定动作和台词）：\n"
         + "\n".join(f"{label}：{production['design'][key]}" for key, label in labels.items())
     )
-
-
-async def complete_batch(path, generator, batch, reading, project, chunk):
-    from lib.novel_workflow.service import ask
-
-    ctx = await asyncio.to_thread(context, path, reading, chunk)
-    rules = await asyncio.to_thread(store.effective_rule, path, "shot_production")
-    shots = {sh["id"]: sh for sc in batch["scenes"] for sh in sc["shots"]}
-    clean, bindings, basis = planning_inputs(ctx, rules, shots, project, reading)
-    if batch.get("production_basis") == basis and all(sh.get("production") for sh in shots.values()):
-        return
-    if not ctx["svt_id"] or not ctx["events"]:
-        raise ValueError("本片段缺少可用主线事件，请先完善 Note 与 SVT")
-    progress_file = store.root(path) / "progress.json"
-    progress = (
-        await asyncio.to_thread(load_json, progress_file) if await asyncio.to_thread(progress_file.exists) else {}
-    )
-    await run_noninterruptible_sync(store.write, progress_file, {**progress, "step": "production"})
-    cache = store.root(path) / "shot_decisions" / f"{basis}.json"
-    if await asyncio.to_thread(cache.exists):
-        result = await asyncio.to_thread(load_json, cache)
-    else:
-        result = await ask(
-            path,
-            generator,
-            Decisions,
-            rules
-            + "\n"
-            + json.dumps(
-                {"original": chunk["text"], "context": ctx, "shots": clean, "asset_bindings": bindings},
-                ensure_ascii=False,
-            ),
-            lambda value: validate_decisions(value, shots, ctx),
-            max_output_tokens=16000,
-            grow_output=True,
-        )
-        await run_noninterruptible_sync(store.write, cache, result)
-
-    def commit():
-        from lib.novel_workflow.scene_library import catalog
-
-        with project_metadata_lock(path):
-            library = catalog(path)
-            current = next((b for b in library["batches"].values() if b["basis"] == batch["basis"]), None)
-            if current != batch:
-                raise ValueError("场镜在完善期间已被编辑，请刷新重试；已保留模型结果")
-            fresh = load_json(path / "project.json")
-            if context(path, reading, chunk) != ctx or planning_inputs(ctx, rules, shots, fresh, reading)[2] != basis:
-                raise ValueError("主线或爆点在完善期间已变化，请刷新重试")
-            store.write(store.root(path) / "history" / f"shot-decisions-{uuid4().hex}.json", current)
-            for item in result["shots"]:
-                sh = next(sh for sc in current["scenes"] for sh in sc["shots"] if sh["id"] == item["shot_id"])
-                sh["production"] = {
-                    **item,
-                    "svt_id": ctx["svt_id"],
-                    "assets": asset_bindings(fresh, reading, sh),
-                    "dialogue_sources": dialogue_links(reading, sh),
-                }
-            current.update(
-                production_basis=basis,
-                production_context=ctx,
-                production_rule_basis=digest(rules),
-                production_updated_at=now(),
-            )
-            store.write(store.root(path) / "scene_library.json", library)
-
-    await run_noninterruptible_sync(commit)
 
 
 def update(path, project, shot_id, expected, revision, decisions):

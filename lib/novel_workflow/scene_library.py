@@ -2,19 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
-import json
-from contextlib import suppress
 from difflib import SequenceMatcher
 from uuid import uuid4
 
 from lib.artifacts.formal_write import formal_write_transaction, project_metadata_lock
-from lib.infra.async_thread import run_noninterruptible_sync
 from lib.novel_workflow import chapters, store, understanding
-from lib.novel_workflow.cancellation import NovelReadingInterrupted, check_stop
 from lib.novel_workflow.common import digest, now
 from lib.novel_workflow.evidence import expand_scene_excerpt, locate
-from lib.novel_workflow.scene_models import SceneBatch, Segment
+from lib.novel_workflow.scene_models import Segment
 from lib.novel_workflow.storage import load_json
 
 
@@ -46,17 +41,35 @@ def svt_event_tags(path, note_id, reading):
     ]
 
 
-def stale_reasons(path, batch, notebook, readings):
+def stale_reasons(path, batch, notebook, readings, dependency_cache=None):
     reasons = []
     if any(g.get("usage") == "reference" and set(g["note_ids"]) & set(batch["note_bases"]) for g in notebook["groups"]):
         reasons.append("reference_group")
     if batch["source_basis"] != notebook["source_basis"]:
         reasons.append("source")
-    if batch["rule_basis"] != digest(store.effective_rule(path, "scenes")):
+    if batch.get("pipeline_version") != 2 and batch["rule_basis"] != digest(store.effective_rule(path, "scene_shots")):
         reasons.append("rules")
     if any(readings.get(i, {}).get("basis") != b for i, b in batch["note_bases"].items()):
         reasons.append("notes")
     reading = readings.get(batch["note_id"])
+    if batch.get("pipeline_version") == 2:
+        from lib.novel_workflow import scene_material, scene_pipeline
+
+        note = next((n for n in notebook["notes"] if n["id"] == batch["note_id"]), None)
+        try:
+            if note is None or reading is None:
+                raise ValueError("原章节已不在当前目录或尚无有效 Note")
+            cache = dependency_cache if dependency_cache is not None else {}
+            if batch["note_id"] not in cache:
+                current = scene_material.load(path, note, reading)
+                cache[batch["note_id"]] = scene_pipeline.dependencies(path, current)
+            deps = cache[batch["note_id"]]
+            # Review rules update the review stage, not the narrative draft itself.
+            old = batch.get("dependencies", {})
+            if any(old.get(k) != deps[k] for k in ("material", "outline_rule", "shot_rule")):
+                reasons.append("rules")
+        except (ValueError, FileNotFoundError, KeyError):
+            reasons.append("notes")
     if "svt_basis" in batch:
         tags = svt_event_tags(path, batch["note_id"], reading) if reading else []
         if len(tags) != 1 or batch["svt_basis"] != digest(tags):
@@ -79,28 +92,50 @@ def valid_batch(path, batch, notebook, readings):
     return not stale_reasons(path, batch, notebook, readings)
 
 
-def view(path, notebook, readings):
+def view(path, notebook, readings, *, shot_ids=None):
     from lib.novel_workflow.shot_production import context, issues, planning_inputs
 
-    batches = list(catalog(path)["batches"].values())
+    library = catalog(path)
+    batches = [
+        b
+        for b in library["batches"].values()
+        if (b.get("pipeline_version") == 2 or b["note_id"] not in library.get("plans", {}))
+        and (
+            shot_ids is None
+            or any(s["id"] in shot_ids for scene in b["scenes"] for s in scene["shots"])
+        )
+    ]
     project = load_json(path / "project.json")
     chunk_cache = {}
+    dependency_cache = {}
     current_batches = []
     for batch in batches:
-        batch["stale_reasons"] = stale_reasons(path, batch, notebook, readings)
+        batch["stale_reasons"] = stale_reasons(path, batch, notebook, readings, dependency_cache)
         batch["stale"] = bool(batch["stale_reasons"])
         if batch["stale"]:
             continue
         current_batches.append(batch)
         batch["production_stale"] = False
-        if not batch["stale"] and batch.get("production_context") and batch["note_id"] in readings:
+        if batch.get("pipeline_version") == 2:
+            from lib.novel_workflow.scene_inspection import pending_shots
+
+            batch["review_pending_shot_ids"] = pending_shots(
+                batch, dependency_cache[batch["note_id"]]["inspection_rule"]
+            )
+            batch["review_pending"] = bool(batch["review_pending_shot_ids"])
+        if (
+            batch.get("pipeline_version") != 2
+            and not batch["stale"]
+            and batch.get("production_context")
+            and batch["note_id"] in readings
+        ):
             note_id = batch["note_id"]
             if note_id not in chunk_cache:
                 note = next(n for n in notebook["notes"] if n["id"] == note_id)
                 chunk_cache[note_id] = chapters.chunks(path, project, note)
             chunk = chunk_cache[note_id][batch["part"]]
             ctx = context(path, readings[note_id], chunk)
-            rules = store.effective_rule(path, "shot_production")
+            rules = store.effective_rule(path, "scene_shots")
             shots = {sh["id"]: sh for sc in batch["scenes"] for sh in sc["shots"]}
             batch["production_stale"] = (
                 batch.get("production_basis") != planning_inputs(ctx, rules, shots, project, readings[note_id])[2]
@@ -111,11 +146,9 @@ def view(path, notebook, readings):
             note_id = batch["note_id"]
             coverage_reading = readings.get(note_id)
             if coverage_reading:
-                if note_id not in chunk_cache:
-                    note = next(n for n in notebook["notes"] if n["id"] == note_id)
-                    chunk_cache[note_id] = chapters.chunks(path, project, note)
-                if batch["part"] < len(chunk_cache[note_id]):
-                    batch["dialogue_coverage"] = report(batch, coverage_reading, chunk_cache[note_id][batch["part"]])
+                from lib.novel_workflow.scene_source import source_chunk
+
+                batch["dialogue_coverage"] = report(batch, coverage_reading, source_chunk(path, project, batch))
         from lib.novel_workflow import craft_review, settings
 
         if settings.get(path)["craft_checks_enabled"]:
@@ -146,7 +179,7 @@ def selected_shots(path, notebook, readings, ids):
     if not ids or len(set(ids)) != len(ids):
         raise ValueError("请选择不重复的镜头")
     available = {}
-    for batch in view(path, notebook, readings):
+    for batch in view(path, notebook, readings, shot_ids=set(ids)):
         for scene in batch["scenes"]:
             for shot in scene["shots"]:
                 available[shot["id"]] = (batch, scene, shot)
@@ -247,277 +280,9 @@ def ground(value, chunk, assets, durations):
 
 
 async def generate(path, generator, note_ids, expected, *, durations=None):
-    from lib.novel_workflow.assets import mentions, reference
-    from lib.novel_workflow.service import ask, current
+    from lib.novel_workflow.scene_pipeline import generate as run_pipeline
 
-    notebook = await asyncio.to_thread(current, path, expected)
-    readings = await asyncio.to_thread(store.valid_readings, path, notebook)
-    notes = [n for n in notebook["notes"] if n["id"] in note_ids]
-    if not notes or len(notes) != len(set(note_ids)) or any(n["id"] not in readings for n in notes):
-        raise ValueError("请先为所选章节泛读生成 Notes")
-    if any(g.get("usage") == "reference" and set(g["note_ids"]) & set(note_ids) for g in notebook["groups"]):
-        raise ValueError("所选章节包含仅留档资料，请先改为改编候选再生成场镜")
-    from lib.novel_workflow.svt_contract import assignments, valid_svts
-
-    svt_file = store.root(path) / "svts.json"
-    svt_data = await asyncio.to_thread(load_json, svt_file) if await asyncio.to_thread(svt_file.exists) else None
-    live_svts = await asyncio.to_thread(valid_svts, path, svt_data, readings)
-    primary = assignments(live_svts)
-    if any(n["id"] not in primary for n in notes):
-        raise ValueError("请先为每个 Note 完成唯一主归属 SVT 的拆分，再生成场镜")
-    if any(s.get("breakdown_status") == "needs_review" and set(s["note_ids"]) & set(note_ids) for s in live_svts):
-        raise ValueError("主归属 SVT 已调整，请先选中该 SVT 的来源 Notes 重新提炼，核对梗概和爆点后再生成场镜")
-    await asyncio.to_thread(understanding.require_understood, path, note_ids)
-    from lib.novel_workflow.conclusions import require_ready
-
-    await asyncio.to_thread(require_ready, path, note_ids)
-    project = await asyncio.to_thread(load_json, path / "project.json")
-    if project.get("content_mode") != "drama" or project.get("generation_mode") == "reference_video":
-        raise ValueError("场镜素材库目前适用于剧情演绎的分镜制作模式")
-    if durations is None:
-        from lib.config.resolver import ConfigResolver
-        from lib.db import async_session_factory
-
-        capabilities = await ConfigResolver(async_session_factory).video_capabilities_for_project(project)
-        durations = [d for d in capabilities["supported_durations"] if d <= 15]
-    if not durations:
-        raise ValueError("请配置支持15秒以内片段的视频模型")
-    rules = await asyncio.to_thread(store.effective_rule, path, "scenes")
-    chunks_by_note = {n["id"]: await asyncio.to_thread(chapters.chunks, path, project, n) for n in notes}
-    total = sum(len(v) for v in chunks_by_note.values())
-    progress = {"phase": "scenes", "done": 0, "total": total}
-    await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
-    completed = 0
-    try:
-        for note in notes:
-            reading = readings[note["id"]]
-            tags = await asyncio.to_thread(svt_event_tags, path, note["id"], reading)
-            chunks = chunks_by_note[note["id"]]
-            assets = []
-            for asset in mentions(project, reading):
-                if asset.get("source_kind") in {"annotation", "unknown"} or asset.get("claim_type") in {
-                    "unverified",
-                    "inference",
-                    "statement",
-                    "adaptation",
-                }:
-                    continue
-                ref = reference(project, asset)
-                if ref.get("asset_issue") and ref.get("asset_issue_blocking", True):
-                    raise ValueError("Note中有待确认的资产身份或视觉变体，请先处理资产关联")
-                if ref.get("asset_missing"):
-                    raise ValueError("原文关联资产已删除，请先处理资产引用")
-                name = ref.get("asset_name", asset["name"])
-                native = project.get(
-                    {"character": "characters", "scene": "scenes", "prop": "props"}[asset["kind"]], {}
-                ).get(name, {})
-                assets.append(
-                    {
-                        "name": name,
-                        "raw_name": asset["name"],
-                        "kind": asset["kind"],
-                        "variant": ref.get("variant", ""),
-                        "performance": ref.get("performance", ""),
-                        "state": ref.get("state", ""),
-                        "appearance_context": ref.get("appearance_context", "unclassified"),
-                        "identity_level": native.get("identity_level", "individual"),
-                        "identity_basis": native.get("identity_basis", ""),
-                        "evidence": asset["evidence"],
-                    }
-                )
-            for part, chunk in enumerate(chunks):
-                check_stop()
-                known = await asyncio.to_thread(
-                    understanding.production_context, path, [note["id"]], source_offset=chunk["start"]
-                )
-                seed = [note["id"], part, reading["basis"], rules, known["basis"], durations, tags]
-                key = digest(seed)
-                slot = f"{note['id']}:{part}"
-                existing = (await asyncio.to_thread(catalog, path))["batches"].get(slot)
-                if existing and existing["basis"] == key:
-                    from lib.novel_workflow.shot_production import complete_batch
-
-                    await complete_batch(path, generator, existing, reading, project, chunk)
-                    completed += 1
-                    await run_noninterruptible_sync(
-                        store.write,
-                        store.root(path) / "progress.json",
-                        {"phase": "scenes", "done": completed, "total": total, "note_id": note["id"]},
-                    )
-                    continue
-                # Keep each request bounded: only assets grounded in this fragment and already-revealed context.
-                local_assets = [
-                    {
-                        **a,
-                        "variant": a["variant"] if in_chunk(a["evidence"], chunk) else None,
-                        "evidence": a["evidence"] if in_chunk(a["evidence"], chunk) else None,
-                    }
-                    for a in assets
-                    if asset_available(a, chunk)
-                ]
-                local_names = {
-                    kind: {a["name"] for a in local_assets if a["kind"] == kind}
-                    for kind in ("character", "scene", "prop")
-                }
-                from lib.novel_workflow.shot_production import context
-
-                story_context = await asyncio.to_thread(context, path, reading, chunk)
-                from lib.novel_workflow.condensation import ensure, material
-
-                edition = await ensure(path, generator, note, reading, project, expected)
-                from lib.novel_workflow.dialogue_coverage import source_dialogues
-
-                key_dialogues = [
-                    {k: d[k] for k in ("id", "quote", "speaker", "purposes")} for d in source_dialogues(reading, chunk)
-                ]
-                payload = {
-                    "key_dialogues": key_dialogues,
-                    "note_title": note["title"],
-                    "reading_material": material(edition, reading, chunk),
-                    "assets": local_assets,
-                    "asset_usage_policy": "performance仅为声音或行为说明，不是视觉形态；只闻其声不代表人物在画面中，不得据此制造图片变体。",
-                    "known": known["links"],
-                    "duration_options": durations,
-                    "mainline_links": [
-                        {
-                            "svt_id": tag["svt_id"],
-                            "event_ids": [
-                                i
-                                for i in tag["event_ids"]
-                                if any(e["id"] == i and in_chunk(e["evidence"], chunk) for e in reading["events"])
-                            ],
-                        }
-                        for tag in tags
-                    ],
-                    "events": [e for e in reading["events"] if in_chunk(e["evidence"], chunk)],
-                    "moments": story_context["moments"],
-                    "conclusion_constraints": story_context["conclusion_constraints"],
-                }
-                draft_file = store.root(path) / "scene_drafts" / f"{key}.json"
-                candidate_file = store.root(path) / "scene_candidates" / f"{key}.json"
-                if await asyncio.to_thread(draft_file.exists):
-                    result = await asyncio.to_thread(load_json, draft_file)
-                else:
-                    result = None
-                    if await asyncio.to_thread(candidate_file.exists):
-                        candidate = await asyncio.to_thread(load_json, candidate_file)
-                        # Keep the raw candidate; failed grounding never accepts it.
-                        with suppress(ValueError):
-                            result = await asyncio.to_thread(
-                                ground, SceneBatch.model_validate(candidate), chunk, local_names, durations
-                            )
-
-                    async def validate_candidate(value, chunk=chunk, local_names=local_names, target=candidate_file):
-                        await run_noninterruptible_sync(store.write, target, value.model_dump())
-                        return await asyncio.to_thread(ground, value, chunk, local_names, durations)
-
-                    if result is None:
-                        result = await ask(
-                            path,
-                            generator,
-                            SceneBatch,
-                            rules + "\n当前原文与事实：" + json.dumps(payload, ensure_ascii=False),
-                            validate_candidate,
-                            grow_output=True,
-                            max_output_tokens=24000,
-                        )
-                    await run_noninterruptible_sync(store.write, draft_file, result)
-                from lib.novel_workflow.scene_review import review
-
-                review_rule = await asyncio.to_thread(store.effective_rule, path, "scene_review")
-                review_key = digest([key, review_rule, key_dialogues])
-                review_file = store.root(path) / "scene_reviews" / f"{review_key}.json"
-                if await asyncio.to_thread(review_file.exists):
-                    semantic_review = await asyncio.to_thread(load_json, review_file)
-                else:
-                    semantic_review = (
-                        await review(path, generator, result["scenes"], chunk["text"], key_dialogues=key_dialogues)
-                        if result["scenes"]
-                        else {"revisions": [], "unresolved": []}
-                    )
-                    await run_noninterruptible_sync(store.write, review_file, semantic_review)
-                scenes = []
-                for scene in result["scenes"]:
-                    for shot in scene["shots"]:
-                        offset = chunk["text"].index(shot["quote"])
-                        shot["evidence"] = {
-                            "note_id": note["id"],
-                            "source_file": chunk["source_file"],
-                            "start": chunk["start"] + offset,
-                            "end": chunk["start"] + offset + len(shot["quote"]),
-                            "quote": shot["quote"],
-                        }
-                    scenes.append(scene)
-                from lib.novel_workflow.scene_source import snapshot
-
-                batch = {
-                    "source_snapshot": snapshot(chunk),
-                    "basis": key,
-                    "note_id": note["id"],
-                    "note_order": note["order"],
-                    "part": part,
-                    "source_start": chunk["start"],
-                    "note_bases": {note["id"]: reading["basis"]},
-                    "source_basis": expected,
-                    "rule_basis": digest(rules),
-                    "understanding_basis": known["basis"],
-                    "svt_basis": digest(tags),
-                    "scenes": scenes,
-                    "review": semantic_review,
-                    "skipped_reason": result["skipped_reason"],
-                    "created_at": now(),
-                }
-
-                def commit(batch=batch, slot=slot):
-                    with project_metadata_lock(path):
-                        fresh_book = current(path, expected)
-                        fresh = store.valid_readings(path, fresh_book)
-                        if not valid_batch(path, batch, fresh_book, fresh):
-                            raise ValueError("生成期间原文或理解依据发生变化，请重新生成")
-                        library = catalog(path)
-                        for scene in batch["scenes"]:
-                            library["scene_counter"] = library.get("scene_counter", 0) + 1
-                            scene["id"] = f"SCN-{library['scene_counter']:04}"
-                            for shot in scene["shots"]:
-                                library["shot_counter"] = library.get("shot_counter", 0) + 1
-                                shot["id"] = f"SH-{library['shot_counter']:04}"
-                        if old := library["batches"].get(slot):
-                            store.write(store.root(path) / "history" / f"scene-{uuid4().hex}.json", old)
-                        library["batches"][slot] = batch
-                        store.write(store.root(path) / "scene_library.json", library)
-
-                await run_noninterruptible_sync(commit)
-                from lib.novel_workflow.shot_production import complete_batch
-
-                saved = (await asyncio.to_thread(catalog, path))["batches"][slot]
-                await complete_batch(path, generator, saved, reading, project, chunk)
-                completed += 1
-                await run_noninterruptible_sync(
-                    store.write,
-                    store.root(path) / "progress.json",
-                    {
-                        "phase": "scenes",
-                        "done": completed,
-                        "total": total,
-                        "note_id": note["id"],
-                    },
-                )
-    except BaseException as exc:
-        await run_noninterruptible_sync(
-            store.write,
-            store.root(path) / "progress.json",
-            {
-                "phase": "stopped" if isinstance(exc, NovelReadingInterrupted) else "failed",
-                "done": completed,
-                "total": total,
-                "error": str(exc),
-            },
-        )
-        raise
-    await run_noninterruptible_sync(
-        store.write, store.root(path) / "progress.json", {"phase": "idle", "done": completed, "total": total}
-    )
-    return {"batches": completed}
+    return await run_pipeline(path, generator, note_ids, expected, durations=durations)
 
 
 def require_attributed(shot):
@@ -565,7 +330,7 @@ def attribute_dialogue(
                     from lib.novel_workflow.shot_production import asset_bindings, planning_inputs
 
                     shots = {sh["id"]: sh for sc in batch["scenes"] for sh in sc["shots"]}
-                    rules = store.effective_rule(path, "shot_production")
+                    rules = store.effective_rule(path, "scene_shots")
                     ctx = batch.get("production_context")
                     production_current = bool(
                         ctx

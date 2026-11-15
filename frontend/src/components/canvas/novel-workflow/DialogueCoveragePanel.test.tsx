@@ -42,3 +42,12 @@ it("does not offer omission for a fully retained line", () => {
   expect(screen.getByText("已完整保留 · 阳子")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "注明人工省略" })).not.toBeInTheDocument();
 });
+
+it("opens the source for the affected shot and shows its actionable review suggestion", () => {
+  const source = vi.fn();
+  const draft = { ...batch, review: { version: 2, revisions: [], unresolved: ["因果未交代"], issues: [{ id: "issue", shot_ids: ["SH-0099"], severity: "major", reason: "因果未交代", suggestion: "补回决定前的提问，保留回答的承接。", blocking: true, status: "open" }] } };
+  render(<SceneQuestions batch={draft} disabled={false} source={source} locate={vi.fn()} shotLabels={new Map()} />);
+  expect(screen.getByText("补回决定前的提问，保留回答的承接。")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "查看本片段原文" }));
+  expect(source).toHaveBeenCalledWith("SH-0099");
+});

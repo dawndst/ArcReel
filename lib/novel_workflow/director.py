@@ -13,6 +13,7 @@ from lib.script.script_review import formal_script_plan_lock, write_formal_scrip
 
 def content_from_selection(selected, episode, title, review=None):
     from lib.novel_workflow.scene_library import require_attributed
+    from lib.novel_workflow.scene_projection import groups, merge
     from lib.novel_workflow.shot_production import design_text, native_segment
 
     for _batch, _scene, shot in selected:
@@ -25,8 +26,9 @@ def content_from_selection(selected, episode, title, review=None):
             shot_number = 0
             last_scene = scene["id"]
         shot_number += 1
-        for index, segment in enumerate(shot["segments"], 1):
-            segment = native_segment(segment, shot.get("production"), index - 1)
+        execution_groups = groups(shot["segments"])
+        for index, source_indexes in enumerate(execution_groups, 1):
+            segment = merge([native_segment(shot["segments"][i], shot.get("production"), i) for i in source_indexes])
             from lib.novel_workflow.craft_review import appearance_text, opening_text
 
             segment["scene_description"] += appearance_text(shot)
@@ -48,7 +50,7 @@ def content_from_selection(selected, episode, title, review=None):
                     "scene_id": row_id,
                     "scene_number": scene_number,
                     "shot_number": shot_number,
-                    "segment_number": index if len(shot["segments"]) > 1 else None,
+                    "segment_number": index if len(execution_groups) > 1 else None,
                     "segment_break": shot_number == 1 and index == 1,
                     "source_text": shot["evidence"]["quote"],
                     "scene_description": segment["scene_description"] + design_text(shot.get("production")),
@@ -59,6 +61,7 @@ def content_from_selection(selected, episode, title, review=None):
                     "scene_id": row_id,
                     "library_scene_id": scene["id"],
                     "library_shot_id": shot["id"],
+                    "library_segment_indices": source_indexes,
                     "evidence": shot["evidence"],
                     "production": shot.get("production"),
                     "conclusion_constraints": _batch.get("production_context", {}).get("conclusion_constraints", []),

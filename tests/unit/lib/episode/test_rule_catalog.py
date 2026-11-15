@@ -47,4 +47,6 @@ def test_narrow_evidence_tools_use_selection_rules_without_production_instructio
     assert "场镜素材可以保留待确认对白" not in rules
     entries = {v["id"]: v for v in catalog(tmp_path, data)["entries"]}
     assert entries["novel/evidence_selection"]["content"] == store.effective_rule(tmp_path, "evidence_selection")
-    assert entries["novel/scene_review"]["content"] == store.effective_rule(tmp_path, "scene_review")
+    assert entries["novel/scene_inspection"]["content"] == store.effective_rule(tmp_path, "scene_inspection")
+    assert "novel/scenes" not in entries
+    assert "novel/scene_review" not in entries

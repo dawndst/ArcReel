@@ -347,4 +347,8 @@ def resolve(
             previous,
         )
         store.write(path / "project.json", live)
-    return synchronize(path)
+    result = synchronize(path)
+    from lib.novel_workflow.scene_bindings import refresh
+
+    result["rebound_shots"] = refresh(path)
+    return result
