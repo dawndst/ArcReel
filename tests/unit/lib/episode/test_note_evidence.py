@@ -257,3 +257,12 @@ def test_scene_excerpt_never_discards_ellipsis_inside_spoken_words():
 
     with pytest.raises(ValueError, match="省略摘录"):
         expand_scene_excerpt("『你快逃！』他停下。『好。』", "『你……快逃！』……『好。』")
+
+
+def test_inexact_quote_requires_literal_recopy_not_duplicate_context():
+    from lib.novel_workflow.service import claim_evidence
+
+    with pytest.raises(ValueError, match="不是逐字原文"):
+        claim_evidence({"text": "在那里的大概八个人看向阳子。"}, {"quote": "在那里大概八个人看向阳子。"})
+    with pytest.raises(ValueError, match="引句重复"):
+        claim_evidence({"text": "她说早安。她说早安。"}, {"quote": "早安。"})

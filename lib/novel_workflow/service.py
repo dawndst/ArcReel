@@ -46,8 +46,16 @@ def claim_evidence(part, dialogue):
     try:
         return evidence(part["text"], dialogue["quote"], part)
     except ValueError as exc:
+        from lib.novel_workflow.quote_locations import candidates
+
+        if not candidates(part["text"], dialogue["quote"]):
+            raise ValueError(
+                "引句不是逐字原文，不能仅补context_quote。请从source重新复制准确的quote，"
+                "保留原文助词和标点，不使用转述；不要改动其他已正确的记录。当前引句："
+                + dialogue["quote"][:100]
+            ) from exc
         raise ValueError(
-            "引句可能重复或不精确；逐项检查所有记录和对白的重复quote，并填写context_quote：包含本次引用及前后叙述、能唯一定位的连续原文。quote仍保留原句。当前引句："
+            "引句重复；quote保留逐字原句，填写能唯一定位本次引用的连续原文context_quote。当前引句："
             + dialogue["quote"][:100]
         ) from exc
 
