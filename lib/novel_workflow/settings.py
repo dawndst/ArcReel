@@ -8,7 +8,6 @@ DEFAULTS = {
     "summary_max_chars": 1200,
     "understanding_enabled": True,
     "delivery_checks_enabled": True,
-    "craft_checks_enabled": True,
     "conclusions_enabled": True,
     "max_model_calls": 100,
 }
@@ -16,7 +15,7 @@ DEFAULTS = {
 
 def get(path):
     target = store.root(path) / "settings.json"
-    return {**DEFAULTS, **(load_json(target) if target.exists() else {})}
+    return {k: v for k, v in {**DEFAULTS, **(load_json(target) if target.exists() else {})}.items() if k in DEFAULTS}
 
 
 def update(path, values):

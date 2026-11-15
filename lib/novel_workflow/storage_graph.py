@@ -121,13 +121,10 @@ def project(conn, project_id, path, revision, payload, *, importing=False):
                         ):
                             for ref in segment.get(field, []):
                                 link("shot", shid, kind, ref, "asset_reference")
-                    for name in ("appearance_notes", "attribution_history", "edit_history"):
+                    for name in ("attribution_history", "edit_history"):
                         if shot.get(name):
                             did = entity("decision", shid + ":" + name)
                             link("decision", did, "shot", shid, "applies_to")
-            for key in batch.get("craft_decisions", {}):
-                did = entity("decision", bid + ":" + key)
-                link("decision", did, "scene_batch", bid, "applies_to")
     else:
         identity = entity("document", path, payload.get("basis") if isinstance(payload, dict) else None)
         if isinstance(payload, dict):

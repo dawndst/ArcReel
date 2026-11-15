@@ -8,86 +8,81 @@ from uuid import uuid4
 from lib.artifacts.formal_write import project_metadata_lock
 from lib.novel_workflow import store
 from lib.novel_workflow.common import digest, now
-from lib.novel_workflow.storage import load_json
 
 
-def target(scenes, revision):
-    shot = scenes[revision["scene_index"]]["shots"][revision["shot_index"]]
-    if revision["field"] == "title" and revision["segment_index"] is None:
-        return shot
-    if (
-        revision["field"] in {"scene_description", "start_frame", "end_frame", "utterances"}
-        and revision["segment_index"] is not None
-    ):
-        return shot["segments"][revision["segment_index"]]
-    raise ValueError("修订字段与位置不匹配")
+def complete_corrections(batch):
+    """Finish source-backed text corrections before publication; never touch dialogue or asset identity."""
+    from lib.novel_workflow.scene_inspection import basis, shot_inputs
+
+    before = {s["id"]: digest(s) for s in shot_inputs(batch)}
+    changed = 0
+    review = batch.get("review", {})
+    for item in review.get("revisions", []):
+        if item.get("applied") or item.get("superseded"):
+            continue
+        try:
+            shot = batch["scenes"][item["scene_index"]]["shots"][item["shot_index"]]
+            field = item["field"]
+            segment = item.get("segment_index")
+            if field == "title" and segment is None:
+                obj = shot
+            elif (
+                field in {"scene_description", "start_frame", "end_frame"} and isinstance(segment, int) and segment >= 0
+            ):
+                obj = shot["segments"][segment]
+            else:
+                raise ValueError("自动补正仅允许当前镜头的标题、动作和首尾画面")
+            refs = item.get("source_refs", [])
+            if not refs or any(
+                r.get("source_file") != shot["evidence"]["source_file"]
+                or r.get("start", -1) < 0
+                or r.get("start", -1) >= min(r.get("end", -1), shot["evidence"]["end"])
+                or not r.get("quote")
+                for r in refs
+            ):
+                raise ValueError("补正缺少当前镜头揭示范围内的有效来源")
+            if not isinstance(item["after"], str) or not item["after"].strip():
+                raise ValueError("补正内容不能为空")
+            if obj.get(field, "") not in {item["before"], item["after"]}:
+                # A later manual edit wins; do not resurrect an older proposal.
+                item["superseded"] = True
+                continue
+            obj[field] = item["after"]
+            item.update(applied=True, applied_by="automatic_review", applied_at=now())
+            changed += 1
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise ValueError("自动复审补正未通过校验，已保留候选供继续任务：" + str(exc)) from exc
+    if changed:
+        reviewed = batch.get("inspection_shots", {})
+        for shot in shot_inputs(batch):
+            if reviewed.get(shot["id"]) == before[shot["id"]]:
+                reviewed[shot["id"]] = digest(shot)
+        if batch.get("inspection_basis") and batch.get("inspection_rule_basis"):
+            batch["inspection_basis"] = basis(batch, batch["inspection_rule_basis"])
+    return changed
 
 
-def adopt(path, project, batch_basis, revision_id, expected):
-    from lib.novel_workflow import execution
-    from lib.novel_workflow.scene_library import catalog, valid_batch
-    from lib.novel_workflow.scene_source import batch_source
-    from lib.novel_workflow.shot_production import asset_bindings, dialogue_links, planning_inputs
+def complete_saved(path, note_id, unit_id):
+    """Resume previously reviewed candidates using the same product path, without another model call."""
+    from lib.novel_workflow.scene_library import catalog
 
     with project_metadata_lock(path):
-        project = load_json(path / "project.json")
-        notebook = store.require_current(path, project, expected)
-        readings = store.valid_readings(path, notebook)
         library = catalog(path)
-        batch = next((b for b in library["batches"].values() if b["basis"] == batch_basis), None)
-        if not batch or not valid_batch(path, batch, notebook, readings):
-            raise ValueError("场镜依据已变化，请刷新后复核")
-        item = next((r for r in batch.get("review", {}).get("revisions", []) if r["id"] == revision_id), None)
-        if not item:
-            raise ValueError("修订建议不存在")
-        if item.get("superseded"):
-            raise ValueError("镜头方案已变化，该修订建议已过期，请重新核对当前镜头")
-        if item["applied"]:
-            return {"applied": True}
-        obj = target(batch["scenes"], item)
-        if obj.get(item["field"], "") != item["before"]:
-            raise ValueError("修订前文字已变化，不覆盖当前版本")
-        shot = batch["scenes"][item["scene_index"]]["shots"][item["shot_index"]]
-        candidate = deepcopy(shot)
-        if item["field"] == "title":
-            candidate["title"] = item["after"]
-        else:
-            candidate["segments"][item["segment_index"]][item["field"]] = deepcopy(item["after"])
-        original = batch_source(path, project, batch_basis)["text"]
-        validated = execution.validate_edit(
-            execution.ShotEdit.model_validate({"title": candidate["title"], "segments": candidate["segments"]}),
-            original,
-            project,
+        batch = next(
+            (
+                b
+                for b in library["batches"].values()
+                if b["note_id"] == note_id and any(s["id"] == unit_id for s in b["scenes"])
+            ),
+            None,
         )
-        rules = store.effective_rule(path, "scene_shots")
-        ctx = batch.get("production_context")
-        shots = {s["id"]: s for sc in batch["scenes"] for s in sc["shots"]}
-        was_current = bool(
-            ctx
-            and batch.get("production_basis")
-            == planning_inputs(ctx, rules, shots, project, readings[batch["note_id"]])[2]
-        )
-        store.write(store.root(path) / "history" / f"scene-revision-{uuid4().hex}.json", batch)
-        shot.update(title=validated["title"], segments=validated["segments"])
-        shot.pop("execution_draft", None)
-        if shot.get("production"):
-            shot["production"]["assets"] = asset_bindings(project, readings[batch["note_id"]], shot)
-            shot["production"]["dialogue_sources"] = dialogue_links(readings[batch["note_id"]], shot)
-        if was_current:
-            batch["production_basis"] = planning_inputs(ctx, rules, shots, project, readings[batch["note_id"]])[2]
-        item.update(applied=True, applied_at=now(), applied_by="human")
-        if batch.get("pipeline_version") == 2:
-            from lib.novel_workflow.scene_inspection import basis as inspection_basis
-            from lib.novel_workflow.scene_inspection import shot_inputs
-
-            rule_basis = batch.get("inspection_rule_basis") or batch["dependencies"]["inspection_rule"]
-            batch["inspection_basis"] = inspection_basis(batch, rule_basis)
-            if "inspection_shots" in batch:
-                batch["inspection_shots"][shot["id"]] = next(
-                    digest(s) for s in shot_inputs(batch) if s["id"] == shot["id"]
-                )
-        store.write(store.root(path) / "scene_library.json", library)
-        return {"applied": True}
+        if not batch:
+            return 0
+        previous = deepcopy(batch)
+        count = complete_corrections(batch)
+        if batch != previous:
+            store.write(store.root(path) / "scene_library.json", library)
+        return count
 
 
 def require_reviewed(batch, shot):
@@ -104,7 +99,7 @@ def require_reviewed(batch, shot):
     for item in review.get("revisions", []):
         candidate = batch["scenes"][item["scene_index"]]["shots"][item["shot_index"]]
         if candidate["id"] == shot["id"] and not item["applied"] and not item.get("superseded"):
-            raise ValueError(f"{shot['id']} 有未采纳的原文一致性修订，请先在场镜素材库处理")
+            raise ValueError(f"{shot['id']} 的自动复审补正尚未完成，请继续生成任务")
 
 
 def confirm_questions(path, project, batch_basis, expected, review_basis, reason, question_index, resolution):

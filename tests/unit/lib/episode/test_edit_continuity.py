@@ -30,21 +30,13 @@ def test_cross_scene_is_not_a_false_mismatch_and_missing_is_not_unchanged():
     assert continuity.boundaries([split])[0]["status"] == "recorded"
 
 
-def test_native_production_receives_only_current_linked_adaptation_decisions():
+def test_native_production_receives_only_selected_current_director_notes():
     review = {
-        "issues": [],
-        "adaptation_decisions": [
-            {
-                "shot_ids": ["a"],
-                "title": "取剑",
-                "adaptation_action": "compress",
-                "tradeoff": "保留行动因果，压缩重复对白",
-            },
-            {"shot_ids": ["b"], "title": "未选镜头"},
-            {"shot_ids": ["a"], "title": "过期决定", "stale": True},
+        "issues": [
+            {"id": "a", "code": "adapted_dialogue", "shot_id": "a", "segment": 0},
+            {"id": "b", "code": "adapted_dialogue", "shot_id": "b", "segment": 0},
         ],
+        "decision": {"decisions": {"adapted_dialogue": "保留行动因果，压缩重复对白"}},
     }
-    result = director_notes(review, "a", 0)
-    assert "压缩重复对白" in result
-    assert "未选镜头" not in result
-    assert "过期决定" not in result
+    assert "压缩重复对白" in director_notes(review, "a", 0)
+    assert director_notes(review, "a", 1) == ""

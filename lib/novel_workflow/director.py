@@ -29,16 +29,7 @@ def content_from_selection(selected, episode, title, review=None):
         execution_groups = groups(shot["segments"])
         for index, source_indexes in enumerate(execution_groups, 1):
             segment = merge([native_segment(shot["segments"][i], shot.get("production"), i) for i in source_indexes])
-            from lib.novel_workflow.craft_review import appearance_text, opening_text
 
-            segment["scene_description"] += appearance_text(shot)
-            if (
-                index == 1
-                and scene.get("opening_state")
-                and scene.get("shots")
-                and scene["shots"][0]["id"] == shot["id"]
-            ):
-                segment["scene_description"] += opening_text(scene)
             if review:
                 from lib.novel_workflow.delivery_review import director_notes
 

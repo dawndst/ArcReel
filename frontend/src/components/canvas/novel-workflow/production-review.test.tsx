@@ -35,7 +35,7 @@ it("requires an explicit human story decision before assembly; no automatic AI o
 it("hard structural problems cannot be waived by a human checkbox", async () => {
   vi.mocked(API.deliveryPreview).mockResolvedValue({ ...initial, issues: [{ id: "missing", code: "speaker_missing", hard: true, shot_id: "SH-1", segment: 0, details: { text: "出发" } }] });
   panel(); fireEvent.click(screen.getByRole("button", { name: "预览所选场镜并组集" }));
-  expect(await screen.findByText(/项待补信息/)).toBeInTheDocument();
+  expect(await screen.findByText(/正式交付前需处理/)).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "保存当前版本的编导确认" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "前往 SH-001 修改" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "创建参考分集并保存编排" })).toBeEnabled();

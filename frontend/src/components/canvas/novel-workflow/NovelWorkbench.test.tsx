@@ -35,7 +35,8 @@ it("requires human confirmation to group selected Notes and preserves source Not
   render(<NovelWorkbench projectName="demo" />);
   fireEvent.click(await screen.findByRole("checkbox", { name: "选择 卷一 · 第1章" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "选择 卷一 · 第2章" }));
-  fireEvent.click(screen.getByRole("button", { name: "人工合并 Note" }));
+  fireEvent.click(screen.getByRole("button", { name: "更多操作" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: /人工合并 Note/ }));
   expect(merge).not.toHaveBeenCalled();
   const dialog = screen.getByRole("dialog");
   expect(within(dialog).getByText("卷一 · 第1章")).toBeInTheDocument();
@@ -56,7 +57,7 @@ it("shows a consolidated chapter summary and lets review suggestions select sour
   render(<NovelWorkbench projectName="demo" />);
   expect(await screen.findByText("为了脱身，甲取剑应对阻力，最终找到出路。")).toBeInTheDocument();
   expect(screen.queryByText("分块内部摘要，不应冒充整章概况")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "改编决策 (0)" }));
+  fireEvent.click(screen.getByRole("button", { name: "改编决策 (1)" }));
   expect(screen.getByText("建立主动性")).toBeInTheDocument();
   expect(screen.getByText("保留剑的来历")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "选择来源 Note" }));
@@ -74,7 +75,7 @@ it("saves independent summary and understanding settings without starting a mode
   fireEvent.click(within(dialog).getByRole("checkbox", { name: "启用跨章理解（默认开启）" }));
   fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-  expect(save).toHaveBeenCalledWith("demo", { summary_max_chars: 2400, understanding_enabled: false, delivery_checks_enabled: true, craft_checks_enabled: true, conclusions_enabled: true, max_model_calls: 100 });
+  expect(save).toHaveBeenCalledWith("demo", { summary_max_chars: 2400, understanding_enabled: false, delivery_checks_enabled: true, conclusions_enabled: true, max_model_calls: 100 });
   expect(run).not.toHaveBeenCalled();
 });
 
@@ -185,5 +186,5 @@ it("allows SVT with a dialogue-only unresolved conclusion and keeps the producti
   render(<NovelWorkbench projectName="demo" />);
   fireEvent.click(await screen.findByRole('checkbox',{name:'选择 卷一 · 第1章'}));
   expect(screen.getByRole('button',{name:'从所选 Note 提炼 SVT'})).toBeEnabled();
-  expect(screen.getByText('SVT 可继续提炼；以下问题仅需在生成场镜前核对。')).toBeVisible();
+  expect(screen.getByText('SVT 与场镜草稿可继续；以下解释疑点保留原话，正式制作前核对。')).toBeVisible();
 });

@@ -199,6 +199,9 @@ async def generate(path, generator, note_ids, expected, *, durations=None):
                 )
                 await run_noninterruptible_sync(store.write, store.root(path) / "progress.json", progress)
                 if unit["status"] == "ready":
+                    from lib.novel_workflow.scene_review import complete_saved
+
+                    await run_noninterruptible_sync(complete_saved, path, note["id"], unit["id"])
                     completed += 1
                     continue
                 try:
@@ -366,6 +369,9 @@ async def generate_unit(path, generator, catalogue, plan, unit, project):
                     inspection_rule_basis=plan["dependencies"]["inspection_rule"],
                     inspection_shots={s["id"]: digest(s) for s in shot_inputs(batch)},
                 )
+                from lib.novel_workflow.scene_review import complete_corrections
+
+                complete_corrections(current)
                 store.write(store.root(path) / "scene_library.json", library)
 
         await run_noninterruptible_sync(commit_review)

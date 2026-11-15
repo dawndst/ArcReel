@@ -2164,7 +2164,7 @@ class API {
   static async setNoteScope(name: string, note_ids: string[], source_basis: string, extend = true): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/scope`, { method: "PUT", body: JSON.stringify({ note_ids, source_basis, extend }) });
   }
-  static async updateNoteSettings(name: string, values: { summary_max_chars: number; understanding_enabled: boolean; delivery_checks_enabled?: boolean; craft_checks_enabled?: boolean; conclusions_enabled?: boolean; max_model_calls?: number }): Promise<unknown> {
+  static async updateNoteSettings(name: string, values: { summary_max_chars: number; understanding_enabled: boolean; delivery_checks_enabled?: boolean; conclusions_enabled?: boolean; max_model_calls?: number }): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/settings`, { method: "PATCH", body: JSON.stringify(values) });
   }
 
@@ -2203,9 +2203,6 @@ class API {
   static async confirmSceneQuestions(name: string, batch_basis: string, review_basis: string, reason: string, source_basis: string, question_index: number, resolution: "repaired" | "false_positive"): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/scene-revisions/confirm`, { method: "POST", body: JSON.stringify({ batch_basis, review_basis, reason, source_basis, question_index, resolution }) });
   }
-  static async adoptSceneRevision(name: string, batch_basis: string, revision_id: string, source_basis: string): Promise<unknown> {
-    return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/scene-revisions/adopt`, { method: "POST", body: JSON.stringify({ batch_basis, revision_id, source_basis }) });
-  }
   static async attributeNoteDialogue(name: string, shot: string, segment_index: number, utterance_index: number, speaker: string, source_basis: string, shot_basis: string, register_role = false): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/shots/${encodeURIComponent(shot)}/speaker`, { method: "PATCH", body: JSON.stringify({ segment_index, utterance_index, speaker, source_basis, shot_basis, register_role }) });
   }
@@ -2221,7 +2218,7 @@ class API {
   static async editShotExecution(name: string, shot: string, source_basis: string, shot_basis: string, value: import("@/types/novel-workflow").ShotEdit): Promise<{ shot_ids: string[] }> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/shots/${encodeURIComponent(shot)}/execution`, { method: "PATCH", body: JSON.stringify({ source_basis, shot_basis, value }) });
   }
-  static async productionAdvice(name: string, action: "shot_draft" | "selection_story" | "craft_review", note_ids: string[], shot_ids: string[], source_basis: string, title = ""): Promise<{ batch: { members: { task_id: string; status: string }[] } }> {
+  static async productionAdvice(name: string, action: "shot_draft" | "selection_story", note_ids: string[], shot_ids: string[], source_basis: string, title = ""): Promise<{ batch: { members: { task_id: string; status: string }[] } }> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action, note_ids, shot_ids, source_basis, title }) });
   }
   static async deliveryPlans(name: string): Promise<import("@/types/novel-workflow").SavedDelivery[]> {
@@ -2244,9 +2241,6 @@ class API {
   }
   static async suggestShotSpeakers(name: string, note_id: string, shot_id: string, source_basis: string): Promise<unknown> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/run`, { method: "POST", body: JSON.stringify({ action: "speaker_attribution", note_ids: [note_id], shot_ids: [shot_id], source_basis }) });
-  }
-  static async saveCraftDecision(name: string, batch: string, source: string, revision: string, decision: import("@/types/novel-workflow").CraftDecision): Promise<void> {
-    await this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/scene-batches/${encodeURIComponent(batch)}/craft-decision`, { method: "POST", body: JSON.stringify({ ...decision, source_basis: source, revision }) });
   }
   static async getSceneBatchSource(name: string, basis: string): Promise<import("@/types/novel-workflow").SceneSource> {
     return this.request(`/projects/${encodeURIComponent(name)}/novel-workflow/scene-batches/${encodeURIComponent(basis)}/source`);

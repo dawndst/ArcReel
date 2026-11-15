@@ -43,16 +43,15 @@ it("keeps unresolved dialogue visible while allowing reference assembly", () => 
   fireEvent.change(screen.getByRole("combobox", { name: "确认说话人" }), { target: { value: "同学甲" } });
   expect(attribute).toHaveBeenCalledWith(shot.id, 0, 0, "同学甲", "rev");
 });
-it("shows before/after changes as advice without blocking reference assembly", () => {
+it("keeps automatic review revisions internal and shows only current material", () => {
   const draft = structuredClone(batch);
-  draft.review = { revisions: [{ id: "r", scene_index: 0, shot_index: 0, segment_index: null, field: "title", before: "红发", after: "发辫", reason: "发色未明确", source_quote: "编成一条辫子", applied: false }], unresolved: [] };
-  const adopt = vi.fn();
-  render(<SceneLibraryPanel batches={[draft]} notes={[]} disabled={false} selection={["SH-1"]} setSelection={() => {}} title="验收" setTitle={() => {}} assemble={() => {}} source={() => {}} adoptRevision={adopt} />);
-  expect(screen.getByText("红发").closest("p")).toHaveClass("bg-destructive/10");
-  expect(screen.getByText("发辫")).toHaveClass("bg-primary/10");
+  draft.review = { revisions: [{ id: "r", scene_index: 0, shot_index: 0, segment_index: null, field: "title", before: "红发", after: "发辫", reason: "发色未明确", source_quote: "编成一条辫子", applied: true }], unresolved: [] };
+  render(<SceneLibraryPanel batches={[draft]} notes={[]} disabled={false} selection={["SH-1"]} setSelection={() => {}} title="验收" setTitle={() => {}} assemble={() => {}} source={() => {}} />);
+  expect(screen.queryByText("红发")).not.toBeInTheDocument();
+  expect(screen.queryByText("发辫")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "采用修订并保存新版本" })).not.toBeInTheDocument();
+  expect(screen.queryByText("内容承载与外观检查")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "将所选场镜编排为一集" })).toBeEnabled();
-  fireEvent.click(screen.getByRole("button", { name: "采用修订并保存新版本" }));
-  expect(adopt).toHaveBeenCalledWith("b", "r");
 });
 
 it("numbers recovered batches in source order and keeps stable IDs for selection and filtering", () => {
@@ -141,12 +140,12 @@ it("resolves one review question without hiding missing speakers", () => {
   expect(screen.getByText(/谁/).closest("p")).toHaveTextContent(/说话人待确认：.*谁/);
 });
 
-it("renders dialogue-array revisions as readable speaker lines", () => {
+it("never renders obsolete dialogue rewrite candidates as selectable versions", () => {
   const draft = structuredClone(batch);
   draft.review = { revisions: [{ id: "dialogue-r", scene_index: 0, shot_index: 0, segment_index: 0, field: "utterances", before: [{ kind: "dialogue", speaker: "阳子", text: "为什么？", delivery: "on_screen" }], after: [{ kind: "dialogue", speaker: "猴子", text: "我知道。", delivery: "on_screen" }, { kind: "dialogue", speaker: "阳子", text: "为什么？", delivery: "on_screen" }], reason: "补齐问答前提", source_quote: "我知道。为什么？", applied: false }], unresolved: [] };
   render(<SceneLibraryPanel batches={[draft]} notes={[]} disabled={false} selection={[]} setSelection={() => {}} title="" setTitle={() => {}} assemble={() => {}} source={() => {}} />);
-  expect(screen.getAllByText(/阳子 · 画内对白：为什么？/).length).toBeGreaterThan(0);
-  expect(screen.getByText(/猴子 · 画内对白：我知道。/)).toBeInTheDocument();
+  expect(screen.queryByText(/阳子 · 画内对白：为什么？/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/猴子 · 画内对白：我知道。/)).not.toBeInTheDocument();
   expect(screen.queryByText("[object Object]")).not.toBeInTheDocument();
 });
 

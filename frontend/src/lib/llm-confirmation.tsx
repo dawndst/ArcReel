@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } f
 import { Button } from "@/components/ui/button";
 
 export class LlmCallCancelled extends Error { constructor() { super("已取消模型调用"); this.name = "LlmCallCancelled"; } }
-const names: Record<string, string> = { read:"泛读生成 Note / 续跑", svt:"提炼 SVT 与爆点", review:"分析改编取舍", understand:"跨章精读与回查", conclusions:"更新问题与结论", questions:"整理相似问题", scenes:"生成场与镜头", condense:"生成精简稿", group_summary:"汇总资料组", speaker_attribution:"分析说话人", shot_draft:"修订镜头", craft_review:"检查内容与外观", selection_story:"检查组集叙事", conclusion_evidence:"定向回查当前疑点" };
+const names: Record<string, string> = { read:"泛读生成 Note / 续跑", svt:"提炼 SVT 与爆点", review:"分析改编取舍", understand:"跨章精读与回查", conclusions:"更新问题与结论", questions:"整理相似问题", scenes:"生成场与镜头", condense:"生成精简稿", group_summary:"汇总资料组", speaker_attribution:"分析说话人", shot_draft:"修订镜头", selection_story:"检查组集叙事", conclusion_evidence:"定向回查当前疑点" };
 const contexts = new Map<string, { notes: Record<string, string>; questions: Record<string, string> }>();
 export function setLlmContext(project: string, notes: Record<string, string>, questions: Record<string, string>) { contexts.set(project, { notes, questions }); }
 export function llmRequestSummary(endpoint: string, options: RequestInit): string | null {

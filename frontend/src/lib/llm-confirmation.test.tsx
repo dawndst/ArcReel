@@ -4,7 +4,7 @@ import { confirmLlmCall, LlmCallCancelled, llmRequestSummary } from "./llm-confi
 import { API } from "@/api";
 
 it("recognizes model jobs while leaving source browsing and manual writes direct", () => {
-  for (const action of ["read","svt","review","understand","conclusions","scenes","group_summary","conclusion_evidence","craft_review","shot_draft","speaker_attribution","selection_story"])
+  for (const action of ["read","svt","review","understand","conclusions","scenes","group_summary","conclusion_evidence","shot_draft","speaker_attribution","selection_story"])
     expect(llmRequestSummary('/projects/demo/novel-workflow/run',{method:'POST',body:JSON.stringify({action,note_ids:['n']})})).toBeTruthy();
   expect(llmRequestSummary('/projects/demo/novel-workflow/run',{method:'POST',body:JSON.stringify({action:'questions',question_ai:false})})).toBeNull();
   expect(llmRequestSummary('/projects/demo/novel-workflow/run',{method:'POST',body:JSON.stringify({action:'questions',question_ai:true})})).toBeTruthy();

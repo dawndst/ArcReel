@@ -7,7 +7,7 @@ import pytest
 from lib.novel_workflow import scene_review
 
 
-async def test_adoption_versions_only_selected_field_and_guards_assembly(tmp_path):
+async def test_review_finishes_text_corrections_without_manual_version_choice(tmp_path):
     from lib.novel_workflow import scene_library, store
     from lib.novel_workflow.service import generate_svts, read_notes
     from tests.unit.lib.episode.test_novel_workflow import Reader, SVTReader, project
@@ -22,7 +22,10 @@ async def test_adoption_versions_only_selected_field_and_guards_assembly(tmp_pat
     from tests.unit.lib.episode.test_scene_pipeline import model_output
 
     class Generator:
+        calls = 0
+
         async def generate(self, request, **kwargs):
+            self.calls += 1
             value = model_output(request)
             if request.response_schema["title"] == "Inspection":
                 material = json.loads(request.prompt.split("阶段材料：", 1)[1])
@@ -38,63 +41,35 @@ async def test_adoption_versions_only_selected_field_and_guards_assembly(tmp_pat
                 ]
             return SimpleNamespace(text=json.dumps(value))
 
-    await scene_library.generate(tmp_path, Generator(), [note_id], notebook["source_basis"], durations=[8])
+    generator = Generator()
+    await scene_library.generate(tmp_path, generator, [note_id], notebook["source_basis"], durations=[8])
     batch = next(iter((await asyncio.to_thread(scene_library.catalog, tmp_path))["batches"].values()))
     shot = batch["scenes"][0]["shots"][0]
-    with pytest.raises(ValueError, match="一致性修订"):
-        scene_review.require_reviewed(batch, shot)
-    result = await asyncio.to_thread(
-        scene_review.adopt,
-        tmp_path,
-        data,
-        batch["basis"],
-        batch["review"]["revisions"][0]["id"],
-        notebook["source_basis"],
+    assert shot["title"] == "拿起古剑"
+    assert batch["review"]["revisions"][0]["applied_by"] == "automatic_review"
+    scene_review.require_reviewed(batch, shot)
+    assert scene_review.complete_corrections(batch) == 0
+    calls = generator.calls
+    await scene_library.generate(tmp_path, generator, [note_id], notebook["source_basis"], durations=[8])
+    assert generator.calls == calls
+    from copy import deepcopy
+
+    original = deepcopy(shot)
+    batch["review"]["revisions"].append(
+        {
+            "id": "unsafe-dialogue",
+            "scene_index": 0,
+            "shot_index": 0,
+            "segment_index": 0,
+            "field": "utterances",
+            "before": [],
+            "after": [{"kind": "voiceover", "text": "伪造台词"}],
+            "applied": False,
+        }
     )
-    assert result["applied"]
-    saved = next(iter((await asyncio.to_thread(scene_library.catalog, tmp_path))["batches"].values()))
-    assert saved["scenes"][0]["shots"][0]["title"] == "拿起古剑"
-    assert saved["scenes"][0]["shots"][0]["evidence"] == shot["evidence"]
-    scene_review.require_reviewed(saved, saved["scenes"][0]["shots"][0])
-    histories = await asyncio.to_thread(lambda: list((store.root(tmp_path) / "history").glob("scene-revision-*.json")))
-    old = await asyncio.to_thread(lambda: json.loads(histories[0].read_text()))
-    assert old["scenes"][0]["shots"][0]["title"] == "取剑镜头"
-    library = await asyncio.to_thread(scene_library.catalog, tmp_path)
-    batch = next(iter(library["batches"].values()))
-    segment = batch["scenes"][0]["shots"][0]["segments"][0]
-    suggestion = {
-        "scene_index": 0,
-        "shot_index": 0,
-        "segment_index": 0,
-        "field": "utterances",
-        "before": segment["utterances"],
-        "after": [{"kind": "voiceover", "text": "伪造的原文台词"}],
-        "source_quote": "甲拿起古剑。",
-        "reason": "补足声音",
-        "id": "dialogue-revision",
-        "applied": False,
-    }
-    batch["review"]["revisions"].append(suggestion)
-    await asyncio.to_thread(store.write, store.root(tmp_path) / "scene_library.json", library)
-    with pytest.raises(ValueError, match="连续摘录"):
-        await asyncio.to_thread(
-            scene_review.adopt, tmp_path, data, batch["basis"], suggestion["id"], notebook["source_basis"]
-        )
-    suggestion["after"] = [{"kind": "dialogue", "speaker": "未登记角色", "text": "甲拿起古剑。"}]
-    await asyncio.to_thread(store.write, store.root(tmp_path) / "scene_library.json", library)
-    with pytest.raises(ValueError, match="已登记角色"):
-        await asyncio.to_thread(
-            scene_review.adopt, tmp_path, data, batch["basis"], suggestion["id"], notebook["source_basis"]
-        )
-    suggestion["after"] = [{"kind": "voiceover", "text": "甲拿起古剑。"}]
-    await asyncio.to_thread(store.write, store.root(tmp_path) / "scene_library.json", library)
-    await asyncio.to_thread(
-        scene_review.adopt, tmp_path, data, batch["basis"], suggestion["id"], notebook["source_basis"]
-    )
-    saved = next(iter((await asyncio.to_thread(scene_library.catalog, tmp_path))["batches"].values()))
-    revised_shot = saved["scenes"][0]["shots"][0]
-    assert revised_shot["segments"][0]["utterances"][0]["text"] == "甲拿起古剑。"
-    assert revised_shot["production"]["dialogue_sources"] == [{"segment": 0, "utterance": 0, "dialogue_id": None}]
+    with pytest.raises(ValueError, match="仅允许"):
+        scene_review.complete_corrections(batch)
+    assert shot == original
 
 
 def test_confirm_question_is_individual_versioned_and_preserves_other_production_issues(tmp_path, monkeypatch):

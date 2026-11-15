@@ -5,7 +5,7 @@ import { WorkflowReviewGuide } from "./WorkflowReviewGuide";
 it("distinguishes optional review, scoped generation requirements and final delivery approvals", () => {
   render(<WorkflowReviewGuide />);
   const table = screen.getByRole("table");
-  const optional = within(table).getByRole("rowheader", { name: "改编取舍、造型与观众理解辅助" }).closest("tr")!;
+  const optional = within(table).getByRole("rowheader", { name: "改编取舍与观众理解辅助" }).closest("tr")!;
   expect(optional).toHaveTextContent("不阻挡建立参考集");
   const images = within(table).getByRole("rowheader", { name: "图片参考确认" }).closest("tr")!;
   expect(images).toHaveTextContent("正式交付需确认");

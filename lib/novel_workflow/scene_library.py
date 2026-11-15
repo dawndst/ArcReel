@@ -149,13 +149,6 @@ def view(path, notebook, readings, *, shot_ids=None):
                 from lib.novel_workflow.scene_source import source_chunk
 
                 batch["dialogue_coverage"] = report(batch, coverage_reading, source_chunk(path, project, batch))
-        from lib.novel_workflow import craft_review, settings
-
-        if settings.get(path)["craft_checks_enabled"]:
-            try:
-                batch["craft"] = craft_review.view(path, project, batch)
-            except (ValueError, FileNotFoundError):
-                batch["craft_error"] = "当前原文或对应的历史资料不可用，无法检查；已有场镜仍保留"
         if "review" in batch:
             batch["review_revision"] = digest(batch["review"])
         for scene in batch["scenes"]:

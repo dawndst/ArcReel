@@ -16,7 +16,7 @@ from lib.novel_workflow.scene_library import selected_shots
 from lib.novel_workflow.scene_projection import project as project_segments
 from lib.novel_workflow.storage import load_json
 
-CHECK_VERSION = 3
+CHECK_VERSION = 4
 
 
 class DirectorDecision(StrictModel):
@@ -62,12 +62,7 @@ def preview(path, project, shot_ids, title, expected):
 
         shot = deepcopy(shot)
         shot["segments"] = [effective_segment(seg, shot.get("production"), i) for i, seg in enumerate(shot["segments"])]
-        from lib.novel_workflow.craft_review import appearance_text, opening_text
 
-        for i, segment in enumerate(shot["segments"]):
-            segment["scene_description"] += appearance_text(shot)
-            if i == 0 and scene.get("opening_state") and scene.get("shots") and scene["shots"][0]["id"] == shot["id"]:
-                segment["scene_description"] += opening_text(scene)
         checks = execution.inspect(shot, project)
         if batch.get("pipeline_version") == 2 and shot["id"] in batch.get("review_pending_shot_ids", []):
             checks.append(
@@ -167,27 +162,6 @@ def preview(path, project, shot_ids, title, expected):
             )
     edit_boundaries = continuity.boundaries(shots)
     issues.extend(continuity.issues(edit_boundaries))
-    adaptation_decisions = []
-
-    seen_batches = set()
-    for batch, _, _ in selected:
-        if batch["basis"] in seen_batches:
-            continue
-        seen_batches.add(batch["basis"])
-        craft = batch.get("craft") or {"items": []}
-        for item in craft["items"]:
-            decision = item.get("decision")
-            if decision and (decision["decision"] == "omit" or set(decision.get("shot_ids", [])) & set(shot_ids)):
-                adaptation_decisions.append(
-                    {
-                        "batch": batch["basis"],
-                        "note_id": batch["note_id"],
-                        "item_id": item["id"],
-                        "title": item["title"],
-                        "source": item["evidence"],
-                        **decision,
-                    }
-                )
     assets = []
     for (kind, name), use in used.items():
         item = execution.asset(project, kind, name)
@@ -211,7 +185,6 @@ def preview(path, project, shot_ids, title, expected):
             title.strip(),
             [execution.content_basis(s) for _, _, s in selected],
             [shot["conclusion_constraints"] for shot in shots],
-            adaptation_decisions,
             issues,
             [{k: v for k, v in a.items() if k not in {"image", "image_hash"}} for a in assets],
             store.effective_rule(path, "shot_execution"),
@@ -230,7 +203,6 @@ def preview(path, project, shot_ids, title, expected):
         "shots": shots,
         "assets": assets,
         "continuity": edit_boundaries,
-        "adaptation_decisions": adaptation_decisions,
         "issues": issues,
         "seconds": sum(s["duration_seconds"] for sh in shots for s in sh["segments"]),
         "aspect_ratio": project.get("aspect_ratio", "16:9"),
@@ -322,17 +294,6 @@ def director_notes(review, shot_id, segment_index):
         )
     )
     notes = [n for n in notes if n]
-    for item in review.get("adaptation_decisions", []):
-        if item.get("stale") or shot_id not in item.get("shot_ids", []):
-            continue
-        notes.append(
-            "改编取舍："
-            + "；".join(
-                str(item.get(key, ""))
-                for key in ("title", "adaptation_action", "dramatic_function", "reason", "tradeoff")
-                if item.get(key)
-            )
-        )
     return "\n".join(notes)
 
 
@@ -484,7 +445,6 @@ def export(path, project, shot_ids, title, expected, *, final=False):
             lines.append("原文依据：" + shot["source"]["quote"])
             lines.extend(f"\n### {seg['delivery_id']}\n{seg['canvas_prompt']}" for seg in shot["segments"])
         archive.writestr("制作清单.md", "\n".join(lines))
-        archive.writestr("改编取舍.json", json.dumps(current["adaptation_decisions"], ensure_ascii=False, indent=2))
         archive.writestr("镜头衔接.json", json.dumps(current["continuity"], ensure_ascii=False, indent=2))
         archive.writestr("编导确认.json", json.dumps(current.get("decision"), ensure_ascii=False, indent=2))
     return buffer.getvalue()
